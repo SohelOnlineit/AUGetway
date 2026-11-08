@@ -1,0 +1,20 @@
+[Unit]
+Description=UniqBD Pay API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uniqpay
+Group=uniqpay
+WorkingDirectory=/var/www/pay.uniqbd.com/apps/api
+Environment=NODE_ENV=production
+Environment=PORT=4100
+EnvironmentFile=/var/www/pay.uniqbd.com/.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
