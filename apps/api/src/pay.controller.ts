@@ -11,6 +11,7 @@ import {
   KeyDto,
   KeyStateDto,
   LinkDto,
+  AccountDto,
   LoginDto,
   MethodDto,
   NoticeDto,
@@ -41,6 +42,12 @@ export class PayController {
   @UseGuards(DeskGuard)
   me(@Req() request: DeskRequest) {
     return this.pay.me(request.desk.sub);
+  }
+
+  @Patch("auth/account")
+  @UseGuards(DeskGuard)
+  account(@Req() request: DeskRequest, @Body() body: AccountDto) {
+    return this.pay.updateAccount(request.desk.sub, body);
   }
 
   @Get("desk/summary")

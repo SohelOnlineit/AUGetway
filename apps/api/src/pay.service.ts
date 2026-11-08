@@ -201,6 +201,33 @@ export class PayService implements OnModuleInit {
     return { id: user.id, name: user.name, email: user.email };
   }
 
+  async updateAccount(userId: string, input: { currentPassword: string; email: string; newPassword?: string }) {
+    const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
+    if (!user || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
+      throw new BadRequestException("Current password is wrong");
+    }
+    const email = input.email.trim().toLowerCase();
+    const newPassword = input.newPassword?.trim() ?? "";
+    if (email === user.email && !newPassword) {
+      throw new BadRequestException("Change the email or the password");
+    }
+    try {
+      const updated = await this.prisma.deskUser.update({
+        where: { id: user.id },
+        data: {
+          email,
+          ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12) } : {}),
+        },
+      });
+      return this.session(updated.id, updated.email, updated.name);
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new BadRequestException("That email is already used");
+      }
+      throw error;
+    }
+  }
+
   async summary(ownerId: string) {
     const [open, waiting, paid, methods, handsets] = await Promise.all([
       this.prisma.checkout.count({ where: { ownerId, status: "open" } }),

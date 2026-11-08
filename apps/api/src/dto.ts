@@ -24,6 +24,24 @@ export class LoginDto {
   password!: string;
 }
 
+export class AccountDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(80)
+  currentPassword!: string;
+
+  @Transform(({ value }) => (typeof value === "string" ? value.trim().toLowerCase() : value))
+  @IsEmail()
+  @MaxLength(120)
+  email!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(80)
+  newPassword?: string;
+}
+
 export class MethodDto {
   @IsString()
   @MinLength(2)
