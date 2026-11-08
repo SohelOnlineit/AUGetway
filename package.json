@@ -1,0 +1,23 @@
+{
+  "name": "uniqpay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UniqBD Pay — merchant checkout desk (Next.js 16 + NestJS 11 + Prisma 7)",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @uniqpay/web --filter @uniqpay/api dev",
+    "dev:web": "pnpm --filter @uniqpay/web dev",
+    "dev:api": "pnpm --filter @uniqpay/api dev",
+    "dev:mobile": "pnpm --filter @uniqpay/mobile start",
+    "db:local": "pnpm --filter @uniqpay/api db:local",
+    "db:push": "pnpm --filter @uniqpay/api db:push",
+    "build": "pnpm --filter @uniqpay/api prisma:generate && pnpm -r --filter @uniqpay/api --filter @uniqpay/web build"
+  },
+  "devDependencies": {
+    "turbo": "2.11.10",
+    "typescript": "5.9.3"
+  }
+}

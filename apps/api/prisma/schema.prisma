@@ -1,0 +1,182 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model DeskUser {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  methods      WalletMethod[]
+  checkouts    Checkout[]
+  bills        Bill[]
+  links        PayLink[]
+  keys         MerchantKey[]
+  handsets     Handset[]
+  customers    Customer[]
+  brand        BrandSetting?
+}
+
+model WalletMethod {
+  id            String     @id @default(cuid())
+  ownerId       String
+  owner         DeskUser   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  label         String
+  internalLabel String     @default("")
+  code          String     @default("")
+  accountNumber String     @default("")
+  accountCursor Int        @default(0)
+  instructions  String     @default("")
+  currency      String     @default("BDT")
+  minAmount     Decimal    @default(1) @db.Decimal(12, 2)
+  maxAmount     Decimal    @default(25000) @db.Decimal(12, 2)
+  fixedCharge   Decimal    @default(0) @db.Decimal(12, 2)
+  percentageCharge Decimal @default(0) @db.Decimal(8, 2)
+  fixedDiscount Decimal    @default(0) @db.Decimal(12, 2)
+  percentageDiscount Decimal @default(0) @db.Decimal(8, 2)
+  qrImage       String     @default("")
+  verifyBy      String     @default("transaction_id")
+  payWindow     Int        @default(15)
+  uniqueSlots   Int        @default(3)
+  uniqueKind    String     @default("integer")
+  acceptProof   Boolean    @default(true)
+  holdUnmatched Boolean    @default(false)
+  holdAbove     Decimal    @default(0) @db.Decimal(12, 2)
+  underTolerance Decimal   @default(0) @db.Decimal(12, 2)
+  overTolerance Decimal    @default(0) @db.Decimal(12, 2)
+  shiftAmount   Boolean    @default(false)
+  active        Boolean    @default(true)
+  sortOrder     Int        @default(0)
+  createdAt     DateTime   @default(now())
+  checkouts     Checkout[]
+}
+
+model Checkout {
+  id           String        @id @default(cuid())
+  publicId     String        @unique
+  ownerId      String
+  owner        DeskUser      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  methodId     String?
+  method       WalletMethod? @relation(fields: [methodId], references: [id])
+  reference    String
+  amount       Decimal       @db.Decimal(12, 2)
+  payable      Decimal       @db.Decimal(12, 2)
+  currency     String        @default("BDT")
+  status       String        @default("open")
+  payerAccount String?
+  providerRef  String?
+  payTo        String     @default("")
+  receipt      String     @default("")
+  successUrl   String?
+  cancelUrl    String?
+  billId       String?
+  bill         Bill?         @relation(fields: [billId], references: [id])
+  linkId       String?
+  link         PayLink?      @relation(fields: [linkId], references: [id])
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  notices      InboxNotice[]
+
+  @@index([ownerId, status])
+}
+
+model Bill {
+  id            String     @id @default(cuid())
+  ownerId       String
+  owner         DeskUser   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  number        String     @unique
+  customerName  String
+  customerEmail String?
+  title         String
+  currency      String     @default("BDT")
+  total         Decimal    @db.Decimal(12, 2)
+  status        String     @default("due")
+  dueOn         DateTime?
+  note          String     @default("")
+  createdAt     DateTime   @default(now())
+  checkouts     Checkout[]
+}
+
+model PayLink {
+  id        String     @id @default(cuid())
+  ownerId   String
+  owner     DeskUser   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  slug      String     @unique
+  title     String
+  detail    String     @default("")
+  amount    Decimal    @db.Decimal(12, 2)
+  currency  String     @default("BDT")
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  checkouts Checkout[]
+}
+
+model MerchantKey {
+  id         String    @id @default(cuid())
+  ownerId    String
+  owner      DeskUser  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  label      String
+  prefix     String
+  secretHash String    @unique
+  keyType    String    @default("payment")
+  abilities  Json      @default("[\"payment:checkout\", \"payment:verify\", \"payment:refund\"]")
+  webhookUrl String    @default("")
+  expiresAt  DateTime?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+}
+
+model Handset {
+  id         String        @id @default(cuid())
+  ownerId    String
+  owner      DeskUser      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  uid        String        @unique
+  label      String
+  model      String?
+  battery    Int?
+  simSlot    Int       @default(0)
+  lastSeenAt DateTime?
+  createdAt  DateTime      @default(now())
+  notices    InboxNotice[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+}
+
+model BrandSetting {
+  id           String   @id @default(cuid())
+  ownerId      String   @unique
+  owner        DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  brandName    String   @default("UniqBD Pay")
+  supportEmail String   @default("")
+  currency     String   @default("BDT")
+  checkoutNote String   @default("")
+  prefs        Json     @default("{}")
+  updatedAt    DateTime @updatedAt
+}
+
+model InboxNotice {
+  id         String    @id @default(cuid())
+  handsetId  String
+  handset    Handset   @relation(fields: [handsetId], references: [id], onDelete: Cascade)
+  sender     String    @default("")
+  body       String
+  checkoutId String?
+  checkout   Checkout? @relation(fields: [checkoutId], references: [id])
+  createdAt  DateTime  @default(now())
+}
