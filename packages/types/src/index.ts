@@ -26,6 +26,7 @@ export type CheckoutCard = {
   expiresAt: string;
   hasReceipt?: boolean;
   receipt?: string;
+  successUrl?: string | null;
   method: MethodCard | null;
   methods?: { id: string; label: string }[];
 };
