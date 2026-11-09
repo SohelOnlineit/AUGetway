@@ -2083,11 +2083,10 @@ export class PayService implements OnModuleInit {
       select: { amount: true, payable: true },
     });
     const unique = method.verifyBy === "unique_amount";
-    const decimal = unique ? !String(method.uniqueKind).toLowerCase().includes("integer") : true;
     const slots = unique ? Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1)) : 400;
-    const ladder = (value: number) => (decimal ? Math.round(value * 100) : Math.ceil(value - 1e-9) * 100);
+    const ladder = (value: number) => Math.round(value * 100);
     const baseCents = ladder(amount);
-    const stepCents = decimal ? 1 : 100;
+    const stepCents = 1;
     const taken = new Set<string>();
     let same = 0;
     for (const row of pending) {

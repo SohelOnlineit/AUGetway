@@ -55,12 +55,11 @@ function plain(value: string | number) {
   return Number.isFinite(amount) ? String(amount) : "";
 }
 
-function slotHelp(kind: string, slots: string) {
+function slotHelp(slots: string) {
   const count = Math.max(1, Math.min(40, Math.round(Number(slots)) || 1));
-  const decimal = !kind.toLowerCase().includes("integer");
-  const step = decimal ? 0.01 : 1;
+  const step = 0.01;
   const sample = [0, 1, 2].map((index) => (100 + index * step).toFixed(2)).join(", ");
-  return `How many spare amounts to offer when customers owe the same total. Each is ${step.toFixed(2)} above the last, so ${count} lets ${count + 1} people pay at once and the last pays ${(count * step).toFixed(2)} over the invoice. Example: ${sample}.`;
+  return `How many spare amounts to offer when customers owe the same total. Each is 1 poisha (0.01) above the last, so ${count} lets ${count + 1} people pay at once and the last pays ${(count * step).toFixed(2)} over the invoice. Example: ${sample}.`;
 }
 
 function fromDetail(row: GatewayDetail): FormState {
@@ -279,12 +278,12 @@ export default function EditGatewayPage() {
                     <option value="integer">Integer (e.g. 11)</option>
                     <option value="decimal">Decimal (e.g. 100.04)</option>
                   </select>
-                  <p className="gw-help">Integer rounds each checkout up to the next whole number, then adds 1.00 for every busy slot. Decimal keeps the paisa and adds 0.01 per slot, so a second customer paying 100.00 is asked for 100.01.</p>
+                  <p className="gw-help">Each next customer pays 1 poisha (0.01) more, not 1 taka. A second customer paying 100.00 is asked for 100.01, then 100.02.</p>
                 </label>
                 <label>
                   <span className="gw-label">Unique Amount Slots<i>*</i></span>
                   <input required type="number" min={1} max={40} value={form.uniqueSlots} onChange={(event) => patch({ uniqueSlots: event.target.value })} />
-                  <p className="gw-help">{slotHelp(form.uniqueKind, form.uniqueSlots)}</p>
+                  <p className="gw-help">{slotHelp(form.uniqueSlots)}</p>
                 </label>
               </>
             ) : null}
