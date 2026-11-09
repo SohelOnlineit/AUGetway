@@ -404,7 +404,7 @@ export default function App() {
             </View>
             <View style={styles.card}>
               <Text style={styles.section}>Send one SMS</Text>
-              <TextInput style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#6d6790" />
+              <TextInput style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#94a3b8" />
               <TextInput
                 style={[styles.input, styles.message]}
                 multiline
@@ -412,7 +412,7 @@ export default function App() {
                 onChangeText={setSmsText}
                 maxLength={320}
                 placeholder="Message"
-                placeholderTextColor="#6d6790"
+                placeholderTextColor="#94a3b8"
               />
               <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendSms()}>
                 <Text style={styles.buttonText}>Send SMS</Text>
@@ -422,7 +422,7 @@ export default function App() {
               <Text style={styles.section}>Paste a payment</Text>
               <Text style={styles.hint}>Use this when the message is not in the list.</Text>
               <Text style={styles.label}>Sender, if the message does not include it</Text>
-              <TextInput style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="01XXXXXXXXX" placeholderTextColor="#6d6790" />
+              <TextInput style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="01XXXXXXXXX" placeholderTextColor="#94a3b8" />
               <Text style={styles.label}>Payment message</Text>
               <TextInput
                 style={[styles.input, styles.message]}
@@ -430,7 +430,7 @@ export default function App() {
                 value={body}
                 onChangeText={setBody}
                 placeholder="Paste the message"
-                placeholderTextColor="#6d6790"
+                placeholderTextColor="#94a3b8"
               />
               <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendNotice()}>
                 <Text style={styles.buttonText}>{busy ? "Sending" : "Submit to desk"}</Text>
@@ -445,13 +445,13 @@ export default function App() {
             <Text style={styles.section}>Pair this phone</Text>
             <Text style={styles.hint}>Sign in with the same account you use on the desk.</Text>
             <Text style={styles.label}>Desk URL</Text>
-            <TextInput style={styles.input} value={base} onChangeText={setBase} autoCapitalize="none" autoCorrect={false} placeholderTextColor="#6d6790" />
+            <TextInput style={styles.input} value={base} onChangeText={setBase} autoCapitalize="none" autoCorrect={false} placeholderTextColor="#94a3b8" />
             <Text style={styles.label}>Phone name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#6d6790" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
             <Text style={styles.label}>Email</Text>
-            <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholderTextColor="#6d6790" />
+            <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholderTextColor="#94a3b8" />
             <Text style={styles.label}>Password</Text>
-            <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#6d6790" />
+            <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#94a3b8" />
             <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void signIn()}>
               <Text style={styles.buttonText}>{busy ? "Signing in" : "Sign in"}</Text>
             </Pressable>
@@ -463,7 +463,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#07060f" },
+  screen: { flex: 1, backgroundColor: "#01131a" },
   scroll: { padding: 20, paddingBottom: 48, gap: 14 },
   hero: { alignItems: "center", marginTop: 12, marginBottom: 4 },
   mark: {
@@ -472,54 +472,54 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#5b3df5",
+    backgroundColor: "#0f766e",
     borderWidth: 3,
-    borderColor: "#22d3ee",
+    borderColor: "#26bfb0",
   },
-  markText: { color: "#ffffff", fontSize: 28, fontWeight: "900", letterSpacing: -1 },
-  wordmark: { color: "#f8f7ff", fontSize: 32, fontWeight: "800", marginTop: 12 },
-  kicker: { color: "#a78bfa", fontSize: 12, fontWeight: "800", letterSpacing: 3, marginTop: 2 },
-  note: { color: "#c4bfe0", lineHeight: 20, textAlign: "center" },
+  markText: { color: "#f8fafc", fontSize: 28, fontWeight: "900", letterSpacing: -1 },
+  wordmark: { color: "#f8fafc", fontSize: 32, fontWeight: "800", marginTop: 12 },
+  kicker: { color: "#26bfb0", fontSize: 12, fontWeight: "800", letterSpacing: 3, marginTop: 2 },
+  note: { color: "#94a3b8", lineHeight: 20, textAlign: "center" },
   card: {
-    backgroundColor: "#141228",
-    borderColor: "rgba(167, 139, 250, 0.28)",
+    backgroundColor: "#031a22",
+    borderColor: "#0e2832",
     borderWidth: 1,
     borderRadius: 22,
     padding: 16,
     gap: 8,
   },
-  section: { color: "#f8f7ff", fontSize: 16, fontWeight: "800" },
+  section: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 99 },
-  dotOn: { backgroundColor: "#22d3ee" },
-  dotWait: { backgroundColor: "#fbbf24" },
-  label: { color: "#c4b5fd", fontSize: 12, fontWeight: "700", marginTop: 4 },
-  hint: { color: "#9b95b8", lineHeight: 18 },
-  uid: { color: "#22d3ee", fontSize: 13, fontWeight: "700" },
+  dotOn: { backgroundColor: "#26bfb0" },
+  dotWait: { backgroundColor: "#b45309" },
+  label: { color: "#26bfb0", fontSize: 12, fontWeight: "700", marginTop: 4 },
+  hint: { color: "#94a3b8", lineHeight: 18 },
+  uid: { color: "#26bfb0", fontSize: 13, fontWeight: "700" },
   input: {
     borderWidth: 1,
-    borderColor: "rgba(167, 139, 250, 0.35)",
+    borderColor: "#0e2832",
     borderRadius: 14,
     padding: 12,
-    color: "#f8f7ff",
-    backgroundColor: "#0d0b18",
+    color: "#f8fafc",
+    backgroundColor: "#01131a",
   },
   message: { minHeight: 110, textAlignVertical: "top" },
   sims: { flexDirection: "row", gap: 8 },
-  sim: { flex: 1, borderWidth: 1, borderColor: "rgba(167, 139, 250, 0.35)", borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: "#0d0b18" },
-  simOn: { backgroundColor: "#2a1d66", borderColor: "#22d3ee" },
-  simText: { color: "#ddd6fe", fontWeight: "800" },
-  simTextOn: { color: "#22d3ee" },
-  button: { backgroundColor: "#6d4aff", borderRadius: 16, padding: 14, alignItems: "center", marginTop: 4 },
-  buttonGhost: { borderWidth: 1, borderColor: "rgba(167, 139, 250, 0.35)", borderRadius: 16, padding: 14, alignItems: "center", backgroundColor: "#0d0b18" },
-  ghostText: { color: "#ddd6fe", fontWeight: "800" },
+  sim: { flex: 1, borderWidth: 1, borderColor: "#0e2832", borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: "#06212a" },
+  simOn: { backgroundColor: "#07312e", borderColor: "#26bfb0" },
+  simText: { color: "#f8fafc", fontWeight: "800" },
+  simTextOn: { color: "#26bfb0" },
+  button: { backgroundColor: "#0f766e", borderRadius: 16, padding: 14, alignItems: "center", marginTop: 4 },
+  buttonGhost: { borderWidth: 1, borderColor: "#0e2832", borderRadius: 16, padding: 14, alignItems: "center", backgroundColor: "#06212a" },
+  ghostText: { color: "#f8fafc", fontWeight: "800" },
   disabled: { opacity: 0.6 },
-  live: { color: "#22d3ee", fontWeight: "800" },
-  offline: { color: "#fbbf24", fontWeight: "800" },
+  live: { color: "#26bfb0", fontWeight: "800" },
+  offline: { color: "#b45309", fontWeight: "800" },
   buttonText: { color: "#ffffff", fontWeight: "800" },
-  link: { textAlign: "center", marginTop: 8, color: "#22d3ee", fontWeight: "800" },
-  signOut: { textAlign: "center", marginTop: 8, color: "#fb7185", fontWeight: "800" },
-  sms: { borderWidth: 1, borderColor: "rgba(167, 139, 250, 0.28)", borderRadius: 16, padding: 12, gap: 4, marginTop: 4, backgroundColor: "#0d0b18" },
-  smsTitle: { color: "#f8f7ff", fontWeight: "800" },
-  smsBody: { color: "#c4bfe0", lineHeight: 18 },
+  link: { textAlign: "center", marginTop: 8, color: "#26bfb0", fontWeight: "800" },
+  signOut: { textAlign: "center", marginTop: 8, color: "#e11d48", fontWeight: "800" },
+  sms: { borderWidth: 1, borderColor: "#0e2832", borderRadius: 16, padding: 12, gap: 4, marginTop: 4, backgroundColor: "#06212a" },
+  smsTitle: { color: "#f8fafc", fontWeight: "800" },
+  smsBody: { color: "#94a3b8", lineHeight: 18 },
 });

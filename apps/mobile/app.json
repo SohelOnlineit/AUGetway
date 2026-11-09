@@ -3,10 +3,10 @@
     "name": "AuGetway",
     "slug": "uniqbd-pay",
     "scheme": "uniqpay",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "android": {
       "package": "com.uniqbd.pay",
       "usesCleartextTraffic": true,
