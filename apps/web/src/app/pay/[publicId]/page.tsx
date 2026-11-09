@@ -57,32 +57,18 @@ async function copyValue(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
+const BRAND_LOGOS: { key: string; src: string; alt: string }[] = [
+  { key: "bkash", src: "/gateways/bkash.png", alt: "bKash" },
+  { key: "nagad", src: "/gateways/nagad.png", alt: "Nagad" },
+  { key: "rocket", src: "/gateways/rocket.png", alt: "Rocket" },
+  { key: "upay", src: "/gateways/upay.png", alt: "Upay" },
+  { key: "upai", src: "/gateways/upay.png", alt: "Upay" },
+];
+
 function MethodMark({ label }: { label: string }) {
   const name = label.toLowerCase();
-  if (name.includes("bkash")) {
-    return (
-      <span className="ck-logo bkash">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 13.5c2.2-6.2 6.4-9 8.6-9 1.1 3.2.8 6.4-1.2 9.2 3.2-.8 6.2-.4 8.8 1.4-4.2 1.2-7.2 3.4-8.4 6.4-2.2-3.2-5-5.4-7.8-7.9z" /></svg>
-        bKash
-      </span>
-    );
-  }
-  if (name.includes("nagad")) {
-    return (
-      <span className="ck-logo nagad">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><text x="12" y="16.5" textAnchor="middle" fontSize="12">ন</text></svg>
-        নগদ
-      </span>
-    );
-  }
-  if (name.includes("rocket")) {
-    return (
-      <span className="ck-logo rocket">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l3 6.2 6.5.6-4.9 4.2 1.5 6.4L12 16.8 5.9 19.9l1.5-6.4L2.5 9.3l6.5-.6L12 2.5z" /></svg>
-        রকেট
-      </span>
-    );
-  }
+  const brand = BRAND_LOGOS.find((item) => name.includes(item.key));
+  if (brand) return <img className="ck-brand-logo" src={brand.src} alt={brand.alt} />;
   if (name.includes("binance")) {
     return (
       <span className="ck-logo binance">
@@ -91,8 +77,18 @@ function MethodMark({ label }: { label: string }) {
       </span>
     );
   }
-  if (name.includes("upay")) return <span className="ck-logo upay">upay</span>;
   return <span className="ck-logo plain">{label.trim()}</span>;
+}
+
+function PayMark() {
+  return (
+    <span className="ck-pay-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="5.5" width="18" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M3 10h18" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    </span>
+  );
 }
 
 export default function PayPage() {
@@ -101,7 +97,7 @@ export default function PayPage() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [now, setNow] = useState(0);
-  const [lang, setLang] = useState<Lang>("bn");
+  const [lang, setLang] = useState<Lang>("en");
   const [filter, setFilter] = useState<Filter>("all");
   const [picked, setPicked] = useState("");
   const [picking, setPicking] = useState(true);
@@ -348,8 +344,8 @@ export default function PayPage() {
           <footer className="ck-foot">
             {showPicker ? (
               <button type="button" className={picked ? "ck-pay on" : "ck-pay"} disabled={!picked || pending} onClick={paySelected}>
-                {text(lang, `Pay ${amount} ${currency}`, `পেমেন্ট করুন ${amount} ${currency}`)}
-                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" d="M5 12h14m-6-6 6 6-6 6" /></svg>
+                <PayMark />
+                <span>{text(lang, `Pay ${amount} ${currency}`, `পেমেন্ট করুন ${amount} ${currency}`)}</span>
               </button>
             ) : null}
             {card?.cancelUrl ? (
