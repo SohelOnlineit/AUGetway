@@ -159,6 +159,20 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .cache-clear:hover { color: var(--brand); }
 .cache-clear:disabled { cursor: wait; }
 .cache-clear.busy svg { animation: cache-spin 0.8s linear infinite; }
+.cache-note {
+  position: fixed;
+  top: 74px;
+  right: 18px;
+  z-index: 30;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--good);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
 @keyframes cache-spin { to { transform: rotate(360deg); } }
 .avatar {
   width: 38px;

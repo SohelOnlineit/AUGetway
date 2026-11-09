@@ -67,6 +67,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [cacheNote, setCacheNote] = useState(false);
   const [site, setSite] = useState<PublicSite | null>(null);
   const [adminMode, setAdminMode] = useState("");
 
@@ -80,6 +81,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       fresh.searchParams.delete("fresh");
       window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
+    if (sessionStorage.getItem("uniqpay_cache_note") === "1") setCacheNote(true);
     setReady(true);
     api<{ name: string; email: string }>("/auth/me")
       .then(setUser)
@@ -111,6 +113,15 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     applySiteChrome(site, { adminMode });
   }, [site, adminMode]);
 
+  useEffect(() => {
+    if (!cacheNote) return;
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem("uniqpay_cache_note");
+      setCacheNote(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [cacheNote]);
+
   if (!ready) return null;
 
   const matches = query.trim()
@@ -122,32 +133,23 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     router.replace("/au-getway");
   }
 
-  async function clearCache() {
+  function clearCache() {
     if (clearing) return;
     setClearing(true);
     const token = sessionStorage.getItem("uniqpay_token");
-    try {
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((key) => caches.delete(key)));
-      }
-      if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((registration) => registration.unregister()));
-      }
-      const assets = [...document.querySelectorAll("script[src], link[rel='stylesheet'][href]")]
-        .map((node) => (node instanceof HTMLScriptElement ? node.src : node instanceof HTMLLinkElement ? node.href : ""))
-        .filter((url) => url.startsWith(window.location.origin));
-      await Promise.all([window.location.href, ...assets].map((url) => (
-        fetch(url, { cache: "reload", credentials: "same-origin", signal: AbortSignal.timeout(8000) }).catch(() => undefined)
-      )));
-    } catch {
-      // The navigation below still replaces the saved page.
+    if ("caches" in window) {
+      void caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))).catch(() => undefined);
+    }
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.getRegistrations()
+        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .catch(() => undefined);
     }
     if (token) sessionStorage.setItem("uniqpay_token", token);
+    sessionStorage.setItem("uniqpay_cache_note", "1");
     const next = new URL(window.location.href);
     next.searchParams.set("fresh", String(Date.now()));
-    window.location.replace(next.toString());
+    window.location.assign(next.toString());
   }
 
   return (
@@ -196,12 +198,13 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
           <button className={`cache-clear${clearing ? " busy" : ""}`} type="button" aria-label="Clear website cache" title="Clear website cache" disabled={clearing} onClick={() => void clearCache()}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 12a9 9 0 0 0-9-9 9.7 9.7 0 0 0-6.7 2.7L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 9 9 9.7 9.7 0 0 0 6.7-2.7L21 16" />
-              <path d="M16 16h5v5" />
+              <path d="M4 7h16" />
+              <path d="M9 7V5h6v2" />
+              <path d="M7 7l1 13h8l1-13" />
+              <path d="M10 11v6M14 11v6" />
             </svg>
           </button>
+          {cacheNote ? <p className="cache-note">Cache cleared</p> : null}
           <button className="avatar" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account">
             {user ? initials(user.name, user.email) : "·"}
           </button>
