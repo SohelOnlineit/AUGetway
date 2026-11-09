@@ -17,6 +17,11 @@ async function readReceipt(value: FormDataEntryValue | null) {
   });
 }
 
+function returnHref(url: string, invoiceId: string) {
+  const join = url.includes("?") ? "&" : "?";
+  return `${url}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
+}
+
 function leftLabel(expiresAt: string, now: number) {
   const left = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
   const minutes = Math.floor(left / 60);
@@ -136,7 +141,7 @@ export default function PayPage() {
           </form>
         ) : null}
         {card?.status === "pending" ? <p>This payment is pending a check.</p> : null}
-        {card?.status === "paid" ? <p>Payment received. {card.successUrl ? <a href={card.successUrl}>Continue</a> : null}</p> : null}
+        {card?.status === "paid" ? <p>Payment received. {card.successUrl ? <a href={returnHref(card.successUrl, params.publicId)}>Continue</a> : null}</p> : null}
         {card?.status === "failed" ? <p>This checkout was not accepted.</p> : null}
         {card?.status === "expired" ? <p>This checkout has expired.</p> : null}
         {error ? <p className="error">{error}</p> : null}

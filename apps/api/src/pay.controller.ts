@@ -19,6 +19,8 @@ import {
   PulseDto,
   SettingsDto,
   StartLinkDto,
+  UddoktaCheckoutDto,
+  UddoktaVerifyDto,
 } from "./dto";
 import { PayService } from "./pay.service";
 
@@ -263,6 +265,24 @@ export class PayController {
   @UseGuards(DeskGuard)
   notice(@Req() request: DeskRequest, @Body() body: NoticeDto) {
     return this.pay.notice(request.desk.sub, body);
+  }
+
+  @Post("checkout-v2")
+  uddoktaCheckout(
+    @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
+    @Headers("x-merchant-key") merchantKey: string | undefined,
+    @Body() body: UddoktaCheckoutDto,
+  ) {
+    return this.pay.uddoktaCheckout(gatewayKey || merchantKey || "", body);
+  }
+
+  @Post("verify-payment")
+  uddoktaVerify(
+    @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
+    @Headers("x-merchant-key") merchantKey: string | undefined,
+    @Body() body: UddoktaVerifyDto,
+  ) {
+    return this.pay.uddoktaVerify(gatewayKey || merchantKey || "", body.invoice_id);
   }
 
   @Post("v1/checkouts")

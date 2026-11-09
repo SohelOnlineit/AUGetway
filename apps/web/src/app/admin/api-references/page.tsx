@@ -6,6 +6,8 @@ const rows = [
   ["GET", "/api/public/pay/:id", "Customer checkout"],
   ["POST", "/api/public/pay/:id/method", "Choose a gateway"],
   ["POST", "/api/public/pay/:id/proof", "Submit the wallet reference"],
+  ["POST", "/api/checkout-v2", "Uddokta Pay checkout. Header RT-UDDOKTAPAY-API-KEY"],
+  ["POST", "/api/verify-payment", "Uddokta Pay verify. Body invoice_id"],
   ["POST", "/api/v1/checkouts", "Create a checkout with x-merchant-key"],
   ["GET", "/api/v1/checkouts/:id", "Read a checkout with x-merchant-key"],
   ["POST", "/api/handset/notice", "Submit a payment message from the phone"],

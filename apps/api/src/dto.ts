@@ -377,6 +377,50 @@ export class KeyUpdateDto {
   expiresAt?: string;
 }
 
+export class UddoktaCheckoutDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  full_name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  email?: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(250000)
+  amount!: number;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  redirect_url?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  cancel_url?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  webhook_url?: string;
+}
+
+export class UddoktaVerifyDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  invoice_id!: string;
+}
+
 export class StartLinkDto {
   @IsOptional()
   @IsString()

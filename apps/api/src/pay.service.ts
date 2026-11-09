@@ -44,6 +44,18 @@ function hashKey(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function siteBase() {
+  const origin = (process.env.WEB_ORIGIN ?? "http://127.0.0.1:3100").split(",")[0]?.trim().replace(/\/+$/, "");
+  return origin || "http://127.0.0.1:3100";
+}
+
+function httpUrl(value: string | undefined) {
+  const url = (value ?? "").trim();
+  if (!url) return "";
+  if (!/^https?:\/\//i.test(url)) throw new BadRequestException("That address must start with http:// or https://");
+  return url;
+}
+
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -407,7 +419,16 @@ export class PayService implements OnModuleInit {
 
   async createCheckout(
     ownerId: string,
-    input: { reference: string; amount: number; currency?: string; successUrl?: string; cancelUrl?: string; billId?: string; linkId?: string },
+    input: {
+      reference: string;
+      amount: number;
+      currency?: string;
+      successUrl?: string;
+      cancelUrl?: string;
+      webhookUrl?: string;
+      billId?: string;
+      linkId?: string;
+    },
   ) {
     const row = await this.prisma.checkout.create({
       data: {
@@ -419,6 +440,7 @@ export class PayService implements OnModuleInit {
         currency: (input.currency ?? "BDT").toUpperCase(),
         successUrl: input.successUrl || null,
         cancelUrl: input.cancelUrl || null,
+        webhookUrl: input.webhookUrl || "",
         billId: input.billId,
         linkId: input.linkId,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
@@ -440,7 +462,78 @@ export class PayService implements OnModuleInit {
     if (status === "paid" && updated.billId) {
       await this.prisma.bill.update({ where: { id: updated.billId }, data: { status: "paid" } });
     }
+    this.notifyGateway(updated);
     return this.checkoutCard(updated, false);
+  }
+
+  async uddoktaCheckout(
+    token: string,
+    input: {
+      full_name: string;
+      email?: string;
+      amount: number;
+      metadata?: Record<string, unknown>;
+      redirect_url?: string;
+      cancel_url?: string;
+      webhook_url?: string;
+    },
+  ) {
+    const key = await this.keyFromToken(token);
+    this.requireAbility(key, "payment:checkout");
+    const orderId = typeof input.metadata?.orderId === "string" ? input.metadata.orderId.trim() : "";
+    if (orderId.length < 2 || orderId.length > 80) throw new BadRequestException("metadata.orderId is required");
+    const row = await this.prisma.checkout.create({
+      data: {
+        publicId: publicId(),
+        ownerId: key.ownerId,
+        reference: orderId,
+        amount: input.amount,
+        payable: input.amount,
+        currency: "BDT",
+        successUrl: httpUrl(input.redirect_url) || null,
+        cancelUrl: httpUrl(input.cancel_url) || null,
+        webhookUrl: httpUrl(input.webhook_url),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+    return {
+      status: true,
+      payment_url: `${siteBase()}/pay/${row.publicId}`,
+      invoice_id: row.publicId,
+    };
+  }
+
+  async uddoktaVerify(token: string, invoiceId: string) {
+    const key = await this.keyFromToken(token);
+    this.requireAbility(key, "payment:verify");
+    const row = await this.prisma.checkout.findFirst({ where: { publicId: invoiceId, ownerId: key.ownerId } });
+    if (!row) throw new NotFoundException("Invoice not found");
+    const status = row.status === "paid" ? "COMPLETED" : row.status === "failed" || row.status === "expired" ? "FAILED" : "PENDING";
+    return {
+      invoice_id: row.publicId,
+      status,
+      amount: money(row.amount),
+      metadata: { orderId: row.reference },
+    };
+  }
+
+  private notifyGateway(row: { publicId: string; reference: string; amount: MoneyRow | number | string; webhookUrl: string; status: string }) {
+    const url = row.webhookUrl.trim();
+    if (!url) return;
+    const status = row.status === "paid" ? "COMPLETED" : row.status === "failed" ? "FAILED" : "";
+    if (!status) return;
+    const body = JSON.stringify({
+      invoice_id: row.publicId,
+      status,
+      amount: money(row.amount),
+      metadata: { orderId: row.reference },
+    });
+    void fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body,
+      signal: AbortSignal.timeout(8000),
+    }).catch(() => undefined);
   }
 
   async listBills(ownerId: string) {
@@ -1205,6 +1298,7 @@ export class PayService implements OnModuleInit {
       if (target.billId) {
         await this.prisma.bill.update({ where: { id: target.billId }, data: { status: "paid" } });
       }
+      this.notifyGateway({ ...target, status: "paid" });
     }
     if (noticeId) {
       await this.prisma.inboxNotice.update({ where: { id: noticeId }, data: { checkoutId: target.id } });

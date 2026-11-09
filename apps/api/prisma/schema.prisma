@@ -76,6 +76,7 @@ model Checkout {
   receipt      String     @default("")
   successUrl   String?
   cancelUrl    String?
+  webhookUrl   String     @default("")
   billId       String?
   bill         Bill?         @relation(fields: [billId], references: [id])
   linkId       String?
