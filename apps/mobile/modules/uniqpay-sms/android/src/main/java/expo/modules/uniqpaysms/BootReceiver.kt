@@ -7,7 +7,9 @@ import android.os.Build
 
 class BootReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
-    if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
+    val action = intent?.action ?: return
+    val booted = action == Intent.ACTION_BOOT_COMPLETED || action == "android.intent.action.QUICKBOOT_POWERON" || action == "com.htc.intent.action.QUICKBOOT_POWERON"
+    if (!booted) return
     val prefs = context.getSharedPreferences(KeepAliveService.PREFS, Context.MODE_PRIVATE)
     val base = prefs.getString("base", null) ?: return
     val token = prefs.getString("token", null) ?: return
@@ -19,5 +21,6 @@ class BootReceiver : BroadcastReceiver() {
       .putExtra("uid", uid)
       .putExtra("label", label)
     if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(start) else context.startService(start)
+    Watch.schedule(context, 15_000)
   }
 }

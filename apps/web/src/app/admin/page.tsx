@@ -112,7 +112,7 @@ export default function OverviewPage() {
           bills: bills.length,
           links: links.length,
           keys: keys.length,
-          online: handsets.filter((row) => row.lastSeenAt && now - new Date(row.lastSeenAt).getTime() < 2 * 60 * 1000).length,
+          online: handsets.filter((row) => row.lastSeenAt && now - new Date(row.lastSeenAt).getTime() < 10 * 60 * 1000).length,
         });
         setReady(true);
       })

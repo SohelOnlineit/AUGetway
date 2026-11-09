@@ -168,7 +168,11 @@ function App() {
   const loginScroll = useRef<ScrollViewInstance>(null);
   const pageScroll = useRef<ScrollViewInstance>(null);
   const nameRef = useRef(name);
+  const tokenRef = useRef(token);
+  const uidRef = useRef(uid);
   nameRef.current = name;
+  tokenRef.current = token;
+  uidRef.current = uid;
 
   useEffect(() => {
     Promise.all([
@@ -216,7 +220,16 @@ function App() {
     });
     void refreshDevice();
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refreshDevice();
+      if (state !== "active") return;
+      void refreshDevice();
+      const savedToken = tokenRef.current;
+      const savedUid = uidRef.current;
+      if (!savedToken || !savedUid || Platform.OS !== "android") return;
+      try {
+        startKeepAlive(DESK, savedToken, savedUid, nameRef.current.trim() || "UniqBD handset");
+      } catch {
+        // Expo Go has no background watch.
+      }
     });
     return () => sub.remove();
   }, []);
@@ -841,7 +854,7 @@ function App() {
                     </View>
                   </View>
                   <Text style={styles.sectionLabel}>PHONE</Text>
-                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} Leave the UniqBD Pay notification on. Android turns the phone offline if that notification is removed or battery optimization stays on.</Text>
+                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} The UniqBD Pay notification keeps this phone online while the screen is off, after a restart, and if Android closes the app. Do not remove that notification, and keep battery optimization off.</Text>
                   <Text style={styles.label}>Phone name</Text>
                   <Field scroll={pageScroll} style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
                   <Text style={styles.label}>Send one SMS</Text>

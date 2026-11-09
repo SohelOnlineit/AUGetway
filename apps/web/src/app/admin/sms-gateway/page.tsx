@@ -27,7 +27,7 @@ function seenAgo(value: string | null) {
 
 function isOnline(value: string | null) {
   if (!value) return false;
-  return Date.now() - new Date(value).getTime() < 2 * 60 * 1000;
+  return Date.now() - new Date(value).getTime() < 10 * 60 * 1000;
 }
 
 export default function SmsGatewayPage() {
