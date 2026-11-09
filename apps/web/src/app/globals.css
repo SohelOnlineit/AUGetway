@@ -798,8 +798,8 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 18px;
-  padding: 32px 28px 22px;
+  gap: 28px;
+  padding: 36px 32px 26px;
 }
 .ck-picker header, .ck-verify-top, .ck-secure, .ck-copy, .ck-foot {
   display: flex;
@@ -817,7 +817,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   font-weight: 750;
   white-space: nowrap;
 }
-.ck-tabs { display: flex; gap: 8px; margin: 18px 0; overflow-x: auto; }
+.ck-tabs { display: flex; gap: 12px; margin: 22px 0 24px; overflow-x: auto; }
 .ck-tabs button {
   display: inline-flex;
   align-items: center;
@@ -832,15 +832,15 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   white-space: nowrap;
 }
 .ck-tabs button.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
-.ck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.ck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
 .ck-tile {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 14px 10px 12px;
-  border-radius: 16px;
+  gap: 14px;
+  padding: 18px 16px 16px;
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--fg);
@@ -865,11 +865,11 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .ck-tile.on .ck-check { display: grid; }
 .ck-logo-box {
   width: 100%;
-  height: 54px;
+  height: 68px;
   display: grid;
   place-items: center;
-  padding: 4px 8px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
   overflow: hidden;
@@ -896,11 +896,11 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .ck-logo.upay { color: #ff6a00; font-size: 20px; }
 .ck-logo.plain { color: #161616; font-size: 14px; font-style: normal; letter-spacing: -0.02em; }
 .ck-line { width: 80%; height: 1px; background: var(--line); }
-.ck-name { min-height: 32px; display: flex; align-items: center; text-align: center; font-size: 13px; font-weight: 750; }
+.ck-name { min-height: 36px; display: flex; align-items: center; text-align: center; font-size: 14px; font-weight: 750; }
 .ck-empty, .ck-error { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .ck-note { margin: 0; padding: 14px 16px; color: var(--fg); font-size: 14px; line-height: 1.55; }
 .ck-error { color: #f87171; font-weight: 700; }
-.ck-foot { flex-direction: column; align-items: stretch; margin-top: auto; }
+.ck-foot { flex-direction: column; align-items: stretch; gap: 16px; margin-top: 8px; }
 .ck-pay {
   width: 100%;
   display: flex;
