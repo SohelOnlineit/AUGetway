@@ -162,6 +162,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="desk">
       <header className="topbar">
+        <div className="topbar-inner">
         <Link href="/admin" className="wordmark" aria-label={site?.brandName || "UniQbd"}>
           {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
           {customBrand(site) ? (
@@ -229,7 +230,9 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
         </div>
+        </div>
       </header>
+      <div className="desk-frame">
       <aside className="rail">
         <nav className="rail-box">
         {main.map(([label, href, icon]) => (
@@ -265,6 +268,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
       <section className="stage">{children}</section>
+      </div>
     </div>
   );
 }
