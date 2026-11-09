@@ -570,6 +570,21 @@ export class PayService implements OnModuleInit {
     return Promise.all(rows.map((row) => this.checkoutCard(row, false, true, site)));
   }
 
+  private windowMinutes(payWindow: number) {
+    const minutes = Math.round(Number(payWindow));
+    if (!Number.isFinite(minutes) || minutes < 1) return 15;
+    return Math.min(1440, minutes);
+  }
+
+  private async openMinutes(ownerId: string) {
+    const rows = await this.prisma.walletMethod.findMany({
+      where: { ownerId, active: true },
+      select: { payWindow: true },
+    });
+    if (!rows.length) return 15;
+    return Math.min(...rows.map((row) => this.windowMinutes(row.payWindow)));
+  }
+
   async createCheckout(
     ownerId: string,
     input: {
@@ -583,6 +598,7 @@ export class PayService implements OnModuleInit {
       linkId?: string;
     },
   ) {
+    const minutes = await this.openMinutes(ownerId);
     const row = await this.prisma.checkout.create({
       data: {
         publicId: publicId(),
@@ -596,7 +612,7 @@ export class PayService implements OnModuleInit {
         webhookUrl: input.webhookUrl || "",
         billId: input.billId,
         linkId: input.linkId,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        expiresAt: new Date(Date.now() + minutes * 60 * 1000),
       },
       include: { method: true },
     });
@@ -715,7 +731,7 @@ export class PayService implements OnModuleInit {
         successUrl: httpUrl(input.redirect_url) || null,
         cancelUrl: httpUrl(input.cancel_url) || null,
         webhookUrl: httpUrl(input.webhook_url),
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        expiresAt: new Date(Date.now() + (await this.openMinutes(key.ownerId)) * 60 * 1000),
       },
     });
     return {
@@ -1568,7 +1584,7 @@ export class PayService implements OnModuleInit {
     const priced = priceAmount(amount, method);
     const accounts = accountList(method.accountNumber);
     const payTo = accounts.length === 0 ? "" : accounts[method.accountCursor % accounts.length];
-    const minutes = Math.max(5, method.payWindow > 0 ? method.payWindow : 15);
+    const minutes = this.windowMinutes(method.payWindow);
     const shifted = method.verifyBy === "unique_amount" || method.shiftAmount;
     await this.prisma.$transaction(async (tx) => {
       if (shifted) await this.lockKey(tx, `slot:${method.id}`);
