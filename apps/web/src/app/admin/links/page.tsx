@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 type LinkRow = {
@@ -50,8 +51,6 @@ export default function LinksPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [picked, setPicked] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<LinkRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
 
@@ -118,58 +117,6 @@ export default function LinksPage() {
     }
   }
 
-  async function createLink(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError("");
-    try {
-      await api("/desk/links", {
-        method: "POST",
-        body: JSON.stringify({
-          title: String(form.get("title") ?? ""),
-          detail: String(form.get("detail") ?? ""),
-          amount: Number(form.get("amount") ?? 0),
-        }),
-      });
-      setCreating(false);
-      setNote("Payment link created");
-      setPage(1);
-      load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveLink(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editing) return;
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/desk/links/${editing.slug}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          title: String(form.get("title") ?? ""),
-          detail: String(form.get("detail") ?? ""),
-          amount: Number(form.get("amount") ?? 0),
-          slug: String(form.get("slug") ?? ""),
-          active: form.get("active") === "on",
-        }),
-      });
-      setEditing(null);
-      setNote("Payment link updated");
-      load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function toggleActive(row: LinkRow) {
     const next = !row.active;
     setRows((current) => current.map((item) => (item.slug === row.slug ? { ...item, active: next } : item)));
@@ -210,11 +157,11 @@ export default function LinksPage() {
           {picked.length ? (
             <button className="pl-drop" type="button" onClick={removePicked} disabled={busy}>Delete selected ({picked.length})</button>
           ) : null}
-          <button className="pl-new" type="button" onClick={() => { setError(""); setCreating(true); }}>New payment link</button>
+          <Link className="pl-new" href="/admin/payment-links/create">New payment link</Link>
         </div>
       </header>
       {note ? <p className="pl-note">{note}</p> : null}
-      {error && !creating && !editing ? <p className="error">{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       <section className="pl-card">
         <div className="pl-tools">
@@ -293,9 +240,9 @@ export default function LinksPage() {
                     <a className="pl-go" href={`/l/${row.slug}`} target="_blank" rel="noreferrer">
                       <OpenIcon /> Open Link
                     </a>
-                    <button className="pl-go" type="button" onClick={() => { setError(""); setEditing(row); }}>
+                    <Link className="pl-go" href={`/admin/payment-links/${row.slug}/edit`}>
                       <PencilIcon /> Edit
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -329,43 +276,6 @@ export default function LinksPage() {
         </footer>
       </section>
 
-      {creating ? (
-        <div className="modal-back pl-shade" onClick={() => { if (!busy) { setCreating(false); setError(""); } }}>
-          <form className="modal dev-modal pl-dialog" onClick={(event) => event.stopPropagation()} onSubmit={createLink}>
-            <div className="dev-modal-head"><div><p className="pl-crumb">Payment Links</p><h2>New payment link</h2></div></div>
-            <div className="dev-modal-body">
-              <label><span>Title</span><input name="title" required minLength={2} maxLength={80} placeholder="Premium subscription" /></label>
-              <label><span>Description</span><textarea name="detail" rows={3} maxLength={400} placeholder="What the customer is paying for" /></label>
-              <label><span>Amount (BDT)</span><input name="amount" type="number" min={1} step="0.01" required /></label>
-              {error ? <p className="error">{error}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => { setCreating(false); setError(""); }}>Cancel</button>
-              <button className="pl-new" type="submit" disabled={busy}>Create</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {editing ? (
-        <div className="modal-back pl-shade" onClick={() => { if (!busy) { setEditing(null); setError(""); } }}>
-          <form className="modal dev-modal pl-dialog" onClick={(event) => event.stopPropagation()} onSubmit={saveLink}>
-            <div className="dev-modal-head"><div><p className="pl-crumb">Payment Links</p><h2>Edit payment link</h2></div></div>
-            <div className="dev-modal-body">
-              <label><span>Title</span><input name="title" required minLength={2} maxLength={80} defaultValue={editing.title} /></label>
-              <label><span>Description</span><textarea name="detail" rows={3} maxLength={400} defaultValue={editing.detail} /></label>
-              <label><span>Amount (BDT)</span><input name="amount" type="number" min={1} step="0.01" required defaultValue={editing.amount} /></label>
-              <label><span>Slug</span><input name="slug" required minLength={2} maxLength={60} defaultValue={editing.slug} /></label>
-              <label className="pl-active"><input name="active" type="checkbox" defaultChecked={editing.active} /> Active</label>
-              {error ? <p className="error">{error}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => { setEditing(null); setError(""); }}>Cancel</button>
-              <button className="pl-new" type="submit" disabled={busy}>Save</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </div>
   );
 }

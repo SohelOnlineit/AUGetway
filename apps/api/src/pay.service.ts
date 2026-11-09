@@ -29,6 +29,38 @@ type InvoiceExtra = {
 };
 
 const invoiceMark = "@@UNIQINV@@";
+const linkMark = "@@UNIQPL@@";
+
+type LinkField = { label: string; type: string; required: boolean };
+type LinkExtra = {
+  quantity: number;
+  expireOn: string;
+  redirectUrl: string;
+  image: string;
+  fields: LinkField[];
+};
+
+function splitLink(detail: string) {
+  const index = detail.indexOf(linkMark);
+  if (index < 0) return { detail, extra: null as LinkExtra | null };
+  const clean = detail.slice(0, index).replaceAll(linkMark, "").trim();
+  try {
+    const extra = JSON.parse(detail.slice(index + linkMark.length)) as LinkExtra;
+    if (!extra || !Array.isArray(extra.fields)) return { detail: clean, extra: null };
+    return { detail: clean, extra };
+  } catch {
+    return { detail: clean, extra: null };
+  }
+}
+
+function joinLink(detail: string, extra: LinkExtra | null) {
+  const index = detail.indexOf(linkMark);
+  const clean = (index < 0 ? detail : detail.slice(0, index)).replaceAll(linkMark, "").trim().slice(0, 400);
+  if (!extra) return clean;
+  const packed = extra.quantity > 1 || extra.expireOn || extra.redirectUrl || extra.image || extra.fields.length;
+  if (!packed) return clean;
+  return `${clean}\n${linkMark}${JSON.stringify(extra)}`;
+}
 
 function splitInvoice(note: string) {
   const index = note.indexOf(invoiceMark);
@@ -917,23 +949,36 @@ export class PayService implements OnModuleInit {
   async editLink(
     ownerId: string,
     slug: string,
-    input: { title?: string; detail?: string; amount?: number; active?: boolean; slug?: string },
+    input: {
+      title?: string;
+      detail?: string;
+      amount?: number;
+      active?: boolean;
+      slug?: string;
+      currency?: string;
+      quantity?: number;
+      expireOn?: string;
+      redirectUrl?: string;
+      image?: string;
+      fields?: LinkField[];
+    },
   ) {
     const row = await this.prisma.payLink.findFirst({ where: { ownerId, slug } });
     if (!row) throw new NotFoundException("Payment link not found");
-    const data: { title?: string; detail?: string; amount?: number; active?: boolean; slug?: string } = {};
+    const data: { title?: string; detail?: string; amount?: number; active?: boolean; slug?: string; currency?: string } = {};
     if (input.title !== undefined) data.title = input.title.trim();
-    if (input.detail !== undefined) data.detail = input.detail.trim().slice(0, 400);
     if (input.amount !== undefined) data.amount = input.amount;
     if (input.active !== undefined) data.active = input.active;
+    if (input.currency !== undefined) data.currency = input.currency;
+    if (this.linkTouched(input)) {
+      const current = splitLink(row.detail);
+      data.detail = joinLink(input.detail ?? current.detail, this.linkExtra({ ...current.extra, ...input }));
+    } else if (input.detail !== undefined) {
+      const current = splitLink(row.detail);
+      data.detail = joinLink(input.detail, current.extra);
+    }
     if (input.slug !== undefined && input.slug.trim().toLowerCase() !== row.slug) {
-      const next = input.slug.trim().toLowerCase();
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(next)) {
-        throw new BadRequestException("Slug can use lowercase letters, numbers, and dashes");
-      }
-      const used = await this.prisma.payLink.findUnique({ where: { slug: next } });
-      if (used) throw new BadRequestException("This slug is already used");
-      data.slug = next;
+      data.slug = await this.pickSlug(input.slug, row.title, row.id);
     }
     const updated = await this.prisma.payLink.update({ where: { id: row.id }, data });
     return this.linkView(updated);
@@ -956,56 +1001,178 @@ export class PayService implements OnModuleInit {
   }
 
   private linkView(row: { slug: string; title: string; detail: string; amount: MoneyRow; currency: string; active: boolean; createdAt: Date }) {
+    const split = splitLink(row.detail);
+    const extra = split.extra;
     return {
       slug: row.slug,
       title: row.title,
-      detail: row.detail,
+      detail: split.detail,
       amount: money(row.amount),
       currency: row.currency,
       active: row.active,
       createdAt: row.createdAt.toISOString(),
+      quantity: extra?.quantity ?? 1,
+      expireOn: extra?.expireOn ?? "",
+      redirectUrl: extra?.redirectUrl ?? "",
+      image: extra?.image ?? "",
+      fields: extra?.fields ?? [],
     };
   }
 
-  createLink(ownerId: string, input: { title: string; detail?: string; amount: number }) {
-    const base = input.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 40);
-    return this.prisma.payLink.create({
+  async createLink(
+    ownerId: string,
+    input: {
+      title: string;
+      detail?: string;
+      amount: number;
+      currency?: string;
+      quantity?: number;
+      active?: boolean;
+      slug?: string;
+      expireOn?: string;
+      redirectUrl?: string;
+      image?: string;
+      fields?: LinkField[];
+    },
+  ) {
+    const created = await this.prisma.payLink.create({
       data: {
         ownerId,
         title: input.title.trim(),
-        detail: input.detail?.trim() ?? "",
+        detail: joinLink(input.detail ?? "", this.linkExtra(input)),
         amount: input.amount,
-        slug: `${base || "pay"}-${randomBytes(2).toString("hex")}`,
+        currency: input.currency ?? "BDT",
+        active: input.active ?? true,
+        slug: await this.pickSlug(input.slug, input.title),
       },
     });
+    return this.linkView(created);
   }
 
-  async startLink(slug: string, reference?: string) {
-    const link = await this.prisma.payLink.findUnique({ where: { slug } });
-    if (!link || !link.active) throw new NotFoundException("Payment link is not available");
+  async startLink(slug: string, input: { reference?: string; answers?: { label: string; value: string }[] }) {
+    const link = await this.openLink(slug);
+    const extra = splitLink(link.detail).extra;
+    const answers = input.answers ?? [];
+    const notes: string[] = [];
+    for (const field of extra?.fields ?? []) {
+      const value = (answers.find((answer) => answer.label === field.label)?.value ?? "").trim();
+      if (field.required && !value) throw new BadRequestException(`${field.label} is required`);
+      if (value && field.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new BadRequestException(`${field.label} must be an email`);
+      }
+      if (value && field.type === "number" && !Number.isFinite(Number(value))) {
+        throw new BadRequestException(`${field.label} must be a number`);
+      }
+      if (value) notes.push(`${field.label}: ${value}`);
+    }
+    const quantity = extra?.quantity ?? 1;
+    const payable = Math.round((Number(link.amount) * quantity + Number.EPSILON) * 100) / 100;
+    if (payable < 1 || payable > 250000) throw new BadRequestException("This payment link amount is not available");
+    const reference = [input.reference?.trim() || link.title, notes.join(" · ")].filter(Boolean).join(" · ").slice(0, 180);
     const created = await this.createCheckout(link.ownerId, {
-      reference: reference?.trim() || link.title,
-      amount: Number(link.amount),
+      reference,
+      amount: payable,
       currency: link.currency,
+      successUrl: extra?.redirectUrl || undefined,
       linkId: link.id,
     });
     return { publicId: created.publicId };
   }
 
   async publicLink(slug: string) {
-    const link = await this.prisma.payLink.findUnique({ where: { slug } });
-    if (!link || !link.active) throw new NotFoundException("Payment link is not available");
+    const link = await this.openLink(slug);
+    const split = splitLink(link.detail);
     return {
       slug: link.slug,
       title: link.title,
-      detail: link.detail,
+      detail: split.detail,
       amount: money(link.amount),
       currency: link.currency,
+      quantity: split.extra?.quantity ?? 1,
+      image: split.extra?.image ?? "",
+      fields: split.extra?.fields ?? [],
     };
+  }
+
+  private async openLink(slug: string) {
+    const link = await this.prisma.payLink.findUnique({ where: { slug } });
+    if (!link || !link.active) throw new NotFoundException("Payment link is not available");
+    const expireOn = splitLink(link.detail).extra?.expireOn;
+    if (expireOn) {
+      const end = new Date(`${expireOn}T23:59:59+06:00`);
+      if (!Number.isNaN(end.getTime()) && end.getTime() < Date.now()) {
+        throw new NotFoundException("Payment link is not available");
+      }
+    }
+    return link;
+  }
+
+  private linkTouched(input: { quantity?: number; expireOn?: string; redirectUrl?: string; image?: string; fields?: LinkField[] }) {
+    return input.quantity !== undefined || input.expireOn !== undefined || input.redirectUrl !== undefined || input.image !== undefined || input.fields !== undefined;
+  }
+
+  private linkExtra(input: {
+    quantity?: number;
+    expireOn?: string;
+    redirectUrl?: string;
+    image?: string;
+    fields?: LinkField[];
+  }): LinkExtra | null {
+    const quantity = Math.max(1, Math.round(input.quantity ?? 1));
+    const expireOn = this.readExpire(input.expireOn) ?? "";
+    const redirectUrl = (input.redirectUrl ?? "").trim();
+    if (redirectUrl && !/^https?:\/\//i.test(redirectUrl)) throw new BadRequestException("Redirect URL must start with http:// or https://");
+    const image = this.cleanImage(input.image);
+    const fields = (input.fields ?? [])
+      .map((field) => ({
+        label: field.label.trim().slice(0, 80),
+        type: field.type,
+        required: Boolean(field.required),
+      }))
+      .filter((field) => field.label)
+      .slice(0, 12);
+    const extra = { quantity, expireOn, redirectUrl: redirectUrl.slice(0, 300), image, fields };
+    if (quantity <= 1 && !expireOn && !extra.redirectUrl && !image && !fields.length) return null;
+    return extra;
+  }
+
+  private readExpire(value?: string) {
+    if (value === undefined) return undefined;
+    const day = value.trim();
+    if (!day) return "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new BadRequestException("Expire date must be a calendar date");
+    const date = new Date(`${day}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== day) {
+      throw new BadRequestException("Expire date must be a calendar date");
+    }
+    return day;
+  }
+
+  private cleanImage(value?: string) {
+    const image = (value ?? "").replace(/\s/g, "");
+    if (!image) return "";
+    if (!/^data:image\/(jpeg|jpg|png|webp);base64,[a-z0-9+/=]+$/i.test(image) || image.length > 180000) {
+      throw new BadRequestException("Image must be a JPG, PNG, or WEBP file under the size limit");
+    }
+    return image;
+  }
+
+  private async pickSlug(requested: string | undefined, title: string, ignoreId?: string) {
+    const custom = (requested ?? "").trim().toLowerCase();
+    if (custom) {
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(custom)) {
+        throw new BadRequestException("Slug can use lowercase letters, numbers, and dashes");
+      }
+      const used = await this.prisma.payLink.findUnique({ where: { slug: custom } });
+      if (used && used.id !== ignoreId) throw new BadRequestException("This slug is already used");
+      return custom.slice(0, 60);
+    }
+    const base = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40);
+    return `${base || "pay"}-${randomBytes(2).toString("hex")}`;
   }
 
   async publicBill(number: string) {

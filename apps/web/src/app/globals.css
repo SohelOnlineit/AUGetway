@@ -1486,6 +1486,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
 .pl-crumb span { color: var(--fg); }
 .pl-new, .pl-drop {
   border: 0; border-radius: 8px; min-height: 40px; padding: 0 14px; font-weight: 750; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer;
 }
 .pl-new { background: var(--brand); color: #fff; }
 .pl-new:hover { filter: brightness(1.06); }
@@ -1549,6 +1550,50 @@ html[data-theme="light"] .txn-card { background: var(--card); }
 }
 @media (prefers-reduced-motion: reduce) {
   .pl-page, .pl-table tbody tr, .pl-shade, .pl-dialog { animation: none; }
+}
+.plf { gap: 16px; }
+.plf-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr); gap: 16px; align-items: start; }
+.plf-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 14px; box-shadow: var(--shadow); }
+.plf-card header h3 { margin: 0; font-size: 16px; font-weight: 760; }
+.plf-card header p, .plf-field small { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.plf-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.plf-field { display: grid; gap: 6px; }
+.plf-field > span { font-size: 13px; font-weight: 700; }
+.plf-field i, .plf-status em { color: var(--bad); font-style: normal; }
+.plf-field input, .plf-field select, .plf-field textarea, .plf-money {
+  width: 100%; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; min-height: 42px;
+}
+.plf-field input, .plf-field select, .plf-field textarea { padding: 10px 12px; }
+.plf-field textarea { resize: vertical; }
+.plf-money { display: flex; align-items: center; overflow: hidden; padding: 0; }
+.plf-money b { padding: 0 10px; color: var(--muted); font-size: 12px; font-weight: 750; border-right: 1px solid var(--line); }
+.plf-money input { border: 0; background: transparent; min-width: 0; flex: 1; }
+.plf-status-row { align-items: end; }
+.plf-status { display: flex; align-items: center; gap: 10px; min-height: 42px; font-weight: 750; }
+.plf-switch { width: 46px; height: 26px; border: 0; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; padding: 0; }
+.plf-switch i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: #fff; transition: transform 0.18s ease; }
+.plf-switch.on { background: var(--brand); }
+.plf-switch.on i { transform: translateX(20px); }
+.plf-drop {
+  min-height: 148px; border: 1px dashed var(--line); border-radius: 12px; display: grid; place-items: center;
+  text-align: center; color: var(--muted); padding: 16px; cursor: pointer; background: var(--bg); position: relative;
+}
+.plf-drop.on { border-color: var(--brand); }
+.plf-drop b { color: var(--brand); font-weight: 750; }
+.plf-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.plf-drop img { max-width: 100%; max-height: 180px; border-radius: 10px; }
+.plf-clear { justify-self: start; background: none; border: 0; color: var(--brand); font-weight: 750; cursor: pointer; padding: 0; }
+.plf-fields { display: grid; gap: 12px; }
+.plf-field-row { display: grid; grid-template-columns: 1.3fr 1fr auto auto; gap: 10px; align-items: end; }
+.plf-required { display: flex; align-items: center; gap: 8px; min-height: 42px; font-weight: 700; }
+.plf-required input { accent-color: var(--brand); }
+.plf-field-row > button, .plf-add { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 10px; min-height: 36px; padding: 0 12px; font-weight: 750; cursor: pointer; }
+.plf-add { justify-self: center; }
+.plf-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.plf-actions .btn-line { min-height: 40px; border-radius: 8px; padding: 0 14px; }
+.plf-public-image { width: 100%; max-height: 220px; object-fit: cover; border-radius: 14px; }
+@media (max-width: 980px) {
+  .plf-grid, .plf-split, .plf-field-row { grid-template-columns: 1fr; }
 }
 .inv-page { display: flex; flex-direction: column; gap: 12px; animation: people-rise 0.45s cubic-bezier(.2, .8, .2, 1); }
 .inv-head, .inv-head-actions, .inv-tools, .inv-foot, .inv-pages, .inv-actions { display: flex; align-items: center; gap: 10px; }

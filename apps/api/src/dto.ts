@@ -470,6 +470,18 @@ export class BillUpdateDto {
   privateNote?: string;
 }
 
+export class LinkFieldDto {
+  @IsString()
+  @MaxLength(80)
+  label!: string;
+
+  @IsIn(["text", "email", "phone", "number", "textarea"])
+  type!: string;
+
+  @IsBoolean()
+  required!: boolean;
+}
+
 export class LinkDto {
   @IsString()
   @MinLength(2)
@@ -486,6 +498,48 @@ export class LinkDto {
   @Min(1)
   @Max(250000)
   amount!: number;
+
+  @IsOptional()
+  @IsIn(["BDT", "USD", "EUR", "GBP"])
+  currency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  quantity?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  expireOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  redirectUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180000)
+  image?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => LinkFieldDto)
+  fields?: LinkFieldDto[];
 }
 
 export class LinkUpdateDto {
@@ -516,6 +570,39 @@ export class LinkUpdateDto {
   @MinLength(2)
   @MaxLength(60)
   slug?: string;
+
+  @IsOptional()
+  @IsIn(["BDT", "USD", "EUR", "GBP"])
+  currency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  quantity?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  expireOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  redirectUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180000)
+  image?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => LinkFieldDto)
+  fields?: LinkFieldDto[];
 }
 
 export class CustomerDto {
@@ -699,11 +786,28 @@ export class UddoktaVerifyDto {
   invoice_id!: string;
 }
 
+export class LinkAnswerDto {
+  @IsString()
+  @MaxLength(80)
+  label!: string;
+
+  @IsString()
+  @MaxLength(200)
+  value!: string;
+}
+
 export class StartLinkDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
   reference?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => LinkAnswerDto)
+  answers?: LinkAnswerDto[];
 }
 
 export class HandsetDto {

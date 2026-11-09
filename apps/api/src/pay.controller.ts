@@ -343,7 +343,7 @@ export class PayController {
 
   @Post("public/links/:slug/start")
   startLink(@Param("slug") slug: string, @Body() body: StartLinkDto) {
-    return this.pay.startLink(slug, body.reference);
+    return this.pay.startLink(slug, body);
   }
 
   @Post("handset/pulse")
