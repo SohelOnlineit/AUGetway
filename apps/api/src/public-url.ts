@@ -1,5 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
 
 function ipv4Private(address: string) {
@@ -64,4 +66,60 @@ export async function publicHttpUrl(value: string | undefined) {
     throw new BadRequestException("Use a public http or https webhook address");
   }
   return url.toString();
+}
+
+export function browserHttpUrl(value: string | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (/[\u0000-\u001f\u007f]/.test(raw)) {
+    throw new BadRequestException("That address must start with http:// or https://");
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new BadRequestException("That address must start with http:// or https://");
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password || !url.hostname) {
+    throw new BadRequestException("That address must start with http:// or https://");
+  }
+  return url.toString();
+}
+
+export async function postPublicJson(value: string, body: string) {
+  const target = await publicHttpUrl(value);
+  if (!target) return;
+  const url = new URL(target);
+  const records = await lookup(url.hostname, { all: true, verbatim: true });
+  const chosen = records.find((record) => !isPrivateAddress(record.address));
+  if (!chosen || records.some((record) => isPrivateAddress(record.address))) return;
+  const family = chosen.family === 6 ? 6 : 4;
+  const lib = url.protocol === "https:" ? https : http;
+  const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
+  await new Promise<void>((resolve, reject) => {
+    const request = lib.request(
+      {
+        host: chosen.address,
+        servername: url.hostname,
+        port,
+        family,
+        method: "POST",
+        path: `${url.pathname}${url.search}`,
+        headers: {
+          host: url.host,
+          "content-type": "application/json",
+          accept: "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+        timeout: 8000,
+      },
+      (response) => {
+        response.resume();
+        resolve();
+      },
+    );
+    request.on("error", reject);
+    request.on("timeout", () => request.destroy(new Error("timeout")));
+    request.end(body);
+  });
 }

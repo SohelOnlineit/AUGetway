@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { paidFitsCheckout } from "./amount-window";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
-import { publicHttpUrl } from "./public-url";
+import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { PrismaService } from "./prisma.service";
 import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sessionStamp } from "./session";
 
@@ -109,10 +109,7 @@ function siteBase() {
 }
 
 function httpUrl(value: string | undefined) {
-  const url = (value ?? "").trim();
-  if (!url) return "";
-  if (!/^https?:\/\//i.test(url)) throw new BadRequestException("That address must start with http:// or https://");
-  return url;
+  return browserHttpUrl(value);
 }
 
 function startOfDay(date: Date) {
@@ -615,9 +612,9 @@ export class PayService implements OnModuleInit {
         amount: input.amount,
         payable: input.amount,
         currency: (input.currency ?? "BDT").toUpperCase(),
-        successUrl: input.successUrl || null,
-        cancelUrl: input.cancelUrl || null,
-        webhookUrl: input.webhookUrl || "",
+        successUrl: browserHttpUrl(input.successUrl) || null,
+        cancelUrl: browserHttpUrl(input.cancelUrl) || null,
+        webhookUrl: input.webhookUrl ? await publicHttpUrl(input.webhookUrl) : "",
         billId: input.billId,
         linkId: input.linkId,
         expiresAt: new Date(Date.now() + minutes * 60 * 1000),
@@ -776,18 +773,7 @@ export class PayService implements OnModuleInit {
       amount: money(row.amount),
       metadata: { orderId: row.reference },
     });
-    void publicHttpUrl(url)
-      .then((target) => {
-        if (!target) return;
-        return fetch(target, {
-          method: "POST",
-          redirect: "manual",
-          headers: { "content-type": "application/json", accept: "application/json" },
-          body,
-          signal: AbortSignal.timeout(8000),
-        });
-      })
-      .catch(() => undefined);
+    void postPublicJson(url, body).catch(() => undefined);
   }
 
   async listBills(ownerId: string) {
@@ -930,7 +916,7 @@ export class PayService implements OnModuleInit {
       shipping: input.shipping ?? 0,
       vatTotal: input.vatTotal ?? 0,
       discountTotal: input.discountTotal ?? 0,
-      redirectUrl: (input.redirectUrl ?? "").trim().slice(0, 300),
+      redirectUrl: browserHttpUrl(input.redirectUrl).slice(0, 300),
       privateNote: (input.privateNote ?? "").trim().slice(0, 400),
     };
   }
@@ -976,11 +962,19 @@ export class PayService implements OnModuleInit {
       where: { billId: bill.id, status: { in: ["open", "waiting", "pending"] }, expiresAt: { gt: new Date() } },
     });
     if (existing) return { publicId: existing.publicId };
+    const redirect = splitInvoice(bill.note).extra?.redirectUrl ?? "";
+    let successUrl = "";
+    try {
+      successUrl = browserHttpUrl(redirect);
+    } catch {
+      successUrl = "";
+    }
     const created = await this.createCheckout(bill.ownerId, {
       reference: bill.number,
       amount: Number(bill.total),
       currency: bill.currency,
       billId: bill.id,
+      successUrl,
     });
     return { publicId: created.publicId };
   }
@@ -1117,7 +1111,13 @@ export class PayService implements OnModuleInit {
       reference,
       amount: payable,
       currency: link.currency,
-      successUrl: extra?.redirectUrl || undefined,
+      successUrl: (() => {
+        try {
+          return browserHttpUrl(extra?.redirectUrl) || undefined;
+        } catch {
+          return undefined;
+        }
+      })(),
       linkId: link.id,
     });
     return { publicId: created.publicId };
@@ -1164,8 +1164,7 @@ export class PayService implements OnModuleInit {
   }): LinkExtra | null {
     const quantity = Math.max(1, Math.round(input.quantity ?? 1));
     const expireOn = this.readExpire(input.expireOn) ?? "";
-    const redirectUrl = (input.redirectUrl ?? "").trim();
-    if (redirectUrl && !/^https?:\/\//i.test(redirectUrl)) throw new BadRequestException("Redirect URL must start with http:// or https://");
+    const redirectUrl = browserHttpUrl(input.redirectUrl).slice(0, 300);
     const image = this.cleanImage(input.image);
     const fields = (input.fields ?? [])
       .map((field) => ({
@@ -1589,16 +1588,20 @@ export class PayService implements OnModuleInit {
     }
     const priced = priceAmount(amount, method);
     const accounts = accountList(method.accountNumber);
-    const payTo = accounts.length === 0 ? "" : accounts[method.accountCursor % accounts.length];
     const minutes = this.windowMinutes(method.payWindow);
     const shifted = method.verifyBy === "unique_amount" || method.shiftAmount;
     await this.prisma.$transaction(async (tx) => {
-      if (shifted) await this.lockKey(tx, `slot:${method.id}`);
+      if (shifted || accounts.length > 1) await this.lockKey(tx, `slot:${method.id}`);
+      const current = accounts.length > 1
+        ? await tx.walletMethod.findUnique({ where: { id: method.id }, select: { accountCursor: true } })
+        : null;
+      const cursor = current?.accountCursor ?? method.accountCursor;
+      const payTo = accounts.length === 0 ? "" : accounts[cursor % accounts.length];
       const payable = shifted ? await this.allocatePayable(tx, row.id, method, priced) : priced;
       if (accounts.length > 1) {
         await tx.walletMethod.update({
           where: { id: method.id },
-          data: { accountCursor: method.accountCursor + 1 },
+          data: { accountCursor: { increment: 1 } },
         });
       }
       await tx.checkout.update({

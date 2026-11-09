@@ -23,8 +23,15 @@ async function readReceipt(value: FormDataEntryValue | null) {
 }
 
 function returnHref(url: string, invoiceId: string) {
-  const join = url.includes("?") ? "&" : "?";
-  return `${url}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return "";
+  }
+  if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) return "";
+  const join = parsed.search ? "&" : "?";
+  return `${parsed.toString()}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
 }
 
 function moneyText(value: string) {
@@ -383,7 +390,7 @@ export default function PayPage() {
             <div className="ck-done">
               <h2>{text(lang, "Payment successful", "পেমেন্ট সফল হয়েছে")}</h2>
               <p>{text(lang, "Your transaction has been verified.", "আপনার লেনদেন যাচাই হয়েছে।")}</p>
-              {card.successUrl ? <a className="ck-pay on" href={returnHref(card.successUrl, params.publicId)}>{text(lang, "Return to merchant", "মার্চেন্টে ফিরে যান")}</a> : null}
+              {card.successUrl && returnHref(card.successUrl, params.publicId) ? <a className="ck-pay on" href={returnHref(card.successUrl, params.publicId)}>{text(lang, "Return to merchant", "মার্চেন্টে ফিরে যান")}</a> : null}
             </div>
           ) : null}
           {card?.status === "failed" ? <div className="ck-done"><h2>{text(lang, "Payment was not accepted", "পেমেন্ট গ্রহণ করা হয়নি")}</h2></div> : null}
