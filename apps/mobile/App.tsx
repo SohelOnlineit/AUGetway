@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { AppState, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState, type ComponentProps, type RefObject } from "react";
+import { AppState, Dimensions, Keyboard, Linking, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
@@ -67,6 +68,51 @@ function stamp(time: number) {
   return `${day} at ${clock}`;
 }
 
+function useKeyboardHeight() {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const showName = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideName = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showName, (event) => {
+      const covered = Math.round(Dimensions.get("window").height - event.endCoordinates.screenY);
+      setHeight(covered > 0 ? covered : 0);
+    });
+    const hide = Keyboard.addListener(hideName, () => setHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return height;
+}
+
+function reveal(scroll: ScrollViewInstance | null, node: number) {
+  if (!scroll || !node) return;
+  const view = scroll as ScrollViewInstance & {
+    scrollResponderScrollNativeHandleToKeyboard?: (handle: number, extra: number, preventNegative: boolean) => void;
+  };
+  setTimeout(() => {
+    if (view.scrollResponderScrollNativeHandleToKeyboard) {
+      view.scrollResponderScrollNativeHandleToKeyboard(node, 140, true);
+      return;
+    }
+    view.scrollToEnd({ animated: true });
+  }, 80);
+}
+
+function Field({ scroll, ...props }: ComponentProps<typeof TextInput> & { scroll: RefObject<ScrollViewInstance | null> }) {
+  return (
+    <TextInput
+      {...props}
+      onFocus={(event) => {
+        props.onFocus?.(event);
+        const node = typeof event.nativeEvent.target === "number" ? event.nativeEvent.target : 0;
+        reveal(scroll.current, node);
+      }}
+    />
+  );
+}
+
 async function allowSms() {
   if (Platform.OS !== "android") return false;
   const result = await PermissionsAndroid.requestMultiple([
@@ -77,7 +123,7 @@ async function allowSms() {
   return Object.values(result).every((value) => value === PermissionsAndroid.RESULTS.GRANTED);
 }
 
-export default function App() {
+function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState<string | null>(null);
@@ -117,6 +163,10 @@ export default function App() {
   const sending = useRef(false);
   const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardHeight();
+  const loginScroll = useRef<ScrollViewInstance>(null);
+  const pageScroll = useRef<ScrollViewInstance>(null);
   const nameRef = useRef(name);
   nameRef.current = name;
 
@@ -608,7 +658,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: keyboard }]}>
       <StatusBar style="light" />
       {token ? (
         <>
@@ -617,7 +667,7 @@ export default function App() {
             <Pressable onPress={() => void signOut()} hitSlop={10}><Text style={styles.logout}>↗</Text></Pressable>
           </View>
           {tab === "home" ? (
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
               <View style={styles.profile}>
                 <View style={styles.profileText}>
                   <Text style={styles.profileDate}>{shortDay(Date.now())}</Text>
@@ -657,7 +707,7 @@ export default function App() {
             </ScrollView>
           ) : null}
           {tab === "filters" ? (
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={pageScroll} style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
               <View style={styles.headRow}>
                 <Text style={styles.pageTitle}>Whitelist Senders</Text>
                 <View style={styles.headActions}>
@@ -667,7 +717,7 @@ export default function App() {
               </View>
               {adding ? (
                 <View style={styles.addRow}>
-                  <TextInput style={[styles.input, styles.addInput]} value={draft} onChangeText={setDraft} placeholder="Sender name" placeholderTextColor="#94a3b8" maxLength={40} />
+                  <Field scroll={pageScroll} style={[styles.input, styles.addInput]} value={draft} onChangeText={setDraft} placeholder="Sender name" placeholderTextColor="#94a3b8" maxLength={40} />
                   <Pressable style={styles.button} onPress={addSender}><Text style={styles.buttonText}>Save</Text></Pressable>
                 </View>
               ) : null}
@@ -684,7 +734,7 @@ export default function App() {
             </ScrollView>
           ) : null}
           {tab === "settings" ? (
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={pageScroll} style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
               <View style={styles.chart}>
                 <View style={styles.plot}>
                   {[
@@ -718,7 +768,7 @@ export default function App() {
                 <>
                   <Pressable onPress={() => setPanel(null)}><Text style={styles.back}>‹ Ignore Keywords</Text></Pressable>
                   <View style={styles.addRow}>
-                    <TextInput style={[styles.input, styles.addInput]} value={keywordDraft} onChangeText={setKeywordDraft} placeholder="Keyword" placeholderTextColor="#94a3b8" maxLength={40} />
+                    <Field scroll={pageScroll} style={[styles.input, styles.addInput]} value={keywordDraft} onChangeText={setKeywordDraft} placeholder="Keyword" placeholderTextColor="#94a3b8" maxLength={40} />
                     <Pressable style={styles.button} onPress={addKeyword}><Text style={styles.buttonText}>Add</Text></Pressable>
                   </View>
                   {keywords.length === 0 ? <Text style={styles.hint}>No keyword is ignored. A message that contains one is not synced.</Text> : null}
@@ -764,16 +814,16 @@ export default function App() {
                   <Text style={styles.sectionLabel}>PHONE</Text>
                   <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."}</Text>
                   <Text style={styles.label}>Phone name</Text>
-                  <TextInput style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
+                  <Field scroll={pageScroll} style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
                   <Text style={styles.label}>Send one SMS</Text>
-                  <TextInput style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#94a3b8" />
-                  <TextInput style={[styles.input, styles.message]} multiline value={smsText} onChangeText={setSmsText} maxLength={320} placeholder="Message" placeholderTextColor="#94a3b8" />
+                  <Field scroll={pageScroll} style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#94a3b8" />
+                  <Field scroll={pageScroll} style={[styles.input, styles.message]} multiline value={smsText} onChangeText={setSmsText} maxLength={320} placeholder="Message" placeholderTextColor="#94a3b8" />
                   <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendSms()}>
                     <Text style={styles.buttonText}>Send SMS</Text>
                   </Pressable>
                   <Text style={styles.label}>Paste a payment</Text>
-                  <TextInput style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="Sender" placeholderTextColor="#94a3b8" />
-                  <TextInput style={[styles.input, styles.message]} multiline value={body} onChangeText={setBody} placeholder="Paste the message" placeholderTextColor="#94a3b8" />
+                  <Field scroll={pageScroll} style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="Sender" placeholderTextColor="#94a3b8" />
+                  <Field scroll={pageScroll} style={[styles.input, styles.message]} multiline value={body} onChangeText={setBody} placeholder="Paste the message" placeholderTextColor="#94a3b8" />
                   <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendNotice()}>
                     <Text style={styles.buttonText}>{busy ? "Sending" : "Submit to desk"}</Text>
                   </Pressable>
@@ -782,7 +832,7 @@ export default function App() {
               {note ? <Text style={styles.note}>{note}</Text> : null}
             </ScrollView>
           ) : null}
-          <View style={styles.nav}>
+          <View style={[styles.nav, { paddingBottom: 12 + (keyboard > 0 ? 0 : insets.bottom) }]}>
             <Pressable style={styles.navItem} onPress={() => setTab("home")}>
               <Text style={[styles.navIcon, tab === "home" && styles.navOn]}>⌂</Text>
               <Text style={[styles.navLabel, tab === "home" && styles.navOn]}>Dashboard</Text>
@@ -798,28 +848,37 @@ export default function App() {
           </View>
         </>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={loginScroll} style={styles.fill} contentContainerStyle={[styles.scroll, { paddingBottom: 28 + insets.bottom }]} keyboardShouldPersistTaps="handled">
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
           {note ? <Text style={styles.note}>{note}</Text> : null}
           <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
           <Text style={styles.label}>Phone name</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
+          <Field scroll={loginScroll} style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholderTextColor="#94a3b8" />
+          <Field scroll={loginScroll} style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Password</Text>
-          <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#94a3b8" />
+          <Field scroll={loginScroll} style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#94a3b8" />
           <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void signIn()}>
             <Text style={styles.buttonText}>{busy ? "Signing in" : "Sign in"}</Text>
           </Pressable>
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
+  );
+}
+
+export default function Root() {
+  return (
+    <SafeAreaProvider>
+      <App />
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#01131a" },
+  fill: { flex: 1 },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6 },
   logo: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#0f766e", alignItems: "center", justifyContent: "center" },
   logoText: { color: "#f8fafc", fontSize: 22, fontWeight: "800" },
