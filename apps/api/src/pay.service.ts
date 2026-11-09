@@ -1804,8 +1804,8 @@ export class PayService implements OnModuleInit {
   }
 
   private async expireOutbound(where: { handsetId: string } | { handset: { ownerId: string } }) {
-    const missed = new Date(Date.now() - 10 * 60 * 1000);
-    const unconfirmed = new Date(Date.now() - 90 * 1000);
+    const missed = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const unconfirmed = new Date(Date.now() - 5 * 60 * 1000);
     await this.prisma.outboundSms.updateMany({
       where: { ...where, status: "queued", createdAt: { lt: missed } },
       data: { status: "failed", error: "The phone did not pick up this message. Open the AuGetway app and queue it again." },

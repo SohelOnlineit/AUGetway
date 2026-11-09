@@ -168,7 +168,6 @@ function App() {
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
   const seenSms = useRef(new Set<string>());
   const sentJobs = useRef(new Set<string>());
-  const askedSend = useRef(false);
   const work = useRef(false);
   const sending = useRef(false);
   const [online, setOnline] = useState(false);
@@ -713,13 +712,15 @@ function App() {
       if (sending.current) return;
       sending.current = true;
       try {
-        const canRead = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
-        const canChooseSim = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
-        if (!canRead || !canChooseSim) {
-          if (!askedSend.current) {
-            askedSend.current = true;
-            await allowSms();
-          }
+        let canSend = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
+        let canChooseSim = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
+        if (!canSend || !canChooseSim) {
+          const granted = await allowSms();
+          canSend = granted && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
+          canChooseSim = granted && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
+        }
+        if (!canSend || !canChooseSim) {
+          if (!stop) setNote("Allow SMS and phone permission so this phone can send the desk message.");
           return;
         }
         const response = await fetch(`${DESK}/handset/jobs?uid=${encodeURIComponent(uid)}`, {

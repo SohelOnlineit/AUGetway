@@ -19,7 +19,7 @@ class WatchReceiver : BroadcastReceiver() {
     Thread {
       try {
         val code = Heartbeat.send(context)
-        if (code == 401) {
+        if (code == 401 || (code in 200..299 && Outbound.deliver(context) == 401)) {
           prefs.edit().clear().putBoolean("userStop", true).apply()
           Watch.cancel(context)
           context.stopService(Intent(context, KeepAliveService::class.java))

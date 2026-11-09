@@ -125,6 +125,10 @@ class KeepAliveService : Service() {
       return
     }
     if (code !in 200..299) return
+    if (Outbound.deliver(this) == 401) {
+      signOff()
+      return
+    }
     val base = prefs.getString("base", null) ?: return
     val token = prefs.getString("token", null) ?: return
     val uid = prefs.getString("uid", null) ?: return

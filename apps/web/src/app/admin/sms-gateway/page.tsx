@@ -90,7 +90,7 @@ export default function SmsGatewayPage() {
         body: JSON.stringify({ handsetId: sendDevice, to: sendTo, body: sendBody }),
       });
       setSendBody("");
-      setSendNote(`Queued for ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}. Keep AuGetway open on that phone. It sends this message, then the next one can be queued.`);
+      setSendNote(`Queued for ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}. The phone sends this message, then the next one can be queued.`);
       loadJobs();
     } catch (reason) {
       setSendError(reason instanceof Error ? reason.message : "Could not queue the SMS");
@@ -163,7 +163,7 @@ export default function SmsGatewayPage() {
           <div>
             <p className="keys-crumb">SMS Gateway <span>›</span> Send</p>
             <h2>Send SMS</h2>
-            <p className="muted">One Bangladesh number at a time. The AuGetway app must be open and signed in. The website queues the message, and that phone sends it.</p>
+            <p className="muted">One Bangladesh number at a time. The signed-in AuGetway phone sends it from the SIM, including while the screen is off. Keep the UniqBD Pay notification on.</p>
           </div>
         </header>
         <form className="dev-modal-body dev-send" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>
