@@ -77,7 +77,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!sessionStorage.getItem("uniqpay_token")) {
-      router.replace("/login");
+      router.replace("/au-getway");
       return;
     }
     const fresh = new URL(window.location.href);
@@ -99,7 +99,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   function signOut() {
     sessionStorage.removeItem("uniqpay_token");
-    router.replace("/login");
+    router.replace("/au-getway");
   }
 
   async function clearCache() {

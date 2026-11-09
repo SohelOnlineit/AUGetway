@@ -12,7 +12,6 @@ export default function HomePage() {
         <nav className="nav">
           <a href="#flow">How it works</a>
           <ThemeToggle />
-          <Link href="/login" className="btn">Open desk</Link>
         </nav>
       </header>
       <section className="hero">
@@ -23,8 +22,7 @@ export default function HomePage() {
             Create a checkout, send the customer a link, and confirm it from the desk or from the UniqBD handset app on your own Android phone.
           </p>
           <div className="row">
-            <Link href="/login" className="btn">Sign in</Link>
-            <a href="#flow" className="btn-line">See the flow</a>
+            <a href="#flow" className="btn">See the flow</a>
           </div>
         </div>
         <aside className="receipt">
