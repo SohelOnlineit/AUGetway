@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
+import { DeskGuard } from "./desk.guard";
 import { PrismaService } from "./prisma.service";
 import { PayController } from "./pay.controller";
 import { PayService } from "./pay.service";
@@ -18,6 +19,6 @@ import { PayService } from "./pay.service";
     }),
   ],
   controllers: [PayController],
-  providers: [PrismaService, PayService],
+  providers: [PrismaService, PayService, DeskGuard],
 })
 export class AppModule {}

@@ -16,6 +16,13 @@ export default function DeskGatePage() {
     api<PublicSite>("/public/site").then(setSite).catch(() => undefined);
   }, []);
   useEffect(() => {
+    const token = sessionStorage.getItem("uniqpay_token");
+    if (!token) return;
+    api("/auth/me")
+      .then(() => router.replace("/admin"))
+      .catch(() => sessionStorage.removeItem("uniqpay_token"));
+  }, [router]);
+  useEffect(() => {
     applySiteChrome(site, { layout: true });
   }, [site]);
 

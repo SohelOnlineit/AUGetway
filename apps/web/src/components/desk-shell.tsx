@@ -81,10 +81,15 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
     if (sessionStorage.getItem("uniqpay_cache_note") === "1") setCacheNote(true);
-    setReady(true);
     api<{ name: string; email: string }>("/auth/me")
-      .then(setUser)
-      .catch(() => setUser(null));
+      .then((row) => {
+        setUser(row);
+        setReady(true);
+      })
+      .catch(() => {
+        sessionStorage.removeItem("uniqpay_token");
+        router.replace("/au-getway");
+      });
     function onAccount(event: Event) {
       const detail = (event as CustomEvent<{ name?: string; email?: string }>).detail;
       if (!detail?.name || !detail.email) return;

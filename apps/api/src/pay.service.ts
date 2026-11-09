@@ -10,7 +10,9 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
+import { publicHttpUrl } from "./public-url";
 import { PrismaService } from "./prisma.service";
+import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sessionStamp } from "./session";
 
 type MoneyRow = { toString(): string };
 
@@ -291,10 +293,15 @@ export class PayService implements OnModuleInit {
   }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.deskUser.findUnique({ where: { email: email.toLowerCase() } });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    const normalized = email.trim().toLowerCase();
+    assertLoginOpen(normalized);
+    const user = await this.prisma.deskUser.findUnique({ where: { email: normalized } });
+    const matches = await bcrypt.compare(password, user?.passwordHash ?? paddingHash);
+    if (!user || !matches) {
+      noteLoginFailure(normalized);
       throw new UnauthorizedException("Email or password is wrong");
     }
+    clearLoginFailure(normalized);
     return this.session(user);
   }
 
@@ -730,7 +737,7 @@ export class PayService implements OnModuleInit {
         currency: "BDT",
         successUrl: httpUrl(input.redirect_url) || null,
         cancelUrl: httpUrl(input.cancel_url) || null,
-        webhookUrl: httpUrl(input.webhook_url),
+        webhookUrl: await publicHttpUrl(input.webhook_url),
         expiresAt: new Date(Date.now() + (await this.openMinutes(key.ownerId)) * 60 * 1000),
       },
     });
@@ -766,12 +773,18 @@ export class PayService implements OnModuleInit {
       amount: money(row.amount),
       metadata: { orderId: row.reference },
     });
-    void fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body,
-      signal: AbortSignal.timeout(8000),
-    }).catch(() => undefined);
+    void publicHttpUrl(url)
+      .then((target) => {
+        if (!target) return;
+        return fetch(target, {
+          method: "POST",
+          redirect: "manual",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body,
+          signal: AbortSignal.timeout(8000),
+        });
+      })
+      .catch(() => undefined);
   }
 
   async listBills(ownerId: string) {
@@ -1251,15 +1264,7 @@ export class PayService implements OnModuleInit {
   ) {
     const abilities = [...new Set(input.abilities.filter((item) => keyAbilities.includes(item)))];
     if (abilities.length === 0) throw new BadRequestException("Choose at least one ability");
-    const webhookUrl = (input.webhookUrl ?? "").trim();
-    if (webhookUrl) {
-      try {
-        const url = new URL(webhookUrl);
-        if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("protocol");
-      } catch {
-        throw new BadRequestException("Webhook URL must start with http:// or https://");
-      }
-    }
+    const webhookUrl = await publicHttpUrl(input.webhookUrl);
     let expiresAt: Date | null = null;
     if (input.expiresAt) {
       expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59`);
@@ -1342,16 +1347,7 @@ export class PayService implements OnModuleInit {
       data.abilities = abilities;
     }
     if (input.webhookUrl !== undefined) {
-      const webhookUrl = input.webhookUrl.trim();
-      if (webhookUrl) {
-        try {
-          const url = new URL(webhookUrl);
-          if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("protocol");
-        } catch {
-          throw new BadRequestException("Webhook URL must start with http:// or https://");
-        }
-      }
-      data.webhookUrl = webhookUrl;
+      data.webhookUrl = await publicHttpUrl(input.webhookUrl);
     }
     if (input.expiresAt !== undefined) {
       if (!input.expiresAt) data.expiresAt = null;
@@ -2043,8 +2039,13 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null }) {
-    const accessToken = this.jwt.sign({ sub: user.deskId ?? user.id, email: user.email, actor: user.id });
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }) {
+    const accessToken = this.jwt.sign({
+      sub: user.deskId ?? user.id,
+      email: user.email,
+      actor: user.id,
+      stamp: sessionStamp(user.passwordHash),
+    });
     return {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, role: user.deskId ? "admin" : "owner" },
@@ -2304,7 +2305,7 @@ export class PayService implements OnModuleInit {
     const methods = includeMethods
       ? await this.prisma.walletMethod.findMany({
           where: { ownerId: row.ownerId, active: true },
-          select: { id: true, label: true, accountNumber: true },
+          select: { id: true, label: true },
           orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
         })
       : undefined;
