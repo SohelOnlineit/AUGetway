@@ -13,6 +13,7 @@ import {
   KeyDto,
   KeyUpdateDto,
   LinkDto,
+  LinkUpdateDto,
   AccountDto,
   AdminDto,
   ApproveDto,
@@ -182,6 +183,18 @@ export class PayController {
   @UseGuards(DeskGuard)
   addLink(@Req() request: DeskRequest, @Body() body: LinkDto) {
     return this.pay.createLink(request.desk.sub, body);
+  }
+
+  @Patch("desk/links/:slug")
+  @UseGuards(DeskGuard)
+  editLink(@Req() request: DeskRequest, @Param("slug") slug: string, @Body() body: LinkUpdateDto) {
+    return this.pay.editLink(request.desk.sub, slug, body);
+  }
+
+  @Post("desk/links/bulk-delete")
+  @UseGuards(DeskGuard)
+  removeLinks(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    return this.pay.removeLinks(request.desk.sub, body.ids);
   }
 
   @Get("desk/keys")

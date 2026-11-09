@@ -323,6 +323,36 @@ export class LinkDto {
   amount!: number;
 }
 
+export class LinkUpdateDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  detail?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(250000)
+  amount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  slug?: string;
+}
+
 export class CustomerDto {
   @IsString()
   @MinLength(2)

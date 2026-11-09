@@ -732,14 +732,60 @@ export class PayService implements OnModuleInit {
 
   async listLinks(ownerId: string) {
     const rows = await this.prisma.payLink.findMany({ where: { ownerId }, orderBy: { createdAt: "desc" } });
-    return rows.map((row) => ({
+    return rows.map((row) => this.linkView(row));
+  }
+
+  async editLink(
+    ownerId: string,
+    slug: string,
+    input: { title?: string; detail?: string; amount?: number; active?: boolean; slug?: string },
+  ) {
+    const row = await this.prisma.payLink.findFirst({ where: { ownerId, slug } });
+    if (!row) throw new NotFoundException("Payment link not found");
+    const data: { title?: string; detail?: string; amount?: number; active?: boolean; slug?: string } = {};
+    if (input.title !== undefined) data.title = input.title.trim();
+    if (input.detail !== undefined) data.detail = input.detail.trim().slice(0, 400);
+    if (input.amount !== undefined) data.amount = input.amount;
+    if (input.active !== undefined) data.active = input.active;
+    if (input.slug !== undefined && input.slug.trim().toLowerCase() !== row.slug) {
+      const next = input.slug.trim().toLowerCase();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(next)) {
+        throw new BadRequestException("Slug can use lowercase letters, numbers, and dashes");
+      }
+      const used = await this.prisma.payLink.findUnique({ where: { slug: next } });
+      if (used) throw new BadRequestException("This slug is already used");
+      data.slug = next;
+    }
+    const updated = await this.prisma.payLink.update({ where: { id: row.id }, data });
+    return this.linkView(updated);
+  }
+
+  async removeLinks(ownerId: string, slugs: string[]) {
+    const wanted = [...new Set(slugs.map((slug) => slug.trim()).filter(Boolean))].slice(0, 200);
+    if (!wanted.length) return { ok: true, removed: 0 };
+    const rows = await this.prisma.payLink.findMany({
+      where: { ownerId, slug: { in: wanted } },
+      select: { id: true },
+    });
+    const ids = rows.map((row) => row.id);
+    if (!ids.length) return { ok: true, removed: 0 };
+    await this.prisma.$transaction([
+      this.prisma.checkout.updateMany({ where: { linkId: { in: ids } }, data: { linkId: null } }),
+      this.prisma.payLink.deleteMany({ where: { ownerId, id: { in: ids } } }),
+    ]);
+    return { ok: true, removed: ids.length };
+  }
+
+  private linkView(row: { slug: string; title: string; detail: string; amount: MoneyRow; currency: string; active: boolean; createdAt: Date }) {
+    return {
       slug: row.slug,
       title: row.title,
       detail: row.detail,
       amount: money(row.amount),
       currency: row.currency,
       active: row.active,
-    }));
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   createLink(ownerId: string, input: { title: string; detail?: string; amount: number }) {
