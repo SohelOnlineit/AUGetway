@@ -77,6 +77,7 @@ object SmsSync {
       connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
       val code = connection.responseCode
       if (code == 401) return 401
+      if (code == 404) return postOneByOne(base, token, uid, fresh, context)
       if (code !in 200..299) return 0
       val text = connection.inputStream.bufferedReader().use { it.readText() }
       val saved = JSONObject(text).optJSONArray("results") ?: JSONArray()
@@ -92,6 +93,32 @@ object SmsSync {
     } finally {
       connection.disconnect()
     }
+  }
+
+  private fun postOneByOne(base: String, token: String, uid: String, rows: List<Row>, context: Context): Int {
+    val done = mutableListOf<String>()
+    for (row in rows) {
+      val body = JSONObject().put("uid", uid.take(80)).put("body", row.body).put("sender", row.sender).put("receivedKey", row.key)
+      val connection = (URL("${base.trimEnd('/')}/handset/notice").openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"
+        connectTimeout = 8000
+        readTimeout = 8000
+        doOutput = true
+        setRequestProperty("Content-Type", "application/json")
+        setRequestProperty("Authorization", "Bearer $token")
+      }
+      try {
+        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        if (connection.responseCode == 401) return 401
+        if (connection.responseCode in 200..299) done.add(row.key)
+      } catch (_: Exception) {
+        // The next watch sends this message again.
+      } finally {
+        connection.disconnect()
+      }
+    }
+    remember(context, done)
+    return 200
   }
 
   private fun enabled(context: Context): Boolean {
