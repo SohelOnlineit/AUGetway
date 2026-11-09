@@ -47,6 +47,7 @@ export default function SmsGatewayPage() {
   const [sendTo, setSendTo] = useState("");
   const [sendBody, setSendBody] = useState("");
   const [sendNote, setSendNote] = useState("");
+  const [sendError, setSendError] = useState("");
   const [jobs, setJobs] = useState<{ id: string; handset: string; to: string; body: string; simSlot: number; status: string; error: string; createdAt: string }[]>([]);
 
   const [jobsError, setJobsError] = useState("");
@@ -77,21 +78,23 @@ export default function SmsGatewayPage() {
   async function sendSms() {
     if (busy) return;
     if (!sendDevice) {
-      setSendNote("Choose the phone that should send this SMS.");
+      setSendError("Choose the phone that should send this SMS.");
+      setSendNote("");
       return;
     }
     setBusy(true);
     setSendNote("");
+    setSendError("");
     try {
       const job = await api<{ simSlot: number }>("/desk/sms", {
         method: "POST",
         body: JSON.stringify({ handsetId: sendDevice, to: sendTo, body: sendBody }),
       });
       setSendBody("");
-      setSendNote(`Queued. The phone will send it from ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}.`);
+      setSendNote(`Queued for ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}. Keep AuGetway open on that phone. It sends this message, then the next one can be queued.`);
       loadJobs();
     } catch (reason) {
-      setSendNote(reason instanceof Error ? reason.message : "Could not queue the SMS");
+      setSendError(reason instanceof Error ? reason.message : "Could not queue the SMS");
     } finally {
       setBusy(false);
     }
@@ -161,6 +164,7 @@ export default function SmsGatewayPage() {
           <div>
             <p className="keys-crumb">SMS Gateway <span>›</span> Send</p>
             <h2>Send SMS</h2>
+            <p className="muted">One Bangladesh number at a time. The AuGetway app must be open and signed in. The website queues the message, and that phone sends it.</p>
           </div>
         </header>
         <form className="dev-modal-body dev-send" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>
@@ -181,7 +185,8 @@ export default function SmsGatewayPage() {
             <span>Message</span>
             <input value={sendBody} onChange={(event) => setSendBody(event.target.value)} maxLength={320} required />
           </label>
-          {sendNote ? <p className="muted">{sendNote}</p> : null}
+          {sendNote ? <p className="account-note">{sendNote}</p> : null}
+          {sendError ? <p className="error">{sendError}</p> : null}
           {jobsError ? <p className="error">{jobsError}</p> : null}
           <div className="dev-modal-actions">
             <button className="btn" type="submit" disabled={busy}>Queue SMS</button>

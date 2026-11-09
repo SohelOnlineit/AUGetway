@@ -32,6 +32,7 @@ echo "==> Schema"
 DIRECT_URL="${DATABASE_URL//-pooler/}"
 (
   cd "${ROOT}/apps/api"
+  DATABASE_URL="${DIRECT_URL}" corepack pnpm exec prisma db execute --file "${SCRIPT_DIR}/ensure-sms.sql"
   DATABASE_URL="${DIRECT_URL}" corepack pnpm exec prisma db push --schema prisma/schema.prisma
 )
 

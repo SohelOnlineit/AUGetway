@@ -1246,6 +1246,19 @@ export class PayService implements OnModuleInit {
     }
   }
 
+  private async expireOutbound(where: { handsetId: string } | { handset: { ownerId: string } }) {
+    const missed = new Date(Date.now() - 10 * 60 * 1000);
+    const unconfirmed = new Date(Date.now() - 90 * 1000);
+    await this.prisma.outboundSms.updateMany({
+      where: { ...where, status: "queued", createdAt: { lt: missed } },
+      data: { status: "failed", error: "The phone did not pick up this message. Open the AuGetway app and queue it again." },
+    });
+    await this.prisma.outboundSms.updateMany({
+      where: { ...where, status: "sending", updatedAt: { lt: unconfirmed } },
+      data: { status: "failed", error: "The phone did not confirm the send" },
+    });
+  }
+
   async queueSms(ownerId: string, input: { handsetId: string; to: string; body: string }) {
     const to = bdMobile(input.to);
     if (!to) throw new BadRequestException("Use a Bangladesh mobile number, like 01XXXXXXXXX");
@@ -1253,6 +1266,7 @@ export class PayService implements OnModuleInit {
     if (body.length < 1 || body.length > 320) throw new BadRequestException("Message must be 1 to 320 characters");
     const handset = await this.prisma.handset.findFirst({ where: { id: input.handsetId, ownerId } });
     if (!handset) throw new NotFoundException("Device not found");
+    await this.expireOutbound({ handsetId: handset.id });
     const waiting = await this.prisma.outboundSms.count({ where: { handsetId: handset.id, status: { in: ["queued", "sending"] } } });
     if (waiting >= 1) throw new BadRequestException("This phone is already sending a message. Wait until it finishes.");
     const job = await this.prisma.outboundSms.create({
@@ -1262,6 +1276,7 @@ export class PayService implements OnModuleInit {
   }
 
   async listOutbound(ownerId: string) {
+    await this.expireOutbound({ handset: { ownerId } });
     const rows = await this.prisma.outboundSms.findMany({
       where: { handset: { ownerId } },
       include: { handset: true },
@@ -1283,11 +1298,7 @@ export class PayService implements OnModuleInit {
 
   async pollJobs(userId: string, uid: string) {
     const handset = await this.ownedHandset(userId, uid);
-    const stale = new Date(Date.now() - 90_000);
-    await this.prisma.outboundSms.updateMany({
-      where: { handsetId: handset.id, status: "sending", updatedAt: { lt: stale } },
-      data: { status: "failed", error: "The phone did not confirm the send" },
-    });
+    await this.expireOutbound({ handsetId: handset.id });
     const waiting = await this.prisma.outboundSms.findMany({
       where: { handsetId: handset.id, status: "queued" },
       orderBy: { createdAt: "asc" },

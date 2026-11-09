@@ -352,6 +352,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   padding: 16px 18px 14px; border-bottom: 1px solid var(--line);
 }
 .dev-head h2 { margin: 4px 0 0; font-size: 28px; font-weight: 750; letter-spacing: -0.03em; }
+.dev-head .muted { margin: 8px 0 0; max-width: 640px; font-size: 13.5px; }
 .dev-error { margin: 12px 18px 0; }
 .dev-card {
   display: flex; flex-direction: column;
