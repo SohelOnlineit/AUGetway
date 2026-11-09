@@ -14,6 +14,23 @@ export type MethodCard = {
   acceptProof?: boolean;
 };
 
+export type PublicSite = {
+  brandName: string;
+  supportEmail: string;
+  supportPhone: string;
+  currency: string;
+  currencySymbol: string;
+  checkoutNote: string;
+  brandLogo: string;
+  brandFavicon: string;
+  themeAccent: string;
+  checkoutTheme: string;
+  faqTitle: string;
+  faqContent: string;
+  metaTitle: string;
+  metaDescription: string;
+};
+
 export type CheckoutCard = {
   publicId: string;
   reference: string;
@@ -30,4 +47,5 @@ export type CheckoutCard = {
   cancelUrl?: string | null;
   method: MethodCard | null;
   methods?: { id: string; label: string }[];
+  site?: PublicSite;
 };

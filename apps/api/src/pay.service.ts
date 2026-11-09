@@ -119,6 +119,37 @@ function accountList(value: string) {
   return value.split(/[\s,;]+/).map((part) => part.trim()).filter(Boolean);
 }
 
+function shownAccount(payTo: string, stored: string) {
+  const accounts = accountList(stored);
+  if (accounts.length === 0) return "";
+  if (payTo && accounts.includes(payTo)) return payTo;
+  return accounts[0];
+}
+
+function accentColor(value: string | undefined) {
+  const text = value?.trim() ?? "";
+  if (!text) return "";
+  const hex = text.startsWith("#") ? text : `#${text}`;
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex) ? hex : "";
+}
+
+type SiteCard = {
+  brandName: string;
+  supportEmail: string;
+  supportPhone: string;
+  currency: string;
+  currencySymbol: string;
+  checkoutNote: string;
+  brandLogo: string;
+  brandFavicon: string;
+  themeAccent: string;
+  checkoutTheme: string;
+  faqTitle: string;
+  faqContent: string;
+  metaTitle: string;
+  metaDescription: string;
+};
+
 function digits(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -469,7 +500,8 @@ export class PayService implements OnModuleInit {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
-    return Promise.all(rows.map((row) => this.checkoutCard(row, false, true)));
+    const site = await this.siteView(ownerId);
+    return Promise.all(rows.map((row) => this.checkoutCard(row, false, true, site)));
   }
 
   async createCheckout(
@@ -1025,6 +1057,12 @@ export class PayService implements OnModuleInit {
     );
   }
 
+  async publicSite() {
+    const owner = await this.prisma.deskUser.findFirst({ where: { deskId: null }, orderBy: { createdAt: "asc" } });
+    if (!owner) return this.blankSite();
+    return this.siteView(owner.id);
+  }
+
   async publicPay(id: string) {
     const row = await this.prisma.checkout.findUnique({ where: { publicId: id }, include: { method: true } });
     if (!row) throw new NotFoundException("Checkout not found");
@@ -1032,6 +1070,13 @@ export class PayService implements OnModuleInit {
     if (expired && row.status !== "expired") {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "expired" } });
       row.status = "expired";
+    }
+    if (row.status === "waiting" && row.method && row.method.verifyBy !== "unique_amount" && !row.method.shiftAmount) {
+      const priced = priceAmount(Number(row.amount), row.method);
+      if (Math.abs(priced - Number(row.payable)) > 0.001) {
+        const saved = await this.prisma.checkout.update({ where: { id: row.id }, data: { payable: priced }, include: { method: true } });
+        return this.checkoutCard(saved, true);
+      }
     }
     return this.checkoutCard(row, row.status === "open" || row.status === "waiting");
   }
@@ -1460,6 +1505,46 @@ export class PayService implements OnModuleInit {
     if (!list.includes(ability)) throw new UnauthorizedException("This key does not allow that action");
   }
 
+  private blankSite(): SiteCard {
+    return {
+      brandName: "UniqBD Pay",
+      supportEmail: "",
+      supportPhone: "",
+      currency: "BDT",
+      currencySymbol: "",
+      checkoutNote: "",
+      brandLogo: "",
+      brandFavicon: "",
+      themeAccent: "",
+      checkoutTheme: "",
+      faqTitle: "",
+      faqContent: "",
+      metaTitle: "",
+      metaDescription: "",
+    };
+  }
+
+  private async siteView(ownerId: string): Promise<SiteCard> {
+    const row = await this.settings(ownerId);
+    const theme = row.prefs.checkoutTheme;
+    return {
+      brandName: row.brandName || "UniqBD Pay",
+      supportEmail: row.supportEmail,
+      supportPhone: row.prefs.supportPhone ?? "",
+      currency: row.currency || "BDT",
+      currencySymbol: row.prefs.currencySymbol ?? "",
+      checkoutNote: row.checkoutNote,
+      brandLogo: row.prefs.brandLogo ?? "",
+      brandFavicon: row.prefs.brandFavicon ?? "",
+      themeAccent: accentColor(row.prefs.themeAccent),
+      checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
+      faqTitle: row.prefs.faqTitle ?? "",
+      faqContent: row.prefs.faqContent ?? "",
+      metaTitle: row.prefs.metaTitle ?? "",
+      metaDescription: row.prefs.metaDescription ?? "",
+    };
+  }
+
   private async checkoutCard(
     row: {
       publicId: string;
@@ -1488,6 +1573,7 @@ export class PayService implements OnModuleInit {
     },
     includeMethods: boolean,
     includeReceipt = false,
+    site?: SiteCard,
   ) {
     const methods = includeMethods
       ? await this.prisma.walletMethod.findMany({
@@ -1514,7 +1600,7 @@ export class PayService implements OnModuleInit {
         ? {
             id: row.method.id,
             label: row.method.label,
-            accountNumber: row.payTo || accountList(row.method.accountNumber)[0] || "",
+            accountNumber: shownAccount(row.payTo, row.method.accountNumber),
             instructions: row.method.instructions,
             qrImage: row.method.qrImage,
             verifyBy: row.method.verifyBy,
@@ -1522,6 +1608,7 @@ export class PayService implements OnModuleInit {
           }
         : null,
       methods,
+      site: site ?? (await this.siteView(row.ownerId)),
     };
   }
 }

@@ -1,13 +1,26 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { api } from "@/lib/api";
+import { applySiteChrome, type PublicSite } from "@/lib/site";
 
 export default function HomePage() {
+  const [site, setSite] = useState<PublicSite | null>(null);
+  useEffect(() => {
+    api<PublicSite>("/public/site").then(setSite).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    applySiteChrome(site, { layout: true });
+  }, [site]);
+  const brand = site?.brandName || "UniqBD Pay";
   return (
     <main className="wrap">
       <header className="top">
         <Link href="/" className="brand">
-          <span className="mark">U</span>
-          UniqBD Pay
+          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : <span className="mark">{brand.slice(0, 1)}</span>}
+          {brand}
         </Link>
         <nav className="nav">
           <a href="#flow">How it works</a>
@@ -27,7 +40,7 @@ export default function HomePage() {
         </div>
         <aside className="receipt">
           <header>
-            <span>UniqBD Pay</span>
+            <span>{brand}</span>
             <span>Checkout</span>
           </header>
           <div className="amount">৳ 1,250.00</div>

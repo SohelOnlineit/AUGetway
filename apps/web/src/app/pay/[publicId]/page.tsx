@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import type { CheckoutCard } from "@uniqpay/types";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { applySiteChrome, customBrand } from "@/lib/site";
 
 type Lang = "bn" | "en";
 type Filter = "all" | "mfs" | "bank";
@@ -117,6 +118,7 @@ export default function PayPage() {
   const [picked, setPicked] = useState("");
   const [picking, setPicking] = useState(true);
   const [copied, setCopied] = useState("");
+  const chromeApplied = useRef(false);
 
   async function load(resetPick = false) {
     const next = await api<CheckoutCard>(`/public/pay/${params.publicId}`);
@@ -128,6 +130,12 @@ export default function PayPage() {
   useEffect(() => {
     load(true).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Checkout not found"));
   }, [params.publicId]);
+
+  useEffect(() => {
+    if (!card?.site || chromeApplied.current) return;
+    chromeApplied.current = true;
+    applySiteChrome(card.site, { layout: true });
+  }, [card?.site]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -197,22 +205,28 @@ export default function PayPage() {
   const showPicker = !card || card.status === "open" || (card.status === "waiting" && picking);
   const amount = card ? moneyText(card.payable) : "0.00";
   const subtotal = card ? moneyText(card.amount) : "0.00";
-  const currency = card?.currency || "BDT";
+  const currency = card?.currency || card?.site?.currency || "BDT";
+  const symbol = card?.site?.currencySymbol || "";
   const reference = card?.reference || card?.publicId || "";
+  const priced = (value: string) => (symbol ? `${symbol} ${value}` : `${value} ${currency}`);
+  const supportHref = card?.site?.supportPhone ? `tel:${card.site.supportPhone}` : card?.site?.supportEmail ? `mailto:${card.site.supportEmail}` : "";
+  const supportLabel = card?.site?.supportPhone || card?.site?.supportEmail || text(lang, "Support", "সহায়তা");
 
   return (
     <main className="ck-page">
       <section className="ck-card">
         <aside className="ck-side">
           <div className="ck-side-top">
-            <div className="ck-brand" aria-label="UniQbd">
-              <span className="ck-bag" aria-hidden="true">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
-                  <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span className="ck-word">Uni<span>Q</span>bd</span>
+            <div className="ck-brand" aria-label={card?.site?.brandName || "UniQbd"}>
+              {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : (
+                <span className="ck-bag" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
+                    <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
+                </span>
+              )}
+              {customBrand(card?.site) ? <span className="ck-word">{card?.site?.brandName}</span> : <span className="ck-word">Uni<span>Q</span>bd</span>}
             </div>
 
             <div className="ck-trx">
@@ -232,10 +246,11 @@ export default function PayPage() {
 
             <div className="ck-amount">
               <p>{text(lang, "Payable amount", "পরিশোধযোগ্য পরিমাণ")}</p>
-              <strong>{amount} <span>{currency}</span></strong>
+              <strong>{symbol ? priced(amount) : <>{amount} <span>{currency}</span></>}</strong>
+              {card?.site?.checkoutNote ? <p className="ck-site-note">{card.site.checkoutNote}</p> : null}
               <div className="ck-break">
-                <div><span>{text(lang, "Subtotal", "সাবটোটাল")}</span><b>{subtotal} {currency}</b></div>
-                <div className="total"><span>{text(lang, "Total", "সর্বমোট")}</span><b>{amount} {currency}</b></div>
+                <div><span>{text(lang, "Subtotal", "সাবটোটাল")}</span><b>{priced(subtotal)}</b></div>
+                <div className="total"><span>{text(lang, "Total", "সর্বমোট")}</span><b>{priced(amount)}</b></div>
               </div>
             </div>
           </div>
@@ -310,7 +325,7 @@ export default function PayPage() {
               <div className="ck-copy">
                 <div>
                   <small>{text(lang, "Send exactly", "পাঠানোর সঠিক পরিমাণ")}</small>
-                  <b>{amount} {currency}</b>
+                  <b>{priced(amount)}</b>
                 </div>
                 <CopyButton done={copied === "amt"} onClick={() => flashCopy("amt", amount)} />
               </div>
@@ -363,7 +378,7 @@ export default function PayPage() {
             {showPicker ? (
               <button type="button" className={picked ? "ck-pay on" : "ck-pay"} disabled={!picked || pending} onClick={paySelected}>
                 <PayMark />
-                <span>{text(lang, `Pay ${amount} ${currency}`, `পেমেন্ট করুন ${amount} ${currency}`)}</span>
+                <span>{text(lang, `Pay ${priced(amount)}`, `পেমেন্ট করুন ${priced(amount)}`)}</span>
               </button>
             ) : null}
             {card?.cancelUrl ? (
@@ -371,10 +386,16 @@ export default function PayPage() {
             ) : showPicker ? (
               <span className="ck-cancel">{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</span>
             ) : null}
+            {card?.site?.faqContent ? (
+              <div className="ck-faq">
+                <strong>{card.site.faqTitle || text(lang, "FAQ", "প্রশ্নোত্তর")}</strong>
+                <p>{card.site.faqContent}</p>
+              </div>
+            ) : null}
             <div className="ck-secure">
               <span>
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656 3.536 3.536M9.172 9.172 5.636 5.636m3.536 9.192-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                {text(lang, "Support", "সহায়তা")}
+                {supportHref ? <a href={supportHref}>{supportLabel}</a> : supportLabel}
               </span>
               <span className="ssl">
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>

@@ -1,14 +1,23 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { applySiteChrome, type PublicSite } from "@/lib/site";
 
 export default function DeskGatePage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [site, setSite] = useState<PublicSite | null>(null);
+
+  useEffect(() => {
+    api<PublicSite>("/public/site").then(setSite).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    applySiteChrome(site, { layout: true });
+  }, [site]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +45,8 @@ export default function DeskGatePage() {
     <main className="pay-shell">
       <div className="row" style={{ justifyContent: "flex-end" }}><ThemeToggle /></div>
       <p className="kicker">Desk sign in</p>
-      <h1 style={{ fontSize: 48 }}>UniqBD Pay</h1>
+      {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
+      <h1 style={{ fontSize: 48 }}>{site?.brandName || "UniqBD Pay"}</h1>
       <form className="card" onSubmit={onSubmit}>
         <label className="field">
           <span>Email</span>

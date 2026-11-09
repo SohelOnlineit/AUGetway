@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 type Gateway = {
   id: string;
   label: string;
+  internalLabel?: string;
   code: string;
   accountNumber: string;
   instructions: string;
@@ -248,7 +249,10 @@ export default function MethodsPage() {
                     onChange={() => setPicked(picked.includes(row.id) ? picked.filter((id) => id !== row.id) : [...picked, row.id])}
                   />
                 </td>
-                <td><strong>{row.label}</strong></td>
+                <td>
+                  <strong>{row.internalLabel?.trim() || row.label}</strong>
+                  {row.internalLabel?.trim() && row.internalLabel.trim() !== row.label ? <div className="code">{row.label}</div> : null}
+                </td>
                 <td className="code">{row.code}</td>
                 <td>
                   <button className={row.active ? "switch on" : "switch"} type="button" aria-label={row.active ? "Turn off" : "Turn on"} onClick={() => toggle(row)}>

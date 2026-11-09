@@ -239,6 +239,11 @@ export class PayController {
     return this.pay.saveSettings(request.desk.sub, body);
   }
 
+  @Get("public/site")
+  site() {
+    return this.pay.publicSite();
+  }
+
   @Get("public/pay/:id")
   payView(@Param("id") id: string) {
     return this.pay.publicPay(id);

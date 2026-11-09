@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { applySiteChrome, customBrand, type PublicSite } from "@/lib/site";
 
 const main = [
   ["Dashboard", "/admin", "home"],
@@ -74,6 +75,8 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [accountNote, setAccountNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [site, setSite] = useState<PublicSite | null>(null);
+  const [adminMode, setAdminMode] = useState("");
 
   useEffect(() => {
     if (!sessionStorage.getItem("uniqpay_token")) {
@@ -89,7 +92,32 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     api<{ name: string; email: string }>("/auth/me")
       .then(setUser)
       .catch(() => setUser(null));
+    api<{ brandName: string; prefs: Record<string, string> }>("/desk/settings")
+      .then((row) => {
+        setAdminMode(row.prefs.themeMode ?? "");
+        setSite({
+          brandName: row.brandName,
+          supportEmail: "",
+          supportPhone: row.prefs.supportPhone ?? "",
+          currency: "",
+          currencySymbol: row.prefs.currencySymbol ?? "",
+          checkoutNote: "",
+          brandLogo: row.prefs.brandLogo ?? "",
+          brandFavicon: row.prefs.brandFavicon ?? "",
+          themeAccent: row.prefs.themeAccent ?? "",
+          checkoutTheme: "",
+          faqTitle: "",
+          faqContent: "",
+          metaTitle: row.prefs.metaTitle ?? "",
+          metaDescription: row.prefs.metaDescription ?? "",
+        });
+      })
+      .catch(() => undefined);
   }, [router]);
+
+  useEffect(() => {
+    applySiteChrome(site, { adminMode });
+  }, [site, adminMode]);
 
   if (!ready) return null;
 
@@ -181,10 +209,17 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="desk">
       <header className="topbar">
-        <Link href="/admin" className="wordmark" aria-label="UniQbd">
-          <span className="wordmark-uni">Uni</span>
-          <span className="wordmark-q">Q</span>
-          <span className="wordmark-bd">bd</span>
+        <Link href="/admin" className="wordmark" aria-label={site?.brandName || "UniQbd"}>
+          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
+          {customBrand(site) ? (
+            <span>{site?.brandName}</span>
+          ) : (
+            <>
+              <span className="wordmark-uni">Uni</span>
+              <span className="wordmark-q">Q</span>
+              <span className="wordmark-bd">bd</span>
+            </>
+          )}
         </Link>
         <div className="top-tools">
           <div className="top-search">
