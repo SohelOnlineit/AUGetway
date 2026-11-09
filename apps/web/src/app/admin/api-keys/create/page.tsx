@@ -5,26 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
-type KeyType = "payment" | "sms";
+type KeyType = "checkout";
 type Generation = "auto" | "custom";
 
-const paymentAbilities = ["payment:checkout", "payment:verify", "payment:refund"] as const;
-const smsAbilities = ["sms:sync", "sms:receive", "sms:send"] as const;
+const checkoutAbilities = ["payment:checkout", "payment:verify"] as const;
 const abilityCopy: Record<string, string> = {
-  "payment:checkout": "payment:checkout (Create Payment Sessions)",
-  "payment:verify": "payment:verify (Verify Transactions)",
-  "payment:refund": "payment:refund (Process Refunds)",
-  "sms:sync": "sms:sync (Sync SMS from Mobile App)",
-  "sms:receive": "sms:receive (Receive Incoming SMS)",
-  "sms:send": "sms:send (Send Outgoing SMS via Gateway)",
+  "payment:checkout": "Create a checkout",
+  "payment:verify": "Verify a checkout",
 };
 
 const blank = {
-  keyType: "payment" as KeyType,
+  keyType: "checkout" as KeyType,
   name: "",
   generation: "auto" as Generation,
   token: "",
-  abilities: [...paymentAbilities] as string[],
+  abilities: [...checkoutAbilities] as string[],
   webhookUrl: "",
   expiresAt: "",
   active: true,
@@ -42,7 +37,7 @@ export default function CreateKeyPage() {
     setForm((current) => ({
       ...current,
       keyType,
-      abilities: keyType === "sms" ? [...smsAbilities] : [...paymentAbilities],
+      abilities: [...checkoutAbilities],
     }));
   }
 
@@ -133,12 +128,11 @@ export default function CreateKeyPage() {
             {heading}
             <div className="key-body">
             <h3>API Key Information</h3>
-            <p className="sub">Generate an API Key for Payment Gateway integration or SMS Gateway mobile sync.</p>
+            <p className="sub">This key lets your store create a checkout and verify it. The phone app signs in with the desk account.</p>
             <label>
               <span>Key Type</span>
               <select value={form.keyType} onChange={(event) => setType(event.target.value as KeyType)}>
-                <option value="payment">Payment Gateway (Merchant Checkout & Verification — uq_live_...)</option>
-                <option value="sms">SMS Gateway (Handset message sync — uq_node_...)</option>
+                <option value="checkout">Checkout (Create and verify a payment — uq_live_...)</option>
               </select>
             </label>
             <label>
@@ -148,7 +142,7 @@ export default function CreateKeyPage() {
                 required
                 minLength={2}
                 maxLength={80}
-                placeholder="e.g. Shop checkout or Handset sync"
+                placeholder="e.g. Shop checkout"
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </label>
@@ -176,7 +170,7 @@ export default function CreateKeyPage() {
             <fieldset>
               <legend>Abilities / Permissions</legend>
               <div className="key-checks">
-                {[...paymentAbilities, ...smsAbilities].map((ability) => (
+                {checkoutAbilities.map((ability) => (
                   <label key={ability}>
                     <input type="checkbox" checked={form.abilities.includes(ability)} onChange={() => toggleAbility(ability)} />
                     <span>{abilityCopy[ability]}</span>

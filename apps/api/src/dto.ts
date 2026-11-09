@@ -317,8 +317,8 @@ export class KeyDto {
   @MaxLength(80)
   label!: string;
 
-  @IsIn(["payment", "sms"])
-  keyType!: "payment" | "sms";
+  @IsIn(["checkout"])
+  keyType!: "checkout";
 
   @IsIn(["auto", "custom"])
   generation!: "auto" | "custom";
@@ -330,7 +330,7 @@ export class KeyDto {
 
   @IsArray()
   @IsIn(
-    ["payment:checkout", "payment:verify", "payment:refund", "sms:sync", "sms:receive", "sms:send"],
+    ["payment:checkout", "payment:verify"],
     { each: true },
   )
   abilities!: string[];

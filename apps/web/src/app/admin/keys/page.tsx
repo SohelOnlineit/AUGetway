@@ -182,9 +182,7 @@ export default function KeysPage() {
                     {shown.name ? <td className="name">{row.label}</td> : null}
                     {shown.type ? (
                       <td>
-                        <span className={`key-type ${row.keyType === "sms" ? "sms" : ""}`}>
-                          {row.keyType === "sms" ? "SMS Gateway" : "Payment Gateway"}
-                        </span>
+                        <span className="key-type">Checkout</span>
                       </td>
                     ) : null}
                     {shown.key ? (

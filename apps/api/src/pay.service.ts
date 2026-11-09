@@ -580,7 +580,7 @@ export class PayService implements OnModuleInit {
     ownerId: string,
     input: {
       label: string;
-      keyType: "payment" | "sms";
+      keyType: "checkout";
       generation: "auto" | "custom";
       token?: string;
       abilities: string[];
@@ -589,7 +589,7 @@ export class PayService implements OnModuleInit {
       active: boolean;
     },
   ) {
-    const allowed = ["payment:checkout", "payment:verify", "payment:refund", "sms:sync", "sms:receive", "sms:send"];
+    const allowed = ["payment:checkout", "payment:verify"];
     const abilities = [...new Set(input.abilities.filter((item) => allowed.includes(item)))];
     if (abilities.length === 0) throw new BadRequestException("Choose at least one ability");
     const webhookUrl = (input.webhookUrl ?? "").trim();
@@ -609,7 +609,7 @@ export class PayService implements OnModuleInit {
     const token =
       input.generation === "custom"
         ? (input.token ?? "").trim()
-        : `${input.keyType === "sms" ? "uq_node_" : "uq_live_"}${randomBytes(24).toString("base64url")}`;
+        : `uq_live_${randomBytes(24).toString("base64url")}`;
     if (input.generation === "custom" && token.length < 12) {
       throw new BadRequestException("Custom key must be at least 12 characters");
     }
