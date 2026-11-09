@@ -61,6 +61,13 @@ test("a received payment is uploaded and an outgoing transfer is not", () => {
   assert.equal(shouldUpload({ address: "bKash", body: "bKash offer", trxId: "", amount: "" }, DEFAULT_SENDERS), false);
 });
 
+test("adding a personal number to the whitelist still rejects that inbox", () => {
+  const senders = [...DEFAULT_SENDERS, { name: "01711111111", enabled: true }];
+  const row = { address: "01711111111", body: "You have received Tk 260.00. TrxID ABC12345", receivedAt: fresh };
+  assert.equal(keepMessage(row, rules({ senders }), now), false);
+  assert.equal(shouldUpload({ ...row, trxId: "ABC12345", amount: "260.00" }, senders), false);
+});
+
 test("a personal number with a transaction id is rejected", () => {
   const row = {
     address: "01711111111",

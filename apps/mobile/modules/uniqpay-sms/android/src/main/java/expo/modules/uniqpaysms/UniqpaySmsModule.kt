@@ -120,7 +120,7 @@ class UniqpaySmsModule : Module() {
         scanned += 1
         val address = if (addressIdx >= 0) it.getString(addressIdx).orEmpty() else ""
         val body = if (bodyIdx >= 0) it.getString(bodyIdx).orEmpty() else ""
-        if (paymentOnly && !isPayment(address, body)) continue
+        if (isPersonalNumber(address) || (paymentOnly && !isPayment(address, body))) continue
         rows.add(
           mapOf(
             "address" to address,
@@ -133,6 +133,12 @@ class UniqpaySmsModule : Module() {
       }
     }
     return rows
+  }
+
+  private fun isPersonalNumber(address: String): Boolean {
+    val digits = address.filter { it.isDigit() }
+    val local = if (digits.startsWith("880")) digits.drop(3) else digits
+    return Regex("^01[3-9]\\d{8}$").matches(local)
   }
 
   private fun isPayment(address: String, body: String): Boolean {

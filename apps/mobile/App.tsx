@@ -131,7 +131,8 @@ export default function App() {
         try {
           const parsed = JSON.parse(savedSenders) as Sender[];
           if (Array.isArray(parsed) && parsed.every((row) => typeof row?.name === "string" && typeof row?.enabled === "boolean")) {
-            const next = parsed.slice(0, 40);
+            const known = new Set(parsed.map((row) => row.name.toLowerCase()));
+            const next = [...parsed, ...DEFAULT_SENDERS.filter((row) => !known.has(row.name.toLowerCase()))].slice(0, 40);
             rulesRef.current = { ...rulesRef.current, senders: next };
             setSenders(next);
           }
@@ -541,7 +542,7 @@ export default function App() {
             if (!sentJobs.current.has(job.id)) {
               await sendOneSms(job.to, job.body, job.simSlot);
               sentJobs.current.add(job.id);
-              void writeStore("uniqpay_sent_jobs", JSON.stringify([...sentJobs.current].slice(-100)));
+              await writeStore("uniqpay_sent_jobs", JSON.stringify([...sentJobs.current].slice(-100)));
             }
             await fetch(`${DESK}/handset/jobs/${job.id}`, {
               method: "POST",

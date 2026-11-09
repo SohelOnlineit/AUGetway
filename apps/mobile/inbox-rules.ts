@@ -20,6 +20,7 @@ export const DEFAULT_SENDERS: Sender[] = [
   "Nagad",
   "Rocket",
   "Upay",
+  "16316",
 ].map((name) => ({ name, enabled: true }));
 
 export function parseTrx(body: string) {
@@ -55,6 +56,11 @@ export function isOtpMessage(body: string) {
   return /\botp\b/i.test(body) || /\bverification\s*code\b/i.test(body);
 }
 
+export function isPersonalNumber(sender: string) {
+  const digits = sender.replace(/\D/g, "");
+  return /^01[3-9]\d{8}$/.test(digits) || /^8801[3-9]\d{8}$/.test(digits);
+}
+
 function isPayment(address: string, body: string) {
   if (isOtpMessage(body)) return false;
   return DEFAULT_SENDERS.some((sender) => matchesSender(address, sender.name));
@@ -65,7 +71,7 @@ export function keepMessage(
   rules: InboxRules,
   now: number,
 ) {
-  if (isOtpMessage(row.body)) return false;
+  if (isPersonalNumber(row.address) || isOtpMessage(row.body)) return false;
   if (rules.cleanDays > 0 && now - row.receivedAt > rules.cleanDays * 24 * 60 * 60 * 1000) return false;
   const text = `${row.address} ${row.body}`.toLowerCase();
   if (rules.keywords.some((word) => word.trim().length >= 3 && text.includes(word.trim().toLowerCase()))) return false;
@@ -79,7 +85,7 @@ export function shouldUpload(
   row: { address: string; body: string; trxId: string; amount: string },
   senders: Sender[],
 ) {
-  if (isOtpMessage(row.body)) return false;
+  if (isPersonalNumber(row.address) || isOtpMessage(row.body)) return false;
   if (!senders.some((sender) => sender.enabled && matchesSender(row.address, sender.name))) return false;
   const lower = row.body.toLowerCase();
   if (DEBIT.some((hint) => lower.includes(hint))) return false;

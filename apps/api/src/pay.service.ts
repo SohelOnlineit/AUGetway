@@ -9,7 +9,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { isOtpMessage, isPaymentSender } from "./payment-sms";
+import { acceptInboundSms, isOtpMessage, isPaymentSender } from "./payment-sms";
 import { PrismaService } from "./prisma.service";
 
 const DEBIT_HINTS = [
@@ -1254,7 +1254,7 @@ export class PayService implements OnModuleInit {
     const handset = await this.prisma.handset.findFirst({ where: { id: input.handsetId, ownerId } });
     if (!handset) throw new NotFoundException("Device not found");
     const waiting = await this.prisma.outboundSms.count({ where: { handsetId: handset.id, status: { in: ["queued", "sending"] } } });
-    if (waiting >= 20) throw new BadRequestException("This phone already has 20 messages waiting");
+    if (waiting >= 1) throw new BadRequestException("This phone is already sending a message. Wait until it finishes.");
     const job = await this.prisma.outboundSms.create({
       data: { handsetId: handset.id, toNumber: to, body, simSlot: handset.simSlot === 1 ? 1 : 0 },
     });
@@ -1286,12 +1286,12 @@ export class PayService implements OnModuleInit {
     const stale = new Date(Date.now() - 90_000);
     await this.prisma.outboundSms.updateMany({
       where: { handsetId: handset.id, status: "sending", updatedAt: { lt: stale } },
-      data: { status: "queued" },
+      data: { status: "failed", error: "The phone did not confirm the send" },
     });
     const waiting = await this.prisma.outboundSms.findMany({
       where: { handsetId: handset.id, status: "queued" },
       orderBy: { createdAt: "asc" },
-      take: 3,
+      take: 1,
     });
     const jobs = [];
     for (const job of waiting) {
@@ -1308,6 +1308,9 @@ export class PayService implements OnModuleInit {
 
   async finishJob(userId: string, id: string, input: { uid: string; ok: boolean; error?: string }) {
     const handset = await this.ownedHandset(userId, input.uid);
+    const current = await this.prisma.outboundSms.findFirst({ where: { id, handsetId: handset.id } });
+    if (!current) throw new NotFoundException("Message not found");
+    if (current.status === "sent") return { ok: true };
     const updated = await this.prisma.outboundSms.updateMany({
       where: { id, handsetId: handset.id, status: "sending" },
       data: input.ok ? { status: "sent", error: "" } : { status: "failed", error: (input.error || "Could not send").slice(0, 180) },
@@ -1327,13 +1330,18 @@ export class PayService implements OnModuleInit {
     if (!handset || handset.ownerId !== userId) {
       throw new NotFoundException("Register this handset first");
     }
+    const sender = input.sender?.trim() ?? "";
+    const body = input.body.trim();
+    if (!acceptInboundSms(sender, body)) {
+      throw new BadRequestException("Only a wallet or bank payment message can be saved");
+    }
     const receivedKey = input.receivedKey?.trim().slice(0, 80) || null;
     try {
       const saved = await this.prisma.inboxNotice.create({
         data: {
           handsetId: handset.id,
-          body: input.body.trim(),
-          sender: input.sender?.trim() ?? "",
+          body,
+          sender,
           receivedKey,
         },
       });

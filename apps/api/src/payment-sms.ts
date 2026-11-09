@@ -47,3 +47,19 @@ export function isPaymentSender(sender: string) {
   if (!from || isPersonalNumber(from)) return false;
   return PAYMENT_SENDERS.some((name) => senderMatches(from, name));
 }
+
+function paymentSignals(body: string) {
+  return {
+    trx: /(?:trx\s*id|trxid|txn\s*id|transaction\s*id)[:\s]*[A-Z0-9]{6,}/i.test(body),
+    amount: /(?:tk|bdt|৳)\s*[0-9]/i.test(body) || /[0-9][0-9,]*\.[0-9]{2}/.test(body),
+  };
+}
+
+export function acceptInboundSms(sender: string, body: string) {
+  const text = body.trim();
+  if (text.length < 4 || text.length > 500) return false;
+  if (isOtpMessage(text) || isPersonalNumber(sender)) return false;
+  const proof = paymentSignals(text);
+  if (!sender.trim() || isPaymentSender(sender)) return proof.trx || proof.amount;
+  return proof.trx && proof.amount;
+}
