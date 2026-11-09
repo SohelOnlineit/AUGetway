@@ -65,6 +65,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [query, setQuery] = useState("");
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [cacheNote, setCacheNote] = useState(false);
   const [site, setSite] = useState<PublicSite | null>(null);
@@ -125,6 +126,10 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   }, [site, adminMode]);
 
   useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!cacheNote) return;
     const timer = setTimeout(() => {
       sessionStorage.removeItem("uniqpay_cache_note");
@@ -164,9 +169,14 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="desk">
+    <div className={navOpen ? "desk nav-open" : "desk"}>
       <header className="topbar">
         <div className="topbar-inner">
+        <button className="menu-toggle" type="button" aria-label={navOpen ? "Close menu" : "Open menu"} aria-expanded={navOpen} onClick={() => setNavOpen((open) => !open)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            {navOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+          </svg>
+        </button>
         <Link href="/admin" className="wordmark" aria-label={site?.brandName || "UniQbd"}>
           {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
           {customBrand(site) ? (
@@ -237,10 +247,11 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <div className="desk-frame">
+      <button className="nav-shade" type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} />
       <aside className="rail">
         <nav className="rail-box">
         {main.map(([label, href, icon]) => (
-          <Link key={href} href={href} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") || (href === "/admin/invoices" && pathname.startsWith("/admin/invoices/")) || (href === "/admin/payment-links" && pathname.startsWith("/admin/payment-links/")) ? "active" : ""}>
+          <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") || (href === "/admin/invoices" && pathname.startsWith("/admin/invoices/")) || (href === "/admin/payment-links" && pathname.startsWith("/admin/payment-links/")) ? "active" : ""}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
           </Link>
@@ -251,7 +262,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         </button>
         {openSms
           ? smsGateway.map(([label, href, icon]) => (
-              <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href ? "active" : ""}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>
               </Link>
@@ -263,7 +274,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         </button>
         {openDev
           ? developers.map(([label, href, icon]) => (
-              <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href ? "active" : ""}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>
               </Link>

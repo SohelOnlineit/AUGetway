@@ -53,7 +53,7 @@ export default function DeskGatePage() {
       <div className="row" style={{ justifyContent: "flex-end" }}><ThemeToggle /></div>
       <p className="kicker">Desk sign in</p>
       {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
-      <h1 style={{ fontSize: 48 }}>{site?.brandName || "UniqBD Pay"}</h1>
+      <h1 className="gate-title">{site?.brandName || "UniqBD Pay"}</h1>
       <form className="card" onSubmit={onSubmit}>
         <label className="field">
           <span>Email</span>
