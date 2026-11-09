@@ -9,7 +9,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, trxRefOk } from "./payment-sms";
+import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
 import { PrismaService } from "./prisma.service";
 
 const DEBIT_HINTS = [
@@ -1205,7 +1205,7 @@ export class PayService implements OnModuleInit {
       amount: unknown;
       payable: unknown;
       billId: string | null;
-      method: { verifyBy: string; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
+      method: { label: string; verifyBy: string; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
     },
     providerRef: string,
     payerAccount: string,
@@ -1222,7 +1222,11 @@ export class PayService implements OnModuleInit {
       take: 40,
     });
     const hits = notices.filter((notice) =>
-      isPaymentSender(notice.sender) && !isOtpMessage(notice.body) && !looksLikeDebit(notice.body) && bodyHasRef(notice.body, providerRef),
+      isPaymentSender(notice.sender)
+      && !isOtpMessage(notice.body)
+      && !looksLikeDebit(notice.body)
+      && bodyHasRef(notice.body, providerRef)
+      && senderFitsMethod(notice.sender, notice.body, row.method?.label ?? ""),
     );
     const under = Number(row.method?.underTolerance ?? 0);
     const over = Number(row.method?.overTolerance ?? 0);
@@ -1248,7 +1252,7 @@ export class PayService implements OnModuleInit {
         });
         return this.publicPay(row.publicId);
       }
-      throw new BadRequestException("That payment was not found");
+      throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
     const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
     const claimed = await this.prisma.inboxNotice.updateMany({
@@ -1622,6 +1626,7 @@ export class PayService implements OnModuleInit {
     });
     const haystack = body.toUpperCase();
     const paidAmount = parsePaidAmount(body);
+    const smsRef = readTrxId(body);
     const claimed = new Set(
       (
         await this.prisma.checkout.findMany({
@@ -1632,17 +1637,33 @@ export class PayService implements OnModuleInit {
         .map((row) => (row.providerRef ?? "").toUpperCase())
         .filter(Boolean),
     );
-    const fits = waiting.filter((row) => {
+    if (smsRef && claimed.has(smsRef)) return null;
+    const named = smsRef
+      ? waiting.find((row) => (row.providerRef ?? "").toUpperCase() === smsRef && senderFitsMethod(sender, body, row.method?.label ?? ""))
+      : undefined;
+    if (named) {
+      const payable = Number(named.payable);
+      const base = Number(named.amount);
+      const under = Number(named.method?.underTolerance ?? 0);
+      const over = Number(named.method?.overTolerance ?? 0);
+      const verifyBy = named.method?.verifyBy ?? "transaction_id";
+      const floor = verifyBy === "unique_amount" && payable > base + 0.001 ? Math.max(0, base - under) : payable - under;
+      const ok = paidAmount !== null && paidAmount + 0.001 >= floor && (over <= 0 || paidAmount <= payable + over + 0.001);
+      if (!ok) return null;
+    }
+    const fits = named ? [named] : waiting.filter((row) => {
       const method = row.method;
       const payable = Number(row.payable);
       const under = method ? Number(method.underTolerance) : 0;
       const over = method ? Number(method.overTolerance) : 0;
       const verifyBy = method?.verifyBy ?? "transaction_id";
+      if (!senderFitsMethod(sender, body, method?.label ?? "")) return false;
       if (verifyBy === "sender_number") {
         return senderInNotice(row.payerAccount ?? "", body) && paidAmount !== null && amountFits(paidAmount, payable, under, over);
       }
       if (verifyBy === "unique_amount") {
-        return paidAmount !== null && amountFits(paidAmount, payable, under, over);
+        const floor = payable > Number(row.amount) + 0.001 ? Math.max(0, Number(row.amount) - under) : payable - under;
+        return paidAmount !== null && paidAmount + 0.001 >= floor && (over <= 0 || paidAmount <= payable + over + 0.001);
       }
       const ref = (row.providerRef ?? "").toUpperCase();
       if (!ref || !haystack.includes(ref) || claimed.has(ref)) return false;
@@ -1655,10 +1676,11 @@ export class PayService implements OnModuleInit {
     if (!target) return null;
     const holdAbove = target.method ? Number(target.method.holdAbove) : 0;
     const held = holdAbove > 0 && Number(target.payable) + 0.001 >= holdAbove;
+    const savedRef = smsRef && !(target.providerRef ?? "") ? smsRef : undefined;
     if (held) {
-      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "pending" } });
+      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "pending", ...(savedRef ? { providerRef: savedRef } : {}) } });
     } else {
-      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "paid" } });
+      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "paid", ...(savedRef ? { providerRef: savedRef } : {}) } });
       if (target.billId) {
         await this.prisma.bill.update({ where: { id: target.billId }, data: { status: "paid" } });
       }

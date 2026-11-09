@@ -59,6 +59,28 @@ export function trxRefOk(value: string) {
   return /^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(value);
 }
 
+export function readTrxId(body: string) {
+  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)\s*[:\s]?\s*([A-Za-z0-9]{8,20})/i);
+  if (!match) return "";
+  const ref = match[1].toUpperCase();
+  return trxRefOk(ref) ? ref : "";
+}
+
+export function senderFitsMethod(sender: string, body: string, label: string) {
+  const name = label.toLowerCase();
+  const from = `${sender} ${body}`.toLowerCase();
+  const brands: [string, string[]][] = [
+    ["bkash", ["bkash"]],
+    ["nagad", ["nagad"]],
+    ["rocket", ["rocket", "16216", "dbbl"]],
+    ["upay", ["upay"]],
+    ["cellfin", ["cellfin"]],
+  ];
+  const known = brands.find(([key]) => name.includes(key));
+  if (!known) return isPaymentSender(sender);
+  return known[1].some((part) => from.includes(part));
+}
+
 export function bodyHasRef(body: string, ref: string) {
   const upper = body.toUpperCase();
   let from = 0;

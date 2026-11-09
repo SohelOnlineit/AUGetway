@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, trxRefOk } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -34,6 +34,14 @@ test("a transaction id is a whole code, not part of an amount", () => {
   assert.equal(bodyHasRef("You have received Tk 1.00. TrxID 8N70O2M4RB.", "8N70O2M4RB"), true);
   assert.equal(bodyHasRef("You have received Tk 100.00.", "100"), false);
   assert.equal(bodyHasRef("TrxID 8N70O2M4RBX extra", "8N70O2M4RB"), false);
+});
+
+test("a unique-amount message keeps its own transaction id and wallet", () => {
+  const body = "You have received Tk 1.00 from 01700000000. TrxID 8N70O2M4RB.";
+  assert.equal(readTrxId(body), "8N70O2M4RB");
+  assert.equal(readTrxId("You have received Tk 100.00."), "");
+  assert.equal(senderFitsMethod("bKash", body, "bKash Merchant"), true);
+  assert.equal(senderFitsMethod("Nagad", body, "bKash Merchant"), false);
 });
 
 test("an otp or verification code is not a payment", () => {
