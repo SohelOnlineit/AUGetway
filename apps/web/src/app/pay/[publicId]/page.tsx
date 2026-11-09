@@ -304,11 +304,13 @@ export default function PayPage() {
               <div className="ck-verify-top">
                 {card.status === "waiting" ? (
                   <button type="button" className="ck-back" onClick={() => setPicking(true)}>
-                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    <span className="ck-back-mark" aria-hidden="true">
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    </span>
                     {text(lang, "Change method", "পেমেন্ট মাধ্যম পরিবর্তন")}
                   </button>
                 ) : <span />}
-                <span className="ck-active">{card.method.label}</span>
+                <span className="ck-active" aria-label={card.method.label}><MethodMark label={card.method.label} /></span>
               </div>
               <p className="ck-note">
                 {card.method.instructions || text(lang, `Send exactly ${amount} ${currency}.`, `ঠিক ${amount} ${currency} পাঠান।`)}

@@ -1000,15 +1000,45 @@ a.ck-cancel:hover { color: var(--fg); }
 .ck-secure span { display: inline-flex; align-items: center; gap: 6px; }
 .ck-secure .ssl svg { color: var(--brand); }
 .ck-verify { display: flex; flex-direction: column; gap: 12px; }
-.ck-back, .ck-active {
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--fg);
+.ck-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 16px 6px 6px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--cta);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.ck-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 12px; font-size: 13px; font-weight: 750; }
-.ck-active { display: inline-flex; gap: 8px; color: var(--fg); background: var(--bg); }
-.ck-active .ck-logo { font-size: 12px; }
-.ck-active .ck-logo-box, .ck-active .ck-logo i { display: none; }
+.ck-back:hover { filter: brightness(1.06); }
+.ck-back-mark {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.16);
+}
+.ck-active {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: #161616;
+}
+.ck-active .ck-brand-logo { height: 30px; width: auto; max-width: 132px; }
+.ck-active .ck-logo { font-size: 14px; color: #161616; }
 .ck-copy, .ck-field input, .ck-note, .ck-wait {
   background: var(--bg);
   border: 1px solid var(--line);
