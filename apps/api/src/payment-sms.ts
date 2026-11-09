@@ -55,30 +55,67 @@ function paymentSignals(body: string) {
   };
 }
 
+const WALLET_BRANDS: [string, string[]][] = [
+  ["bkash", ["bkash"]],
+  ["nagad", ["nagad"]],
+  ["rocket", ["rocket", "16216", "dbbl"]],
+  ["upay", ["upay"]],
+  ["cellfin", ["cellfin"]],
+];
+
+const STRONG_DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to", "debited", "deducted"];
+const WEAK_DEBIT = ["reserved for", "bill successfully paid", "biller:", "mobile recharge", "recharge of", "purchased", "payment of", "recharge"];
+
+function walletBrand(value: string) {
+  const text = value.toLowerCase();
+  return WALLET_BRANDS.find(([, words]) => words.some((word) => text.includes(word)))?.[0] ?? "";
+}
+
 export function trxRefOk(value: string) {
   return /^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(value);
 }
 
 export function readTrxId(body: string) {
-  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)\s*[:\s]?\s*([A-Za-z0-9]{8,20})/i);
+  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
   if (!match) return "";
   const ref = match[1].toUpperCase();
   return trxRefOk(ref) ? ref : "";
 }
 
-export function senderFitsMethod(sender: string, body: string, label: string) {
-  const name = label.toLowerCase();
-  const from = `${sender} ${body}`.toLowerCase();
-  const brands: [string, string[]][] = [
-    ["bkash", ["bkash"]],
-    ["nagad", ["nagad"]],
-    ["rocket", ["rocket", "16216", "dbbl"]],
-    ["upay", ["upay"]],
-    ["cellfin", ["cellfin"]],
+export function readPaidAmount(body: string) {
+  const patterns = [
+    /(?:amount|amt)\s*[:\s]\s*(?:tk|bdt|taka|৳)?\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
+    /(?:received|credited|deposit|cash\s*in)[\s\S]{0,48}?(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
+    /(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
   ];
-  const known = brands.find(([key]) => name.includes(key));
-  if (!known) return isPaymentSender(sender);
-  return known[1].some((part) => from.includes(part));
+  for (const pattern of patterns) {
+    const matches = body.matchAll(pattern);
+    for (const match of matches) {
+      const amount = Number(match[1].replace(/,/g, ""));
+      if (Number.isFinite(amount) && amount > 0) return amount;
+    }
+  }
+  return null;
+}
+
+export function isCreditMessage(body: string) {
+  const lower = body.toLowerCase();
+  return ["received", "cash in", "deposit", "credited"].some((hint) => lower.includes(hint));
+}
+
+export function isDebitMessage(body: string) {
+  const lower = body.toLowerCase();
+  if (STRONG_DEBIT.some((hint) => lower.includes(hint))) return true;
+  if (isCreditMessage(body)) return false;
+  return WEAK_DEBIT.some((hint) => lower.includes(hint));
+}
+
+export function senderFitsMethod(sender: string, body: string, label: string) {
+  const labelBrand = walletBrand(label);
+  const senderBrand = walletBrand(sender);
+  if (!labelBrand) return isPaymentSender(sender);
+  if (senderBrand) return senderBrand === labelBrand;
+  return walletBrand(body) === labelBrand;
 }
 
 export function bodyHasRef(body: string, ref: string) {

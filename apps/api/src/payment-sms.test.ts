@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -40,8 +40,17 @@ test("a unique-amount message keeps its own transaction id and wallet", () => {
   const body = "You have received Tk 1.00 from 01700000000. TrxID 8N70O2M4RB.";
   assert.equal(readTrxId(body), "8N70O2M4RB");
   assert.equal(readTrxId("You have received Tk 100.00."), "");
+  assert.equal(readTrxId("TrxID 8N70O2M4RBEXTRAXXXXXY"), "");
+  assert.equal("8N70O2M4RBEXTRAXXXXXY".length > 20, true);
+  assert.equal(readPaidAmount("Fee Tk 0.00. You have received payment of Tk 10.02. Balance Tk 80.00."), 10.02);
+  assert.equal(readPaidAmount("You have received Tk 1,250.50. Fee Tk 0.00. Balance Tk 9,000.00."), 1250.5);
+  assert.equal(isCreditMessage("You have received payment of Tk 10.02."), true);
+  assert.equal(isDebitMessage("You have received payment of Tk 10.02."), false);
+  assert.equal(isDebitMessage("Cash Out Tk 50.00 successful."), true);
   assert.equal(senderFitsMethod("bKash", body, "bKash Merchant"), true);
   assert.equal(senderFitsMethod("Nagad", body, "bKash Merchant"), false);
+  assert.equal(senderFitsMethod("bKash", "You have received Tk 10.00. Ref nagad.", "Nagad Personal"), false);
+  assert.equal(senderFitsMethod("bKash", body, "City Bank"), true);
 });
 
 test("an otp or verification code is not a payment", () => {

@@ -9,27 +9,8 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
 import { PrismaService } from "./prisma.service";
-
-const DEBIT_HINTS = [
-  "transferred to",
-  "transfer to",
-  "sent to",
-  "send money",
-  "cash out",
-  "payment to",
-  "payment of",
-  "reserved for",
-  "bill successfully paid",
-  "biller:",
-  "mobile recharge",
-  "recharge of",
-  "recharge",
-  "debited",
-  "deducted",
-  "purchased",
-];
 
 type MoneyRow = { toString(): string };
 
@@ -119,8 +100,7 @@ function bdMobile(raw: string) {
 }
 
 function looksLikeDebit(body: string) {
-  const lower = body.toLowerCase();
-  return DEBIT_HINTS.some((hint) => lower.includes(hint));
+  return isDebitMessage(body);
 }
 
 function accountList(value: string) {
@@ -222,12 +202,7 @@ function senderInNotice(sender: string, body: string) {
 }
 
 function parsePaidAmount(body: string) {
-  const labeled = body.match(/(?:tk|bdt|৳)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-  const plain = body.match(/([0-9][0-9,]*\.[0-9]{2})/);
-  const raw = (labeled ?? plain)?.[1];
-  if (!raw) return null;
-  const amount = Number(raw.replace(/,/g, ""));
-  return Number.isFinite(amount) ? amount : null;
+  return readPaidAmount(body);
 }
 
 function amountFits(paid: number, payable: number, under: number, over: number) {
@@ -556,6 +531,13 @@ export class PayService implements OnModuleInit {
     const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId: id } });
     if (!row) throw new NotFoundException("Checkout not found");
     if (row.status === "paid") return this.publicPay(id);
+    if (status === "paid" && row.providerRef) {
+      const used = await this.prisma.checkout.findFirst({
+        where: { ownerId, status: "paid", providerRef: row.providerRef, id: { not: row.id } },
+        select: { id: true },
+      });
+      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+    }
     const updated = await this.prisma.checkout.update({
       where: { id: row.id },
       data: { status },
@@ -1118,27 +1100,30 @@ export class PayService implements OnModuleInit {
       throw new BadRequestException("Amount is outside the limit for this method");
     }
     const priced = priceAmount(amount, method);
-    const payable = method.verifyBy === "unique_amount" || method.shiftAmount
-      ? await this.allocatePayable(row.id, method, priced)
-      : priced;
     const accounts = accountList(method.accountNumber);
     const payTo = accounts.length === 0 ? "" : accounts[method.accountCursor % accounts.length];
-    if (accounts.length > 1) {
-      await this.prisma.walletMethod.update({
-        where: { id: method.id },
-        data: { accountCursor: method.accountCursor + 1 },
-      });
-    }
     const minutes = Math.max(5, method.payWindow > 0 ? method.payWindow : 15);
-    await this.prisma.checkout.update({
-      where: { id: row.id },
-      data: {
-        methodId: method.id,
-        payable,
-        payTo,
-        status: "waiting",
-        expiresAt: new Date(Date.now() + minutes * 60 * 1000),
-      },
+    const shifted = method.verifyBy === "unique_amount" || method.shiftAmount;
+    await this.prisma.$transaction(async (tx) => {
+      if (shifted) await this.lockKey(tx, `slot:${method.id}`);
+      const payable = shifted ? await this.allocatePayable(row.id, method, priced) : priced;
+      if (accounts.length > 1) {
+        await tx.walletMethod.update({
+          where: { id: method.id },
+          data: { accountCursor: method.accountCursor + 1 },
+        });
+      }
+      await tx.checkout.update({
+        where: { id: row.id },
+        data: {
+          methodId: method.id,
+          payable,
+          payTo,
+          providerRef: null,
+          status: "waiting",
+          expiresAt: new Date(Date.now() + minutes * 60 * 1000),
+        },
+      });
     });
     return this.publicPay(id);
   }
@@ -1210,66 +1195,68 @@ export class PayService implements OnModuleInit {
     providerRef: string,
     payerAccount: string,
   ) {
-    const used = await this.prisma.checkout.findFirst({
-      where: { ownerId: row.ownerId, status: "paid", providerRef, id: { not: row.id } },
-    });
-    if (used) {
-      throw new BadRequestException("This Transaction ID has already been verified and used for another completed order.");
-    }
+    await this.reserveReference(row.ownerId, row.id, providerRef);
     const notices = await this.prisma.inboxNotice.findMany({
       where: { handset: { ownerId: row.ownerId }, checkoutId: null },
       orderBy: { createdAt: "desc" },
       take: 40,
     });
-    const hits = notices.filter((notice) =>
-      isPaymentSender(notice.sender)
-      && !isOtpMessage(notice.body)
-      && !looksLikeDebit(notice.body)
-      && bodyHasRef(notice.body, providerRef)
-      && senderFitsMethod(notice.sender, notice.body, row.method?.label ?? ""),
-    );
     const under = Number(row.method?.underTolerance ?? 0);
     const over = Number(row.method?.overTolerance ?? 0);
     const expected = Number(row.payable);
     const base = Number(row.amount);
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const floor = verifyBy === "unique_amount" && expected > base + 0.001 ? Math.max(0, base - under) : expected - under;
+    const cap = verifyBy === "unique_amount" ? expected + (over > 0 ? over : 0) : over > 0 ? expected + over : Number.POSITIVE_INFINITY;
+    const hits = notices.filter((notice) =>
+      isPaymentSender(notice.sender)
+      && !isOtpMessage(notice.body)
+      && !looksLikeDebit(notice.body)
+      && (verifyBy !== "unique_amount" || isCreditMessage(notice.body))
+      && bodyHasRef(notice.body, providerRef)
+      && readTrxId(notice.body) === providerRef
+      && senderFitsMethod(notice.sender, notice.body, row.method?.label ?? ""),
+    );
     const fit = hits.find((notice) => {
       const paid = parsePaidAmount(notice.body);
       if (paid === null) return false;
-      if (paid + 0.001 < floor) return false;
-      if (over > 0 && paid > expected + over + 0.001) return false;
-      return true;
+      return paid + 0.001 >= floor && paid <= cap + 0.001;
     });
     if (!fit) {
       if (hits.length > 0) {
         throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
       }
       if (row.method?.holdUnmatched) {
-        await this.prisma.checkout.update({
-          where: { id: row.id },
-          data: { status: "pending", providerRef, ...(payerAccount ? { payerAccount } : {}) },
-        });
+        await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
         return this.publicPay(row.publicId);
       }
       throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
     const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
-    const claimed = await this.prisma.inboxNotice.updateMany({
-      where: { id: fit.id, checkoutId: null },
-      data: { checkoutId: row.id },
+    const paidNow = await this.prisma.$transaction(async (tx) => {
+      await this.lockKey(tx, `${row.ownerId}:${providerRef}`);
+      const used = await tx.checkout.findFirst({
+        where: { ownerId: row.ownerId, providerRef, id: { not: row.id }, status: { in: ["waiting", "pending", "paid"] } },
+        select: { id: true },
+      });
+      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+      const claimed = await tx.inboxNotice.updateMany({
+        where: { id: fit.id, checkoutId: null },
+        data: { checkoutId: row.id },
+      });
+      if (claimed.count !== 1) return false;
+      const saved = await tx.checkout.updateMany({
+        where: { id: row.id, status: { in: ["waiting", "pending"] } },
+        data: { status: held ? "pending" : "paid", providerRef, ...(payerAccount ? { payerAccount } : {}) },
+      });
+      if (saved.count !== 1) {
+        await tx.inboxNotice.update({ where: { id: fit.id }, data: { checkoutId: null } });
+        return false;
+      }
+      if (!held && row.billId) await tx.bill.update({ where: { id: row.billId }, data: { status: "paid" } });
+      return !held;
     });
-    if (claimed.count !== 1) throw new BadRequestException("That payment was not found");
-    const saved = await this.prisma.checkout.updateMany({
-      where: { id: row.id, status: { in: ["waiting", "pending"] } },
-      data: { status: held ? "pending" : "paid", providerRef, ...(payerAccount ? { payerAccount } : {}) },
-    });
-    if (saved.count !== 1) {
-      await this.prisma.inboxNotice.update({ where: { id: fit.id }, data: { checkoutId: null } });
-      return this.publicPay(row.publicId);
-    }
-    if (!held) {
-      if (row.billId) await this.prisma.bill.update({ where: { id: row.billId }, data: { status: "paid" } });
+    if (paidNow) {
       const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id } });
       if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
     }
@@ -1620,13 +1607,15 @@ export class PayService implements OnModuleInit {
 
   private async matchOwner(ownerId: string, body: string, noticeId?: string, sender = "") {
     if (!isPaymentSender(sender) || isOtpMessage(body) || looksLikeDebit(body)) return null;
-    const waiting = await this.prisma.checkout.findMany({
-      where: { ownerId, status: { in: ["waiting", "pending"] }, expiresAt: { gt: new Date() } },
-      include: { method: true },
-    });
-    const haystack = body.toUpperCase();
     const paidAmount = parsePaidAmount(body);
     const smsRef = readTrxId(body);
+    const open = { status: { in: ["waiting", "pending"] }, expiresAt: { gt: new Date() } };
+    const waiting = await this.prisma.checkout.findMany({
+      where: smsRef
+        ? { ownerId, OR: [open, { status: "pending", providerRef: smsRef }] }
+        : { ownerId, ...open },
+      include: { method: true },
+    });
     const claimed = new Set(
       (
         await this.prisma.checkout.findMany({
@@ -1647,8 +1636,10 @@ export class PayService implements OnModuleInit {
       const under = Number(named.method?.underTolerance ?? 0);
       const over = Number(named.method?.overTolerance ?? 0);
       const verifyBy = named.method?.verifyBy ?? "transaction_id";
+      if (verifyBy === "unique_amount" && !isCreditMessage(body)) return null;
       const floor = verifyBy === "unique_amount" && payable > base + 0.001 ? Math.max(0, base - under) : payable - under;
-      const ok = paidAmount !== null && paidAmount + 0.001 >= floor && (over <= 0 || paidAmount <= payable + over + 0.001);
+      const cap = verifyBy === "unique_amount" ? payable + (over > 0 ? over : 0) : over > 0 ? payable + over : Number.POSITIVE_INFINITY;
+      const ok = paidAmount !== null && paidAmount + 0.001 >= floor && paidAmount <= cap + 0.001;
       if (!ok) return null;
     }
     const fits = named ? [named] : waiting.filter((row) => {
@@ -1658,38 +1649,87 @@ export class PayService implements OnModuleInit {
       const over = method ? Number(method.overTolerance) : 0;
       const verifyBy = method?.verifyBy ?? "transaction_id";
       if (!senderFitsMethod(sender, body, method?.label ?? "")) return false;
+      const stored = (row.providerRef ?? "").toUpperCase();
+      if (stored && smsRef && stored !== smsRef) return false;
       if (verifyBy === "sender_number") {
         return senderInNotice(row.payerAccount ?? "", body) && paidAmount !== null && amountFits(paidAmount, payable, under, over);
       }
       if (verifyBy === "unique_amount") {
-        const floor = payable > Number(row.amount) + 0.001 ? Math.max(0, Number(row.amount) - under) : payable - under;
-        return paidAmount !== null && paidAmount + 0.001 >= floor && (over <= 0 || paidAmount <= payable + over + 0.001);
+        if (!smsRef || !isCreditMessage(body) || (stored && stored !== smsRef)) return false;
+        return paidAmount !== null && Math.abs(paidAmount - payable) < 0.001;
       }
-      const ref = (row.providerRef ?? "").toUpperCase();
-      if (!ref || !haystack.includes(ref) || claimed.has(ref)) return false;
+      if (!stored || !bodyHasRef(body, stored) || claimed.has(stored)) return false;
       return paidAmount !== null && amountFits(paidAmount, payable, under, over);
     });
-    const target = fits.sort((left, right) => {
+    const ranked = fits.sort((left, right) => {
       if (paidAmount === null) return 0;
       return Math.abs(paidAmount - Number(left.payable)) - Math.abs(paidAmount - Number(right.payable));
-    })[0];
+    });
+    const target = ranked[0];
     if (!target) return null;
+    if (!named && ranked[1] && paidAmount !== null) {
+      const first = Math.abs(paidAmount - Number(ranked[0].payable));
+      const second = Math.abs(paidAmount - Number(ranked[1].payable));
+      if (Math.abs(first - second) < 0.001) return null;
+    }
     const holdAbove = target.method ? Number(target.method.holdAbove) : 0;
     const held = holdAbove > 0 && Number(target.payable) + 0.001 >= holdAbove;
-    const savedRef = smsRef && !(target.providerRef ?? "") ? smsRef : undefined;
-    if (held) {
-      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "pending", ...(savedRef ? { providerRef: savedRef } : {}) } });
-    } else {
-      await this.prisma.checkout.update({ where: { id: target.id }, data: { status: "paid", ...(savedRef ? { providerRef: savedRef } : {}) } });
-      if (target.billId) {
-        await this.prisma.bill.update({ where: { id: target.billId }, data: { status: "paid" } });
+    const savedRef = smsRef && !(target.providerRef ?? "") ? smsRef : "";
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      if (smsRef) await this.lockKey(tx, `${ownerId}:${smsRef}`);
+      if (smsRef) {
+        const used = await tx.checkout.findFirst({
+          where: { ownerId, providerRef: smsRef, id: { not: target.id }, status: { in: ["waiting", "pending", "paid"] } },
+          select: { id: true },
+        });
+        if (used) return "miss" as const;
       }
-      this.notifyGateway({ ...target, status: "paid" });
-    }
-    if (noticeId) {
-      await this.prisma.inboxNotice.update({ where: { id: noticeId }, data: { checkoutId: target.id } });
-    }
+      if (noticeId) {
+        const claimedNotice = await tx.inboxNotice.updateMany({
+          where: { id: noticeId, checkoutId: null },
+          data: { checkoutId: target.id },
+        });
+        if (claimedNotice.count !== 1) return "miss" as const;
+      }
+      const saved = await tx.checkout.updateMany({
+        where: {
+          id: target.id,
+          status: { in: ["waiting", "pending"] },
+          ...(savedRef ? { OR: [{ providerRef: null }, { providerRef: "" }] } : {}),
+        },
+        data: { status: held ? "pending" : "paid", ...(savedRef ? { providerRef: savedRef } : {}) },
+      });
+      if (saved.count !== 1) {
+        if (noticeId) await tx.inboxNotice.updateMany({ where: { id: noticeId, checkoutId: target.id }, data: { checkoutId: null } });
+        return "miss" as const;
+      }
+      if (!held && target.billId) await tx.bill.update({ where: { id: target.billId }, data: { status: "paid" } });
+      return held ? "held" as const : "paid" as const;
+    });
+    if (outcome === "miss") return null;
+    if (outcome === "paid") this.notifyGateway({ ...target, status: "paid" });
     return target.publicId;
+  }
+
+  private async lockKey(tx: { $executeRaw: PrismaService["$executeRaw"] }, key: string) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(CAST(${key} AS text)))`;
+  }
+
+  private async reserveReference(ownerId: string, checkoutId: string, providerRef: string, save?: { status: "pending"; payerAccount: string }) {
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockKey(tx, `${ownerId}:${providerRef}`);
+      const used = await tx.checkout.findFirst({
+        where: { ownerId, providerRef, id: { not: checkoutId }, status: { in: ["waiting", "pending", "paid"] } },
+        select: { id: true },
+      });
+      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+      if (!save) return;
+      const saved = await tx.checkout.updateMany({
+        where: { id: checkoutId, status: { in: ["waiting", "pending"] } },
+        data: { status: save.status, providerRef, ...(save.payerAccount ? { payerAccount: save.payerAccount } : {}) },
+      });
+      if (saved.count !== 1) throw new BadRequestException("This checkout can no longer be changed");
+    });
   }
 
   private async keyFromToken(token: string) {
