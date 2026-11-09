@@ -299,13 +299,35 @@ export default function TransactionsPage() {
 
   const amountLocked = current ? current.status !== "open" || current.amount !== current.payable : false;
   const pages = pageButtons(safePage, pageCount);
+  const stats = useMemo(() => {
+    let pending = 0;
+    let success = 0;
+    let failed = 0;
+    let volume = 0;
+    rows.forEach((row) => {
+      const badge = tone(row.status);
+      if (badge.kind === "ok") {
+        success += 1;
+        volume += Number(row.payable);
+      } else if (badge.kind === "bad") failed += 1;
+      else pending += 1;
+    });
+    return { total: rows.length, pending, success, failed, volume };
+  }, [rows]);
+
+  function pickStatus(next: StatusFilter) {
+    setStatusFilter((current) => (current === next ? "all" : next));
+    setPage(1);
+    setFiltersOpen(false);
+  }
 
   return (
     <div className="txn-page">
       <header className="txn-head">
         <div>
-          <p className="txn-crumb">Transactions <span>›</span> List</p>
+          <p className="fin-live"><i /> Live ledger</p>
           <h2>Transactions</h2>
+          <p className="txn-crumb">Search, approve, and follow every checkout from this desk.</p>
         </div>
         <div className="txn-head-actions">
           {picked.length ? (
@@ -323,6 +345,14 @@ export default function TransactionsPage() {
       </header>
       {note ? <p className="txn-note">{note}</p> : null}
       {error && !dialog ? <p className="error">{error}</p> : null}
+
+      <section className="txn-stats">
+        <StatCard icon="list" label="All" value={stats.total} ready={ready} active={statusFilter === "all"} onClick={() => pickStatus("all")} />
+        <StatCard icon="clock" label="Pending" value={stats.pending} ready={ready} active={statusFilter === "pending"} onClick={() => pickStatus("pending")} />
+        <StatCard icon="check" label="Success" value={stats.success} ready={ready} active={statusFilter === "success"} onClick={() => pickStatus("success")} />
+        <StatCard icon="cross" label="Failed" value={stats.failed} ready={ready} active={statusFilter === "failed"} onClick={() => pickStatus("failed")} />
+        <StatCard icon="wallet" label="Paid volume" value={stats.volume} ready={ready} money />
+      </section>
 
       <section className="txn-card">
         <div className="txn-tools">
@@ -433,6 +463,7 @@ export default function TransactionsPage() {
           </table>
           {ready && !visible.length ? (
             <div className="txn-empty">
+              <span className="fin-ico lg" aria-hidden="true"><ReceiptIcon /></span>
               <strong>{query || filterCount ? "No matches" : "No transactions yet"}</strong>
               <p>{query || filterCount ? "Nothing in this list matches that search." : "Create a transaction and the payment link will show up here."}</p>
             </div>
@@ -571,6 +602,57 @@ function SortHead({ label, active, dir, onClick }: { label: string; active: bool
       </button>
     </th>
   );
+}
+
+function useCount(target: number, ready: boolean) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!ready) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setValue(target);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / 700);
+      setValue(target * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, ready]);
+  return value;
+}
+
+function StatCard({ icon, label, value, ready, money = false, active = false, onClick }: { icon: string; label: string; value: number; ready: boolean; money?: boolean; active?: boolean; onClick?: () => void }) {
+  const shown = useCount(value, ready);
+  const text = !ready ? "—" : money ? `৳${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : Math.round(shown).toLocaleString("en-US");
+  const body = (
+    <>
+      <span className={`fin-ico ${icon}`} aria-hidden="true"><StatIcon name={icon} /></span>
+      <span>
+        <b>{text}</b>
+        <small>{label}</small>
+      </span>
+    </>
+  );
+  if (!onClick) return <article className="txn-stat">{body}</article>;
+  return <button type="button" className={active ? "txn-stat on" : "txn-stat"} onClick={onClick} aria-pressed={active}>{body}</button>;
+}
+
+function StatIcon({ name }: { name: string }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (name === "clock") return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="M12 8v4.5l3 2" /></svg>;
+  if (name === "check") return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="m8.5 12.2 2.3 2.3 4.7-5" /></svg>;
+  if (name === "cross") return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="M9 9l6 6M15 9l-6 6" /></svg>;
+  if (name === "wallet") return <svg viewBox="0 0 24 24"><path {...common} d="M4 8.5h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" /><path {...common} d="M4 8.5 6 5h11l3 3.5M16 13.5h3" /></svg>;
+  return <svg viewBox="0 0 24 24"><path {...common} d="M8 7h11M8 12h11M8 17h11" /><path {...common} d="M5 7h.01M5 12h.01M5 17h.01" /></svg>;
+}
+
+function ReceiptIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3.5h10a1 1 0 0 1 1 1V20l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2V4.5a1 1 0 0 1 1-1z" /><path d="M9 8h6M9 12h6" /></svg>;
 }
 
 function PlusIcon() {
