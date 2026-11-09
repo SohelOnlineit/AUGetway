@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { PermissionsAndroid, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
+import { listPaymentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
 
 const DEFAULT_BASE = Platform.OS === "android" ? "http://10.0.2.2:4100/api" : "http://127.0.0.1:4100/api";
 
@@ -40,6 +41,22 @@ function problem(data: { message?: string | string[] }, fallback: string) {
   return data.message || fallback;
 }
 
+const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
+
+function looksLikeDebit(body: string) {
+  const lower = body.toLowerCase();
+  return DEBIT.some((hint) => lower.includes(hint));
+}
+
+async function allowSms() {
+  if (Platform.OS !== "android") return false;
+  const result = await PermissionsAndroid.requestMultiple([
+    "android.permission.READ_SMS",
+    "android.permission.SEND_SMS",
+  ]);
+  return Object.values(result).every((value) => value === PermissionsAndroid.RESULTS.GRANTED);
+}
+
 export default function App() {
   const [base, setBase] = useState(DEFAULT_BASE);
   const [email, setEmail] = useState("");
@@ -51,7 +68,12 @@ export default function App() {
   const [handsetId, setHandsetId] = useState("");
   const [body, setBody] = useState("");
   const [sender, setSender] = useState("");
+  const [payments, setPayments] = useState<PaymentSms[]>([]);
+  const [watchSms, setWatchSms] = useState(false);
+  const [smsTo, setSmsTo] = useState("");
+  const [smsText, setSmsText] = useState("");
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
+  const seenSms = useRef(new Set<string>());
   const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
   const nameRef = useRef(name);
@@ -137,7 +159,7 @@ export default function App() {
       await writeStore("uniqpay_base", base.trim());
       await writeStore("uniqpay_name", name.trim() || "UniqBD handset");
       setToken(data.accessToken);
-      setNote("This phone is checking in. It does not read or send SMS.");
+      setNote(smsReady ? "This phone can read payment SMS and send one SMS at a time." : "Sign-in worked. SMS reading needs the UniqBD Pay Android build. You can still paste a message.");
     } catch {
       setNote("Could not reach the desk. On a real phone, use this computer's address instead of 10.0.2.2.");
     } finally {
@@ -174,12 +196,12 @@ export default function App() {
     setNote(response.ok ? (slot === 1 ? "SIM 2 is marked on the desk." : "SIM 1 is marked on the desk.") : problem(data, "Could not save the SIM"));
   }
 
-  async function sendNotice() {
-    if (!token || busy) return;
-    const message = body.trim();
-    if (message.length < 4) {
-      setNote("Paste the payment message you received.");
-      return;
+  async function submitMessage(message: string, from = "") {
+    if (!token || busy) return false;
+    const text = message.trim();
+    if (text.length < 4) {
+      setNote("The payment message is too short.");
+      return false;
     }
     setBusy(true);
     setNote("");
@@ -192,26 +214,96 @@ export default function App() {
       if (!pulse.ok) {
         const data = (await pulse.json()) as { message?: string | string[] };
         setNote(problem(data, "Register this phone on the desk first."));
-        return;
+        return false;
       }
       const response = await fetch(`${base}/handset/notice`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ uid, body: message, ...(sender.trim() ? { sender: sender.trim() } : {}) }),
+        body: JSON.stringify({ uid, body: text, ...(from.trim() ? { sender: from.trim() } : {}) }),
       });
       const data = (await response.json()) as { matched?: string | null; message?: string | string[] };
       if (!response.ok) {
         setNote(problem(data, "Could not submit the message"));
-        return;
+        return false;
       }
-      setBody("");
       setNote(data.matched ? `Matched checkout ${data.matched}` : "Saved on the desk. A waiting payment matches when its reference and amount are in this message.");
+      return true;
     } catch {
       setNote("Could not reach the desk.");
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  async function sendNotice() {
+    const ok = await submitMessage(body, sender);
+    if (ok) setBody("");
+  }
+
+  async function readInbox(submitNew: boolean) {
+    if (!smsReady) {
+      setNote("SMS reading needs the UniqBD Pay Android build, not Expo Go.");
+      return;
+    }
+    if (!(await allowSms())) {
+      setNote("Allow SMS permission to read payment messages.");
+      return;
+    }
+    try {
+      const rows = await listPaymentSms(15);
+      setPayments(rows);
+      if (rows.length === 0) {
+        setNote("No bKash, Nagad, Rocket, or Upay payment SMS found.");
+        return;
+      }
+      if (!submitNew) {
+        setNote(`Found ${rows.length} payment SMS. Submit the one that matches the checkout.`);
+        return;
+      }
+      let sent = 0;
+      for (const row of rows) {
+        if (!row.trxId || !row.amount || looksLikeDebit(row.body)) continue;
+        const key = `${row.receivedAt}:${row.trxId}`;
+        if (seenSms.current.has(key)) continue;
+        const ok = await submitMessage(row.body, row.address);
+        if (!ok) return;
+        seenSms.current.add(key);
+        sent += 1;
+      }
+      setNote(sent > 0 ? `Sent ${sent} new payment SMS to the desk.` : "No new received payment SMS.");
+    } catch (cause) {
+      setNote(cause instanceof Error ? cause.message : "Could not read payment SMS");
+    }
+  }
+
+  async function sendSms() {
+    if (!smsReady) {
+      setNote("SMS sending needs the UniqBD Pay Android build, not Expo Go.");
+      return;
+    }
+    if (!(await allowSms())) {
+      setNote("Allow SMS permission to send a message.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendOneSms(smsTo, smsText);
+      setSmsText("");
+      setNote(`SMS sent to ${smsTo.trim()}.`);
+    } catch (cause) {
+      setNote(cause instanceof Error ? cause.message : "Could not send the SMS");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !watchSms || !smsReady) return;
+    void readInbox(true);
+    const timer = setInterval(() => void readInbox(true), 20000);
+    return () => clearInterval(timer);
+  }, [token, watchSms]);
 
   async function signOut() {
     await clearStore("uniqpay_token");
@@ -244,7 +336,42 @@ export default function App() {
                 <Text style={[styles.simText, simSlot === 1 && styles.simTextOn]}>SIM 2</Text>
               </Pressable>
             </View>
-            <Text style={styles.hint}>Paste the payment message this phone received. UniqBD Pay does not read the inbox or send SMS.</Text>
+            <Text style={styles.hint}>
+              {smsReady
+                ? "Payment SMS from bKash, Nagad, Rocket, and Upay can be read here. Other messages stay on the phone. Send goes to one Bangladesh number."
+                : "This Expo Go session can paste a message. Reading and sending SMS need the UniqBD Pay Android build."}
+            </Text>
+            <Pressable style={styles.sim} onPress={() => void readInbox(false)}>
+              <Text style={styles.simText}>Read payment SMS</Text>
+            </Pressable>
+            <Pressable style={[styles.sim, watchSms && styles.simOn]} onPress={() => setWatchSms((on) => !on)}>
+              <Text style={[styles.simText, watchSms && styles.simTextOn]}>{watchSms ? "Checking new payment SMS" : "Check new payment SMS"}</Text>
+            </Pressable>
+            {payments.map((row) => (
+              <View key={`${row.receivedAt}:${row.trxId}:${row.address}`} style={styles.sms}>
+                <Text style={styles.smsTitle}>{row.trxId || "No TrxID"} · {row.amount ? `${row.amount} BDT` : "No amount"}</Text>
+                <Text style={styles.hint}>{row.address || "Unknown sender"}{looksLikeDebit(row.body) ? " · outgoing" : ""}</Text>
+                <Text style={styles.smsBody} numberOfLines={3}>{row.body}</Text>
+                <Pressable onPress={() => void submitMessage(row.body, row.address)}>
+                  <Text style={styles.link}>Submit this payment</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Text style={styles.label}>Send one SMS</Text>
+            <TextInput style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#6f747c" />
+            <TextInput
+              style={[styles.input, styles.message]}
+              multiline
+              value={smsText}
+              onChangeText={setSmsText}
+              maxLength={320}
+              placeholder="Message"
+              placeholderTextColor="#6f747c"
+            />
+            <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendSms()}>
+              <Text style={styles.buttonText}>Send SMS</Text>
+            </Pressable>
+            <Text style={styles.hint}>Or paste a payment message if it is not in the list.</Text>
             <Text style={styles.label}>Sender, if the message does not include it</Text>
             <TextInput style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="01XXXXXXXXX" placeholderTextColor="#6f747c" />
             <Text style={styles.label}>Payment message</Text>
@@ -260,7 +387,7 @@ export default function App() {
               <Text style={styles.buttonText}>{busy ? "Sending" : "Submit to desk"}</Text>
             </Pressable>
             <Pressable onPress={() => void signOut()}>
-              <Text style={styles.link}>Sign out</Text>
+              <Text style={styles.signOut}>Sign out</Text>
             </Pressable>
           </View>
         ) : (
@@ -305,5 +432,9 @@ const styles = StyleSheet.create({
   live: { color: "#3ddc97", fontWeight: "700" },
   offline: { color: "#e2b657", fontWeight: "700" },
   buttonText: { color: "#062116", fontWeight: "800" },
-  link: { textAlign: "center", marginTop: 12, color: "#f07178", fontWeight: "700" },
+  link: { textAlign: "center", marginTop: 8, color: "#3ddc97", fontWeight: "700" },
+  signOut: { textAlign: "center", marginTop: 12, color: "#f07178", fontWeight: "700" },
+  sms: { borderWidth: 1, borderColor: "#34383f", borderRadius: 12, padding: 12, gap: 4, marginTop: 8 },
+  smsTitle: { color: "#f4f4f5", fontWeight: "800" },
+  smsBody: { color: "#b7b7b7", lineHeight: 18 },
 });

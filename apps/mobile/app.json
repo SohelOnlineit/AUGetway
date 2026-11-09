@@ -8,7 +8,8 @@
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.uniqbd.pay",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": ["READ_SMS", "SEND_SMS"]
     }
   }
 }

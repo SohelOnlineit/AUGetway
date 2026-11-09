@@ -13,7 +13,8 @@
     "expo-secure-store": "~58.0.2",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
-    "react-native": "0.88.1"
+    "react-native": "0.88.1",
+    "uniqpay-sms": "file:./modules/uniqpay-sms"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
