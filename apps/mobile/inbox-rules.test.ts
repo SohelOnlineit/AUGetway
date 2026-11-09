@@ -47,4 +47,16 @@ test("validation off keeps only payment SMS", () => {
 
 test("a bank sender name is the card title", () => {
   assert.equal(senderLabel("AB BANK", "Cash in Tk 500", DEFAULT_SENDERS), "AB BANK");
+  assert.equal(senderLabel("AB BANK PLC", "Cash in Tk 500", DEFAULT_SENDERS), "AB BANK PLC");
+});
+
+test("a short code does not match a number inside the message", () => {
+  const row = { address: "01711111111", body: "Call me about 16216 later", receivedAt: fresh };
+  assert.equal(keepMessage(row, rules(), now), false);
+});
+
+test("a two-letter keyword cannot hide every message", () => {
+  const row = { address: "bKash", body: "You have received payment Tk 10", receivedAt: fresh };
+  assert.equal(keepMessage(row, rules({ keywords: ["in"] }), now), true);
+  assert.equal(keepMessage(row, rules({ keywords: ["otp"] }), now), true);
 });

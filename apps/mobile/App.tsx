@@ -5,7 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, keepMessage, senderLabel, type InboxRules, type Sender } from "./inbox-rules";
 
-const DEFAULT_BASE = "https://pay.uniqbd.com/api";
+const DESK = "https://pay.uniqbd.com/api";
 
 type Handset = { id: string; uid: string; label: string; simSlot: number; lastSeenAt: string | null };
 
@@ -85,7 +85,6 @@ async function allowSms() {
 }
 
 export default function App() {
-  const [base, setBase] = useState(DEFAULT_BASE);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState<string | null>(null);
@@ -119,6 +118,7 @@ export default function App() {
   const [smsText, setSmsText] = useState("");
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
   const seenSms = useRef(new Set<string>());
+  const work = useRef(false);
   const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
   const nameRef = useRef(name);
@@ -175,9 +175,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_base"), readStore("uniqpay_uid"), readStore("uniqpay_name")]).then(
-      ([savedToken, savedBase, savedUid, savedName]) => {
-        if (savedBase) setBase(savedBase);
+    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name")]).then(
+      ([savedToken, savedUid, savedName]) => {
         if (savedName) setName(savedName);
         const nextUid = savedUid || deviceUid();
         setUid(nextUid);
@@ -193,12 +192,16 @@ export default function App() {
     let synced = false;
     const beat = async () => {
       try {
-        const response = await fetch(`${base}/handset/pulse`, {
+        const response = await fetch(`${DESK}/handset/pulse`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ uid, label: nameRef.current.trim() || "UniqBD handset", model: "Android" }),
         });
         const data = (await response.json()) as { id?: string; simSlot?: number; message?: string | string[] };
+        if (response.status === 401) {
+          if (!stop) void signOut();
+          return;
+        }
         if (!response.ok || !data.id) {
           if (!stop) {
             setOnline(false);
@@ -212,7 +215,7 @@ export default function App() {
           if (data.simSlot === 0 || data.simSlot === 1) setSimSlot(data.simSlot);
         }
         if (synced) return;
-        const list = await fetch(`${base}/desk/handsets`, { headers: { Authorization: `Bearer ${token}` } });
+        const list = await fetch(`${DESK}/desk/handsets`, { headers: { Authorization: `Bearer ${token}` } });
         if (!list.ok) return;
         const rows = (await list.json()) as Handset[];
         const mine = rows.find((row) => row.uid === uid);
@@ -235,13 +238,13 @@ export default function App() {
       stop = true;
       clearInterval(timer);
     };
-  }, [token, base, uid]);
+  }, [token, uid]);
 
   async function signIn() {
     setBusy(true);
     setNote("");
     try {
-      const response = await fetch(`${base}/auth/login`, {
+      const response = await fetch(`${DESK}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
@@ -252,7 +255,6 @@ export default function App() {
         return;
       }
       await writeStore("uniqpay_token", data.accessToken);
-      await writeStore("uniqpay_base", base.trim());
       await writeStore("uniqpay_name", name.trim() || "UniqBD handset");
       setToken(data.accessToken);
       setNote(smsReady ? "This phone can read payment SMS and send one SMS at a time." : "Sign-in worked. SMS reading needs the UniqBD Pay Android build. You can still paste a message.");
@@ -271,7 +273,7 @@ export default function App() {
       setNote("Phone name must be at least 2 characters.");
       return;
     }
-    const response = await fetch(`${base}/desk/handsets/${handsetId}`, {
+    const response = await fetch(`${DESK}/desk/handsets/${handsetId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ label }),
@@ -318,8 +320,8 @@ export default function App() {
 
   function addKeyword() {
     const word = keywordDraft.trim();
-    if (word.length < 2 || word.length > 40) {
-      setNote("A keyword must be 2 to 40 characters.");
+    if (word.length < 3 || word.length > 40) {
+      setNote("A keyword must be 3 to 40 characters.");
       return;
     }
     if (keywords.some((item) => item.toLowerCase() === word.toLowerCase())) {
@@ -349,26 +351,29 @@ export default function App() {
   }
 
   async function submitMessage(message: string, from = "", receivedKey = "", quiet = false) {
-    if (!token || busy) return false;
+    if (!token) return false;
     const text = message.trim();
     if (text.length < 4) {
       setNote("The payment message is too short.");
       return false;
     }
-    setBusy(true);
     setNote("");
     try {
-      const pulse = await fetch(`${base}/handset/pulse`, {
+      const pulse = await fetch(`${DESK}/handset/pulse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ uid, label: name.trim() || "UniqBD handset", model: "Android" }),
       });
+      if (pulse.status === 401) {
+        await signOut();
+        return false;
+      }
       if (!pulse.ok) {
         const data = (await pulse.json()) as { message?: string | string[] };
         setNote(problem(data, "Register this phone on the desk first."));
         return false;
       }
-      const response = await fetch(`${base}/handset/notice`, {
+      const response = await fetch(`${DESK}/handset/notice`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -379,6 +384,10 @@ export default function App() {
         }),
       });
       const data = (await response.json()) as { matched?: string | null; message?: string | string[] };
+      if (response.status === 401) {
+        await signOut();
+        return false;
+      }
       if (!response.ok) {
         setNote(problem(data, "Could not submit the message"));
         return false;
@@ -388,24 +397,37 @@ export default function App() {
     } catch {
       setNote("Could not reach the desk.");
       return false;
-    } finally {
-      setBusy(false);
     }
   }
 
   async function sendNotice() {
-    const ok = await submitMessage(body, sender);
-    if (ok) setBody("");
+    if (work.current) return;
+    work.current = true;
+    setBusy(true);
+    try {
+      const ok = await submitMessage(body, sender);
+      if (ok) setBody("");
+    } finally {
+      work.current = false;
+      setBusy(false);
+    }
   }
 
-  async function readInbox(submitNew: boolean) {
+  async function readInbox(submitNew: boolean, manual = false) {
+    if (work.current) return;
+    work.current = true;
+    setBusy(true);
+    try {
     if (!smsReady) {
-      setNote("SMS reading needs the UniqBD Pay Android build, not Expo Go.");
+      if (manual) setNote("SMS reading needs the UniqBD Pay Android build, not Expo Go.");
       return;
     }
-    if (!(await allowSms())) {
-      setNote("Allow SMS permission to read payment messages.");
-      return;
+    const alreadyAllowed = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_SMS"));
+    if (!alreadyAllowed) {
+      if (!manual || !(await allowSms())) {
+        if (manual) setNote("Allow SMS permission to read payment messages.");
+        return;
+      }
     }
     try {
       const rows = await listRecentSms(40);
@@ -418,7 +440,7 @@ export default function App() {
       });
       setItems(next);
       if (kept.length === 0) {
-        setNote(rows.length === 0 ? "No SMS found on this phone." : "No SMS matched the whitelist, keywords, or cleaning window.");
+        if (manual) setNote(rows.length === 0 ? "No SMS found on this phone." : "No SMS matched the whitelist, keywords, or cleaning window.");
         return;
       }
       if (!submitNew) return;
@@ -434,16 +456,24 @@ export default function App() {
         if (!ok) return;
       }
     } catch (cause) {
-      setNote(cause instanceof Error ? cause.message : "Could not read payment SMS");
+      if (manual) setNote(cause instanceof Error ? cause.message : "Could not read payment SMS");
+    }
+    } finally {
+      work.current = false;
+      setBusy(false);
     }
   }
 
   async function sendSms() {
+    if (work.current) return;
+    work.current = true;
     if (!smsReady) {
+      work.current = false;
       setNote("SMS sending needs the UniqBD Pay Android build, not Expo Go.");
       return;
     }
     if (!(await allowSms())) {
+      work.current = false;
       setNote("Allow SMS permission to send a message.");
       return;
     }
@@ -455,6 +485,7 @@ export default function App() {
     } catch (cause) {
       setNote(cause instanceof Error ? cause.message : "Could not send the SMS");
     } finally {
+      work.current = false;
       setBusy(false);
     }
   }
@@ -471,17 +502,22 @@ export default function App() {
     if (!token || !uid || !smsReady) return;
     let stop = false;
     const deliver = async () => {
+      if (work.current) return;
       try {
-        const response = await fetch(`${base}/handset/jobs?uid=${encodeURIComponent(uid)}`, {
+        const response = await fetch(`${DESK}/handset/jobs?uid=${encodeURIComponent(uid)}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (response.status === 401) {
+          if (!stop) void signOut();
+          return;
+        }
         if (!response.ok) return;
         const data = (await response.json()) as { simSlot?: number; jobs?: { id: string; to: string; body: string; simSlot: number }[] };
         if (!stop && (data.simSlot === 0 || data.simSlot === 1)) setSimSlot(data.simSlot);
         for (const job of data.jobs ?? []) {
           try {
             await sendOneSms(job.to, job.body, job.simSlot);
-            await fetch(`${base}/handset/jobs/${job.id}`, {
+            await fetch(`${DESK}/handset/jobs/${job.id}`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({ uid, ok: true }),
@@ -489,7 +525,7 @@ export default function App() {
             if (!stop) setNote(`Sent SMS to ${job.to} from ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}.`);
           } catch (cause) {
             const error = cause instanceof Error ? cause.message : "Could not send the SMS";
-            await fetch(`${base}/handset/jobs/${job.id}`, {
+            await fetch(`${DESK}/handset/jobs/${job.id}`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({ uid, ok: false, error }),
@@ -507,7 +543,7 @@ export default function App() {
       stop = true;
       clearInterval(timer);
     };
-  }, [token, uid, base, smsReady]);
+  }, [token, uid, smsReady]);
 
   async function signOut() {
     await clearStore("uniqpay_token");
@@ -549,7 +585,7 @@ export default function App() {
                   <Text style={styles.profileDate}>{shortDay(Date.now())}</Text>
                   <Text style={styles.profileName}>{name.trim() || "Admin"}</Text>
                 </View>
-                <Pressable style={[styles.sync, busy && styles.disabled]} disabled={busy} onPress={() => void readInbox(true)}>
+                <Pressable style={[styles.sync, busy && styles.disabled]} disabled={busy} onPress={() => void readInbox(true, true)}>
                   <Text style={styles.syncText}>↻  Sync</Text>
                 </Pressable>
               </View>
@@ -587,7 +623,7 @@ export default function App() {
               <View style={styles.headRow}>
                 <Text style={styles.pageTitle}>Whitelist Senders</Text>
                 <View style={styles.headActions}>
-                  <Pressable onPress={() => void readInbox(cloudSync)} hitSlop={8}><Text style={styles.refresh}>↻</Text></Pressable>
+                  <Pressable onPress={() => void readInbox(cloudSync, true)} hitSlop={8}><Text style={styles.refresh}>↻</Text></Pressable>
                   <Pressable style={styles.add} onPress={() => setAdding((open) => !open)}><Text style={styles.addText}>+ Add</Text></Pressable>
                 </View>
               </View>
@@ -728,8 +764,7 @@ export default function App() {
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
           {note ? <Text style={styles.note}>{note}</Text> : null}
-          <Text style={styles.label}>Desk URL</Text>
-          <TextInput style={styles.input} value={base} onChangeText={setBase} autoCapitalize="none" autoCorrect={false} placeholderTextColor="#94a3b8" />
+          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
           <Text style={styles.label}>Phone name</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>

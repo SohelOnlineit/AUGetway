@@ -33,12 +33,19 @@ export function parseAmount(body: string) {
   return (labeled ?? plain)?.[1] ?? "";
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function matchesSender(address: string, body: string, name: string) {
   const needle = name.trim().toLowerCase();
-  if (!needle) return false;
+  if (needle.length < 2) return false;
   const from = address.toLowerCase();
-  if (from === needle || from.includes(needle)) return true;
-  return body.toLowerCase().includes(needle);
+  if (/^\d+$/.test(needle)) return from.replace(/\D/g, "") === needle;
+  if (from === needle) return true;
+  const word = new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`, "i");
+  if (word.test(from)) return true;
+  return needle.length >= 4 && word.test(body);
 }
 
 function isPayment(address: string, body: string) {
@@ -55,13 +62,15 @@ export function keepMessage(
 ) {
   if (rules.cleanDays > 0 && now - row.receivedAt > rules.cleanDays * 24 * 60 * 60 * 1000) return false;
   const text = `${row.address} ${row.body}`.toLowerCase();
-  if (rules.keywords.some((word) => word.trim() && text.includes(word.trim().toLowerCase()))) return false;
+  if (rules.keywords.some((word) => word.trim().length >= 3 && text.includes(word.trim().toLowerCase()))) return false;
   if (!rules.whitelistOn) return isPayment(row.address, row.body);
   return rules.senders.some((sender) => sender.enabled && matchesSender(row.address, row.body, sender.name));
 }
 
 export function senderLabel(address: string, body: string, senders: Sender[]) {
-  const hit = senders.find((sender) => matchesSender(address, body, sender.name));
+  const hit = senders
+    .filter((sender) => matchesSender(address, body, sender.name))
+    .sort((left, right) => right.name.length - left.name.length)[0];
   if (hit) return hit.name;
   const text = `${address} ${body}`.toLowerCase();
   if (text.includes("bkash") || text.includes("16216")) return "bKash";
