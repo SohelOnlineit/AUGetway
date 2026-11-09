@@ -197,6 +197,37 @@ export class BulkIdsDto {
   ids!: string[];
 }
 
+export class ApproveDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  providerRef?: string;
+}
+
+export class EditCheckoutDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  reference!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(250000)
+  amount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  payerAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  providerRef?: string;
+}
+
 export class CheckoutDto {
   @IsString()
   @MinLength(2)

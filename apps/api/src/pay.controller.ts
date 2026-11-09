@@ -15,6 +15,8 @@ import {
   LinkDto,
   AccountDto,
   AdminDto,
+  ApproveDto,
+  EditCheckoutDto,
   LoginDto,
   MethodDto,
   NoticeDto,
@@ -124,8 +126,32 @@ export class PayController {
 
   @Post("desk/checkouts/:id/confirm")
   @UseGuards(DeskGuard)
-  confirm(@Req() request: DeskRequest, @Param("id") id: string) {
-    return this.pay.setStatus(request.desk.sub, id, "paid");
+  confirm(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: ApproveDto) {
+    return this.pay.setStatus(request.desk.sub, id, "paid", body?.providerRef);
+  }
+
+  @Patch("desk/checkouts/:id")
+  @UseGuards(DeskGuard)
+  editCheckout(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: EditCheckoutDto) {
+    return this.pay.editCheckout(request.desk.sub, id, body);
+  }
+
+  @Delete("desk/checkouts/:id")
+  @UseGuards(DeskGuard)
+  removeCheckout(@Req() request: DeskRequest, @Param("id") id: string) {
+    return this.pay.removeCheckouts(request.desk.sub, [id]);
+  }
+
+  @Post("desk/checkouts/bulk-delete")
+  @UseGuards(DeskGuard)
+  removeCheckouts(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    return this.pay.removeCheckouts(request.desk.sub, body.ids);
+  }
+
+  @Post("desk/checkouts/delete-all")
+  @UseGuards(DeskGuard)
+  removeAllCheckouts(@Req() request: DeskRequest) {
+    return this.pay.removeAllCheckouts(request.desk.sub);
   }
 
   @Post("desk/checkouts/:id/fail")

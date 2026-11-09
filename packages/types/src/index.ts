@@ -41,6 +41,7 @@ export type CheckoutCard = {
   payerAccount: string | null;
   providerRef: string | null;
   expiresAt: string;
+  createdAt?: string;
   hasReceipt?: boolean;
   receipt?: string;
   successUrl?: string | null;

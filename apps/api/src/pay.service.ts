@@ -488,7 +488,7 @@ export class PayService implements OnModuleInit {
       where: { ownerId },
       include: { method: true },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: 500,
     });
     const site = await this.siteView(ownerId);
     return Promise.all(rows.map((row) => this.checkoutCard(row, false, true, site)));
@@ -527,20 +527,23 @@ export class PayService implements OnModuleInit {
     return this.checkoutCard(row, true);
   }
 
-  async setStatus(ownerId: string, id: string, status: "paid" | "failed") {
+  async setStatus(ownerId: string, id: string, status: "paid" | "failed", providerRef?: string) {
     const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId: id } });
     if (!row) throw new NotFoundException("Checkout not found");
     if (row.status === "paid") return this.publicPay(id);
-    if (status === "paid" && row.providerRef) {
+    const ref = (providerRef ?? "").trim().toUpperCase();
+    if (ref && !trxRefOk(ref)) throw new BadRequestException("Enter the transaction ID from the payment message");
+    const nextRef = ref || row.providerRef;
+    if (status === "paid" && nextRef) {
       const used = await this.prisma.checkout.findFirst({
-        where: { ownerId, status: "paid", providerRef: row.providerRef, id: { not: row.id } },
+        where: { ownerId, status: "paid", providerRef: nextRef, id: { not: row.id } },
         select: { id: true },
       });
       if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
     }
     const updated = await this.prisma.checkout.update({
       where: { id: row.id },
-      data: { status },
+      data: { status, ...(ref ? { providerRef: ref } : {}) },
       include: { method: true },
     });
     if (status === "paid" && updated.billId) {
@@ -548,6 +551,65 @@ export class PayService implements OnModuleInit {
     }
     this.notifyGateway(updated);
     return this.checkoutCard(updated, false);
+  }
+
+  async editCheckout(
+    ownerId: string,
+    publicId: string,
+    input: { reference: string; amount?: number; payerAccount?: string; providerRef?: string },
+  ) {
+    const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId }, include: { method: true } });
+    if (!row) throw new NotFoundException("Checkout not found");
+    const reference = input.reference.trim();
+    const payer = (input.payerAccount ?? "").trim();
+    if (payer && !/^01\d{9}$/.test(payer)) {
+      throw new BadRequestException("Sender number must start with 01 and be exactly 11 digits.");
+    }
+    const ref = (input.providerRef ?? "").trim().toUpperCase();
+    if (ref && !trxRefOk(ref)) throw new BadRequestException("Enter the transaction ID from the payment message");
+    if (ref) {
+      const used = await this.prisma.checkout.findFirst({
+        where: { ownerId, providerRef: ref, id: { not: row.id }, status: { in: ["waiting", "pending", "paid"] } },
+        select: { id: true },
+      });
+      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+    }
+    const openSlot = row.status === "open" && Number(row.amount) === Number(row.payable);
+    const updated = await this.prisma.checkout.update({
+      where: { id: row.id },
+      data: {
+        reference,
+        payerAccount: payer || null,
+        providerRef: ref || null,
+        ...(openSlot && input.amount != null ? { amount: input.amount, payable: input.amount } : {}),
+      },
+      include: { method: true },
+    });
+    return this.checkoutCard(updated, false);
+  }
+
+  async removeCheckouts(ownerId: string, publicIds: string[]) {
+    const wanted = [...new Set(publicIds.map((id) => id.trim()).filter(Boolean))].slice(0, 500);
+    if (!wanted.length) return { ok: true, removed: 0 };
+    const rows = await this.prisma.checkout.findMany({
+      where: { ownerId, publicId: { in: wanted } },
+      select: { id: true },
+    });
+    return this.dropCheckouts(ownerId, rows.map((row) => row.id));
+  }
+
+  async removeAllCheckouts(ownerId: string) {
+    const rows = await this.prisma.checkout.findMany({ where: { ownerId }, select: { id: true } });
+    return this.dropCheckouts(ownerId, rows.map((row) => row.id));
+  }
+
+  private async dropCheckouts(ownerId: string, ids: string[]) {
+    if (!ids.length) return { ok: true, removed: 0 };
+    await this.prisma.$transaction([
+      this.prisma.inboxNotice.updateMany({ where: { checkoutId: { in: ids } }, data: { checkoutId: null } }),
+      this.prisma.checkout.deleteMany({ where: { ownerId, id: { in: ids } } }),
+    ]);
+    return { ok: true, removed: ids.length };
   }
 
   async uddoktaCheckout(
@@ -1801,6 +1863,7 @@ export class PayService implements OnModuleInit {
       payTo: string;
       receipt: string;
       expiresAt: Date;
+      createdAt: Date;
       successUrl: string | null;
       cancelUrl?: string | null;
       ownerId: string;
@@ -1835,6 +1898,7 @@ export class PayService implements OnModuleInit {
       payerAccount: row.payerAccount,
       providerRef: row.providerRef,
       expiresAt: row.expiresAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
       hasReceipt: Boolean(row.receipt),
       receipt: includeReceipt ? row.receipt : "",
       successUrl: row.successUrl,
