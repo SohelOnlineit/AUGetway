@@ -667,9 +667,12 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px;
-  background: #121212;
+  padding: 28px 16px;
+  background:
+    radial-gradient(900px 420px at 50% -10%, rgba(0, 245, 160, 0.08), transparent 55%),
+    #101010;
   color: #f8fafc;
+  color-scheme: dark;
   font-family: "Segoe UI", "Nirmala UI", "Noto Sans Bengali", sans-serif;
 }
 .ck-page h2 { font-family: inherit; font-weight: 800; letter-spacing: -0.04em; }
@@ -678,9 +681,10 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   background: #1b1b1b;
-  border: 1px solid #2a2a2a;
-  border-radius: 20px;
+  border: 1px solid #2e2e2e;
+  border-radius: 24px;
   overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 .ck-side, .ck-main { min-width: 0; }
 .ck-side {
@@ -730,6 +734,10 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   border-radius: 50%;
   background: #00f5a0;
   box-shadow: 0 0 8px #00f5a0;
+  animation: ck-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ck-pulse {
+  50% { transform: scale(1.25); opacity: 1; }
 }
 .ck-expiry b { font-variant-numeric: tabular-nums; }
 .ck-amount {
@@ -738,8 +746,8 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   border-radius: 16px;
   padding: 20px;
 }
-.ck-amount p { margin: 0 0 6px; color: #8f98a3; font-size: 12px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; }
-.ck-amount strong { display: flex; align-items: baseline; gap: 8px; font-size: 34px; font-weight: 800; letter-spacing: -0.04em; }
+.ck-amount p { margin: 0 0 6px; color: #8f98a3; font-size: 12px; font-weight: 700; letter-spacing: 0.01em; }
+.ck-amount strong { display: flex; align-items: baseline; gap: 8px; font-size: 36px; font-weight: 800; letter-spacing: -0.045em; }
 .ck-amount strong span { color: #00f5a0; font-size: 16px; }
 .ck-break { margin-top: 14px; padding-top: 14px; border-top: 1px solid #2a2a2a; display: grid; gap: 10px; }
 .ck-break div { display: flex; justify-content: space-between; color: #d5dbe3; font-size: 14px; font-weight: 650; }
@@ -807,11 +815,12 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   padding: 14px 10px 12px;
   border-radius: 16px;
   border: 1px solid #2a2a2a;
-  background: #121212;
+  background: #141414;
   color: #f8fafc;
+  transition: border-color .18s ease, transform .18s ease, background .18s ease;
 }
-.ck-tile:hover, .ck-tile.on { border-color: #00f5a0; }
-.ck-tile.on { background: rgba(0, 245, 160, 0.06); }
+.ck-tile:hover { border-color: #00f5a0; transform: translateY(-2px); }
+.ck-tile.on { border-color: #00f5a0; background: rgba(0, 245, 160, 0.07); box-shadow: 0 0 0 1px #00f5a0; }
 .ck-check {
   position: absolute;
   top: 8px;
@@ -829,26 +838,32 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .ck-tile.on .ck-check { display: grid; }
 .ck-logo-box {
   width: 100%;
-  height: 52px;
+  height: 54px;
   display: grid;
   place-items: center;
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 6px 12px;
+  border-radius: 12px;
   background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
-.ck-logo { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.ck-logo { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.ck-logo svg { width: 18px; height: 18px; flex: none; }
 .ck-logo.bkash { color: #e2136e; font-size: 22px; font-style: italic; }
-.ck-logo.bkash i { width: 14px; height: 10px; border-radius: 8px 8px 2px 8px; background: #e2136e; transform: rotate(-25deg); }
-.ck-logo.nagad { color: #ee4023; font-size: 18px; }
-.ck-logo.nagad i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #f7941d; color: #fff; font-style: normal; font-size: 13px; }
+.ck-logo.bkash svg { fill: #e2136e; }
+.ck-logo.nagad { color: #f15a24; font-size: 18px; }
+.ck-logo.nagad svg { width: 22px; height: 22px; }
+.ck-logo.nagad circle { fill: #f7941d; }
+.ck-logo.nagad text { fill: #fff; font-size: 13px; font-weight: 800; font-family: "Nirmala UI", "Noto Sans Bengali", sans-serif; }
 .ck-logo.rocket { color: #8e278f; font-size: 18px; }
+.ck-logo.rocket svg { fill: #8e278f; }
 .ck-logo.binance { color: #1e2329; font-size: 13px; letter-spacing: 0.08em; }
-.ck-logo.binance i { width: 14px; height: 14px; background: #f0b90b; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.ck-logo.binance svg { fill: #f0b90b; width: 16px; height: 16px; }
 .ck-logo.upay { color: #ff6a00; font-size: 20px; }
-.ck-logo.plain { color: #111; font-size: 14px; font-style: normal; max-width: 100%; text-align: center; line-height: 1.15; }
+.ck-logo.plain { color: #161616; font-size: 14px; font-style: normal; letter-spacing: -0.02em; }
 .ck-line { width: 80%; height: 1px; background: #2a2a2a; }
 .ck-name { min-height: 32px; display: flex; align-items: center; text-align: center; font-size: 13px; font-weight: 750; }
-.ck-empty, .ck-note, .ck-error { margin: 8px 0 0; color: #8f98a3; font-size: 14px; line-height: 1.5; }
+.ck-empty, .ck-error { margin: 8px 0 0; color: #8f98a3; font-size: 14px; line-height: 1.5; }
+.ck-note { margin: 0; padding: 14px 16px; color: #d5dbe3; font-size: 14px; line-height: 1.55; }
 .ck-error { color: #f87171; font-weight: 700; }
 .ck-foot { flex-direction: column; align-items: stretch; margin-top: auto; }
 .ck-pay {
@@ -866,8 +881,9 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   font-weight: 800;
   text-decoration: none;
 }
-.ck-pay.on { background: #00f5a0; border-color: #00f5a0; color: #06110c; }
-.ck-pay:disabled { cursor: not-allowed; }
+.ck-pay.on { background: #00f5a0; border-color: #00f5a0; color: #06110c; box-shadow: 0 10px 24px rgba(0, 245, 160, 0.18); }
+.ck-pay.on:hover { background: #00dc8f; }
+.ck-pay:disabled { cursor: not-allowed; box-shadow: none; }
 .ck-cancel { align-self: center; color: #8f98a3; font-size: 14px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 a.ck-cancel:hover { color: #f8fafc; }
 .ck-secure { width: 100%; margin-top: 8px; padding-top: 16px; border-top: 1px solid #2a2a2a; color: #8f98a3; font-size: 13px; font-weight: 650; }
@@ -894,7 +910,9 @@ a.ck-cancel:hover { color: #f8fafc; }
 .ck-copy button { border: 0; background: transparent; color: #00f5a0; font-weight: 750; }
 .ck-field { display: flex; flex-direction: column; gap: 6px; }
 .ck-field span { color: #d5dbe3; font-size: 13px; font-weight: 700; }
-.ck-field input { width: 100%; padding: 12px; color: #f8fafc; }
+.ck-field input { width: 100%; padding: 12px 14px; color: #f8fafc; outline: none; }
+.ck-field input:focus { border-color: #00f5a0; box-shadow: 0 0 0 3px rgba(0, 245, 160, 0.14); }
+.ck-field input::placeholder { color: #6b7480; }
 .ck-field input[type="file"] { color: #8f98a3; }
 .ck-field input[type="file"]::file-selector-button {
   margin-right: 12px;
@@ -914,4 +932,8 @@ a.ck-cancel:hover { color: #f8fafc; }
   .ck-side { border-right: 0; border-bottom: 1px solid #2a2a2a; }
   .ck-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ck-picker header h2 { font-size: 22px; }
+  .ck-tile:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-expiry i, .ck-wait i, .ck-tile { animation: none; transition: none; }
 }

@@ -59,10 +59,38 @@ async function copyValue(value: string) {
 
 function MethodMark({ label }: { label: string }) {
   const name = label.toLowerCase();
-  if (name.includes("bkash")) return <span className="ck-logo bkash"><i />bKash</span>;
-  if (name.includes("nagad")) return <span className="ck-logo nagad"><i>ন</i>নগদ</span>;
-  if (name.includes("rocket")) return <span className="ck-logo rocket">রকেট</span>;
-  if (name.includes("binance")) return <span className="ck-logo binance"><i />BINANCE</span>;
+  if (name.includes("bkash")) {
+    return (
+      <span className="ck-logo bkash">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 13.5c2.2-6.2 6.4-9 8.6-9 1.1 3.2.8 6.4-1.2 9.2 3.2-.8 6.2-.4 8.8 1.4-4.2 1.2-7.2 3.4-8.4 6.4-2.2-3.2-5-5.4-7.8-7.9z" /></svg>
+        bKash
+      </span>
+    );
+  }
+  if (name.includes("nagad")) {
+    return (
+      <span className="ck-logo nagad">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><text x="12" y="16.5" textAnchor="middle" fontSize="12">ন</text></svg>
+        নগদ
+      </span>
+    );
+  }
+  if (name.includes("rocket")) {
+    return (
+      <span className="ck-logo rocket">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l3 6.2 6.5.6-4.9 4.2 1.5 6.4L12 16.8 5.9 19.9l1.5-6.4L2.5 9.3l6.5-.6L12 2.5z" /></svg>
+        রকেট
+      </span>
+    );
+  }
+  if (name.includes("binance")) {
+    return (
+      <span className="ck-logo binance">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l3.1 3.1-3.1 3.1-3.1-3.1L12 2.2zm-6.7 6.7l3.1 3.1-3.1 3.1L2.2 12l3.1-3.1zM12 8.9l3.1 3.1-3.1 3.1-3.1-3.1L12 8.9zm6.7 0l3.1 3.1-3.1 3.1-3.1-3.1 3.1-3.1zM12 15.6l3.1 3.1-3.1 3.1-3.1-3.1 3.1-3.1z" /></svg>
+        BINANCE
+      </span>
+    );
+  }
   if (name.includes("upay")) return <span className="ck-logo upay">upay</span>;
   return <span className="ck-logo plain">{label.trim()}</span>;
 }
@@ -72,7 +100,7 @@ export default function PayPage() {
   const [card, setCard] = useState<CheckoutCard | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
   const [lang, setLang] = useState<Lang>("bn");
   const [filter, setFilter] = useState<Filter>("all");
   const [picked, setPicked] = useState("");
@@ -91,6 +119,7 @@ export default function PayPage() {
   }, [params.publicId]);
 
   useEffect(() => {
+    setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -185,7 +214,7 @@ export default function PayPage() {
                 {copied === "trx" ? <em>{text(lang, "Copied", "কপি")}</em> : null}
               </div>
               {card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired" ? (
-                <div className="ck-expiry"><i />Expires in <b>{leftClock(card.expiresAt, now)}</b></div>
+                <div className="ck-expiry"><i />Expires in <b>{now ? leftClock(card.expiresAt, now) : "—"}</b></div>
               ) : null}
               {card?.status === "paid" ? <div className="ck-expiry"><i />{text(lang, "Payment verified", "পেমেন্ট সফল হয়েছে")}</div> : null}
             </div>
