@@ -683,17 +683,17 @@ export class PayService implements OnModuleInit {
     ownerId: string,
     input: {
       label: string;
-      keyType: "checkout";
+      keyType: "checkout" | "sms";
       generation: "auto" | "custom";
       token?: string;
+      secret?: string;
       abilities: string[];
       webhookUrl?: string;
       expiresAt?: string;
       active: boolean;
     },
   ) {
-    const allowed = ["payment:checkout", "payment:verify"];
-    const abilities = [...new Set(input.abilities.filter((item) => allowed.includes(item)))];
+    const abilities = [...new Set(input.abilities.filter((item) => keyAbilities.includes(item)))];
     if (abilities.length === 0) throw new BadRequestException("Choose at least one ability");
     const webhookUrl = (input.webhookUrl ?? "").trim();
     if (webhookUrl) {
@@ -709,12 +709,18 @@ export class PayService implements OnModuleInit {
       expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59`);
       if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException("Expiry date is not valid");
     }
-    const token =
-      input.generation === "custom"
-        ? (input.token ?? "").trim()
-        : `uq_live_${randomBytes(24).toString("base64url")}`;
-    if (input.generation === "custom" && token.length < 12) {
-      throw new BadRequestException("Custom key must be at least 12 characters");
+    const pasted = input.generation === "custom" ? (input.token ?? "").trim() : "";
+    if (pasted && (pasted.length < 12 || pasted.length > 120)) throw new BadRequestException("API key must be 12 to 120 characters");
+    const token = pasted || freshKey(input.keyType);
+    const secret = (input.secret ?? "").trim();
+    let altHash: string | null = null;
+    if (secret && secret !== token) {
+      if (secret.length < 12 || secret.length > 120) throw new BadRequestException("Secret key must be 12 to 120 characters");
+      altHash = hashKey(secret);
+      const clash = await this.prisma.merchantKey.findFirst({
+        where: { OR: [{ secretHash: altHash }, { altHash }] },
+      });
+      if (clash) throw new BadRequestException("That key is already in use");
     }
     try {
       const row = await this.prisma.merchantKey.create({
@@ -723,6 +729,7 @@ export class PayService implements OnModuleInit {
           label: input.label.trim(),
           prefix: token.slice(0, 16),
           secretHash: hashKey(token),
+          altHash,
           keyType: input.keyType,
           abilities,
           webhookUrl,

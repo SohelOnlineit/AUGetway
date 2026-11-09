@@ -5,13 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
-type KeyType = "checkout";
+type KeyType = "checkout" | "sms";
 type Generation = "auto" | "custom";
 
-const checkoutAbilities = ["payment:checkout", "payment:verify"] as const;
+const paymentAbilities = ["payment:checkout", "payment:verify", "payment:refund"] as const;
+const smsAbilities = ["sms:sync", "sms:receive", "sms:send"] as const;
 const abilityCopy: Record<string, string> = {
-  "payment:checkout": "Create a checkout",
-  "payment:verify": "Verify a checkout",
+  "payment:checkout": "payment:checkout (Create Payment Sessions)",
+  "payment:verify": "payment:verify (Verify Transactions)",
+  "payment:refund": "payment:refund (Process Refunds)",
+  "sms:sync": "sms:sync (Sync SMS from Mobile App)",
+  "sms:receive": "sms:receive (Receive Incoming SMS)",
+  "sms:send": "sms:send (Send Outgoing SMS via Gateway)",
 };
 
 const blank = {
@@ -19,7 +24,8 @@ const blank = {
   name: "",
   generation: "auto" as Generation,
   token: "",
-  abilities: [...checkoutAbilities] as string[],
+  secret: "",
+  abilities: [...paymentAbilities] as string[],
   webhookUrl: "",
   expiresAt: "",
   active: true,
@@ -38,7 +44,7 @@ export default function CreateKeyPage() {
     setForm((current) => ({
       ...current,
       keyType,
-      abilities: [...checkoutAbilities],
+      abilities: keyType === "sms" ? [...smsAbilities] : [...paymentAbilities],
     }));
   }
 
@@ -62,6 +68,7 @@ export default function CreateKeyPage() {
           keyType: form.keyType,
           generation: form.generation,
           token: form.generation === "custom" ? form.token.trim() : undefined,
+          secret: form.generation === "custom" && form.secret.trim() && form.secret.trim() !== form.token.trim() ? form.secret.trim() : undefined,
           abilities: form.abilities,
           webhookUrl: form.webhookUrl.trim(),
           expiresAt: form.expiresAt || undefined,
@@ -149,11 +156,12 @@ export default function CreateKeyPage() {
             {heading}
             <div className="key-body">
             <h3>API Key Information</h3>
-            <p className="sub">This key lets your store create a checkout and verify it. The phone app signs in with the desk account.</p>
+            <p className="sub">Generate an API Key for Payment Gateway integration or SMS Gateway mobile sync.</p>
             <label>
               <span>Key Type</span>
               <select value={form.keyType} onChange={(event) => setType(event.target.value as KeyType)}>
-                <option value="checkout">Checkout (Create and verify a payment — uq_live_...)</option>
+                <option value="checkout">Payment Gateway (Merchant Checkout & Verification — uq_live_...)</option>
+                <option value="sms">SMS Gateway (Mobile Sync & Android Gateway App — sg_live_...)</option>
               </select>
             </label>
             <label>
@@ -163,7 +171,7 @@ export default function CreateKeyPage() {
                 required
                 minLength={2}
                 maxLength={80}
-                placeholder="e.g. Shop checkout"
+                placeholder="e.g. Shop checkout or Live SMS Gateway"
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </label>
@@ -175,23 +183,33 @@ export default function CreateKeyPage() {
               </select>
             </label>
             {form.generation === "custom" ? (
-              <label>
-                <span>API Key / Public Key</span>
-                <input
-                  value={form.token}
-                  required
-                  minLength={12}
-                  maxLength={120}
-                  placeholder="Paste the key you want to keep"
-                  onChange={(event) => setForm({ ...form, token: event.target.value })}
-                />
-                <p className="hint">At least 12 characters. This value is sent as x-merchant-key.</p>
-              </label>
+              <>
+                <label>
+                  <span>API Key / Public Key</span>
+                  <input
+                    value={form.token}
+                    maxLength={120}
+                    placeholder={form.keyType === "sms" ? "e.g. sg_live_…" : "e.g. uq_live_…"}
+                    onChange={(event) => setForm({ ...form, token: event.target.value })}
+                  />
+                  <p className="hint">Custom API Key or token. Leave blank to auto-generate based on Key Type.</p>
+                </label>
+                <label>
+                  <span>Secret Key</span>
+                  <input
+                    value={form.secret}
+                    maxLength={120}
+                    placeholder="Optional: Leave blank to use the same as API Key"
+                    onChange={(event) => setForm({ ...form, secret: event.target.value })}
+                  />
+                  <p className="hint">Optional secret key for integrations. Defaults to matching the API Key.</p>
+                </label>
+              </>
             ) : null}
             <fieldset>
               <legend>Abilities / Permissions</legend>
               <div className="key-checks">
-                {checkoutAbilities.map((ability) => (
+                {[...paymentAbilities, ...smsAbilities].map((ability) => (
                   <label key={ability}>
                     <input type="checkbox" checked={form.abilities.includes(ability)} onChange={() => toggleAbility(ability)} />
                     <span>{abilityCopy[ability]}</span>

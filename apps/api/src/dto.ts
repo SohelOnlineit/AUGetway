@@ -311,14 +311,23 @@ export class SettingsDto {
   prefs?: Record<string, string>;
 }
 
+const keyAbilities = [
+  "payment:checkout",
+  "payment:verify",
+  "payment:refund",
+  "sms:sync",
+  "sms:receive",
+  "sms:send",
+] as const;
+
 export class KeyDto {
   @IsString()
   @MinLength(2)
   @MaxLength(80)
   label!: string;
 
-  @IsIn(["checkout"])
-  keyType!: "checkout";
+  @IsIn(["checkout", "sms"])
+  keyType!: "checkout" | "sms";
 
   @IsIn(["auto", "custom"])
   generation!: "auto" | "custom";
@@ -328,11 +337,13 @@ export class KeyDto {
   @MaxLength(120)
   token?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  secret?: string;
+
   @IsArray()
-  @IsIn(
-    ["payment:checkout", "payment:verify"],
-    { each: true },
-  )
+  @IsIn(keyAbilities, { each: true })
   abilities!: string[];
 
   @IsOptional()
@@ -348,15 +359,6 @@ export class KeyDto {
   @IsBoolean()
   active!: boolean;
 }
-
-const keyAbilities = [
-  "payment:checkout",
-  "payment:verify",
-  "payment:refund",
-  "sms:sync",
-  "sms:receive",
-  "sms:send",
-] as const;
 
 export class KeyUpdateDto {
   @IsOptional()
