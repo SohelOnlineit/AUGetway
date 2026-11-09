@@ -51,6 +51,18 @@ class UniqpaySmsModule : Module() {
       context.startActivity(intent)
     }
 
+    Function("startKeepAlive") { base: String, token: String, uid: String, label: String ->
+      try {
+        KeepAliveService.start(context.applicationContext, base, token, uid, label)
+      } catch (_: Exception) {
+        // Android blocked a start from the background. An already running watch keeps the last sign-in.
+      }
+    }
+
+    Function("stopKeepAlive") {
+      KeepAliveService.stop(context.applicationContext)
+    }
+
     AsyncFunction("sendSms") Coroutine { to: String, message: String, slot: Int ->
       if (!granted(Manifest.permission.SEND_SMS)) {
         throw CodedException("SMS permission is not granted")

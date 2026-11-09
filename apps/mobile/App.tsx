@@ -3,7 +3,7 @@ import { AppState, Dimensions, Keyboard, Linking, PermissionsAndroid, Platform, 
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
+import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, startKeepAlive, stopKeepAlive, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
@@ -289,8 +289,32 @@ function App() {
     };
     void beat();
     const timer = setInterval(() => void beat(), 20000);
+    let watch = false;
+    const arm = async () => {
+      if (Platform.OS !== "android") return;
+      if (Number(Platform.Version) >= 33) {
+        try {
+          await PermissionsAndroid.request("android.permission.POST_NOTIFICATIONS");
+        } catch {
+          // The watch still starts. Android may hide its notification.
+        }
+      }
+      if (watch) return;
+      try {
+        startKeepAlive(DESK, token, uid, nameRef.current.trim() || "UniqBD handset");
+      } catch {
+        // Expo Go has no background watch.
+      }
+      try {
+        if (!batteryIgnored()) askBattery();
+      } catch {
+        // The phone stays online only while Android lets this app run.
+      }
+    };
+    void arm();
     return () => {
       stop = true;
+      watch = true;
       clearInterval(timer);
     };
   }, [token, uid]);
@@ -302,7 +326,7 @@ function App() {
       const response = await fetch(`${DESK}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: email.trim(), password, client: "handset" }),
       });
       const data = (await response.json()) as { accessToken?: string; message?: string | string[] };
       if (!response.ok || !data.accessToken) {
@@ -634,6 +658,11 @@ function App() {
   }, [token, uid, smsReady]);
 
   async function signOut() {
+    try {
+      stopKeepAlive();
+    } catch {
+      // Expo Go has no background watch.
+    }
     await clearStore("uniqpay_token");
     setToken(null);
     setOnline(false);
@@ -812,7 +841,7 @@ function App() {
                     </View>
                   </View>
                   <Text style={styles.sectionLabel}>PHONE</Text>
-                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."}</Text>
+                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} Leave the UniqBD Pay notification on. Android turns the phone offline if that notification is removed or battery optimization stays on.</Text>
                   <Text style={styles.label}>Phone name</Text>
                   <Field scroll={pageScroll} style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
                   <Text style={styles.label}>Send one SMS</Text>

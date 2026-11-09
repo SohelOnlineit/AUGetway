@@ -32,6 +32,16 @@ function askBattery() {
   native.askBattery();
 }
 
+function startKeepAlive(base, token, uid, label) {
+  if (!native) return;
+  native.startKeepAlive(String(base), String(token), String(uid), String(label || "UniqBD handset"));
+}
+
+function stopKeepAlive() {
+  if (!native) return;
+  native.stopKeepAlive();
+}
+
 async function sendOneSms(to, message, slot = 0) {
   if (!native) throw new Error("SMS sending needs the UniqBD Pay Android build.");
   return native.sendSms(to, message, slot === 1 ? 1 : 0);
@@ -43,5 +53,7 @@ module.exports = {
   listRecentSms,
   batteryIgnored,
   askBattery,
+  startKeepAlive,
+  stopKeepAlive,
   sendOneSms,
 };

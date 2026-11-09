@@ -25,6 +25,10 @@ export class LoginDto {
   @IsString()
   @MinLength(8)
   password!: string;
+
+  @IsOptional()
+  @IsIn(["desk", "handset"])
+  client?: string;
 }
 
 export class AdminDto {

@@ -293,7 +293,7 @@ export class PayService implements OnModuleInit {
     }
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, client?: string) {
     const normalized = email.trim().toLowerCase();
     assertLoginOpen(normalized);
     const user = await this.prisma.deskUser.findUnique({ where: { email: normalized } });
@@ -303,7 +303,7 @@ export class PayService implements OnModuleInit {
       throw new UnauthorizedException("Email or password is wrong");
     }
     clearLoginFailure(normalized);
-    return this.session(user);
+    return this.session(user, client === "handset" ? "30d" : "12h");
   }
 
   async me(userId: string) {
@@ -2050,13 +2050,13 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }) {
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "12h" | "30d" = "12h") {
     const accessToken = this.jwt.sign({
       sub: user.deskId ?? user.id,
       email: user.email,
       actor: user.id,
       stamp: sessionStamp(user.passwordHash),
-    });
+    }, { expiresIn });
     return {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, role: user.deskId ? "admin" : "owner" },

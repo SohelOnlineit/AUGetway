@@ -45,7 +45,7 @@ export class PayController {
 
   @Post("auth/login")
   login(@Body() body: LoginDto) {
-    return this.pay.login(body.email, body.password);
+    return this.pay.login(body.email, body.password, body.client);
   }
 
   @Get("auth/me")

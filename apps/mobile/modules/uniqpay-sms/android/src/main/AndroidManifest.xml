@@ -3,4 +3,28 @@
   <uses-permission android:name="android.permission.SEND_SMS" />
   <uses-permission android:name="android.permission.READ_PHONE_STATE" />
   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <application>
+    <service
+      android:name="expo.modules.uniqpaysms.KeepAliveService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse"
+      android:stopWithTask="false">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Keeps this merchant phone online so payment SMS can be matched while the screen is off." />
+    </service>
+    <receiver
+      android:name="expo.modules.uniqpaysms.BootReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+      </intent-filter>
+    </receiver>
+  </application>
 </manifest>
