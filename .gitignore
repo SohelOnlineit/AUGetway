@@ -11,4 +11,6 @@ apps/api/src/generated
 .expo
 apps/mobile/.expo
 apps/mobile/android
+apps/mobile/signing
 apps/mobile/modules/**/build
+*.apk
