@@ -58,7 +58,7 @@ async function copyValue(value: string) {
 }
 
 const BRAND_LOGOS: { key: string; src: string; alt: string }[] = [
-  { key: "bkash", src: "/gateways/bkash.png", alt: "bKash" },
+  { key: "bkash", src: "/gateways/bkash.png?v=2", alt: "bKash" },
   { key: "nagad", src: "/gateways/nagad.png", alt: "Nagad" },
   { key: "rocket", src: "/gateways/rocket.png", alt: "Rocket" },
   { key: "upay", src: "/gateways/upay.png", alt: "Upay" },
