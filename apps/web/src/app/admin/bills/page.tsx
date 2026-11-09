@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 type Bill = {
@@ -68,8 +69,6 @@ export default function BillsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [picked, setPicked] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Bill | null>(null);
   const [busy, setBusy] = useState(false);
 
   function load() {
@@ -126,64 +125,6 @@ export default function BillsPage() {
     }
   }
 
-  async function createBill(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const customerEmail = String(form.get("customerEmail") ?? "").trim();
-    setBusy(true);
-    setError("");
-    try {
-      await api("/desk/bills", {
-        method: "POST",
-        body: JSON.stringify({
-          customerName: String(form.get("customerName") ?? ""),
-          ...(customerEmail ? { customerEmail } : {}),
-          title: String(form.get("title") ?? ""),
-          total: Number(form.get("total") ?? 0),
-          note: String(form.get("note") ?? ""),
-          dueOn: String(form.get("dueOn") ?? ""),
-        }),
-      });
-      setCreating(false);
-      setNote("Invoice created");
-      setPage(1);
-      load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveBill(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editing) return;
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/desk/bills/${editing.number}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          customerName: String(form.get("customerName") ?? ""),
-          customerEmail: String(form.get("customerEmail") ?? ""),
-          title: String(form.get("title") ?? ""),
-          total: Number(form.get("total") ?? 0),
-          note: String(form.get("note") ?? ""),
-          dueOn: String(form.get("dueOn") ?? ""),
-          status: String(form.get("status") ?? "due"),
-        }),
-      });
-      setEditing(null);
-      setNote("Invoice updated");
-      load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function removePicked() {
     if (!picked.length || busy) return;
     setBusy(true);
@@ -213,11 +154,11 @@ export default function BillsPage() {
           {picked.length ? (
             <button className="inv-drop" type="button" onClick={removePicked} disabled={busy}>Delete selected ({picked.length})</button>
           ) : null}
-          <button className="inv-new" type="button" onClick={() => { setError(""); setCreating(true); }}>New invoice</button>
+          <Link className="inv-new" href="/admin/invoices/create">New invoice</Link>
         </div>
       </header>
       {note ? <p className="inv-note">{note}</p> : null}
-      {error && !creating && !editing ? <p className="error">{error}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
       <section className="inv-card">
         <div className="inv-tools">
@@ -294,9 +235,9 @@ export default function BillsPage() {
                       <a className="inv-go" href={`/bill/${row.number}`} target="_blank" rel="noreferrer">
                         <LinkIcon /> Payment Link
                       </a>
-                      <button className="inv-go" type="button" onClick={() => { setError(""); setEditing(row); }}>
+                      <Link className="inv-go" href={`/admin/invoices/${row.number}/edit`}>
                         <PencilIcon /> Edit
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 );
@@ -333,55 +274,6 @@ export default function BillsPage() {
         ) : null}
       </section>
 
-      {creating ? (
-        <div className="modal-back inv-shade" onClick={() => { if (!busy) { setCreating(false); setError(""); } }}>
-          <form className="modal dev-modal inv-dialog" onClick={(event) => event.stopPropagation()} onSubmit={createBill}>
-            <div className="dev-modal-head"><div><p className="inv-crumb">Invoices</p><h2>New invoice</h2></div></div>
-            <div className="dev-modal-body">
-              <label><span>Customer</span><input name="customerName" required minLength={2} maxLength={80} /></label>
-              <label><span>Email</span><input name="customerEmail" type="email" maxLength={120} /></label>
-              <label><span>Title</span><input name="title" required minLength={2} maxLength={120} /></label>
-              <label><span>Total amount (BDT)</span><input name="total" type="number" min={1} step="0.01" required /></label>
-              <label><span>Due date</span><input name="dueOn" type="date" /></label>
-              <label><span>Note</span><textarea name="note" rows={3} maxLength={400} /></label>
-              {error ? <p className="error">{error}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => { setCreating(false); setError(""); }}>Cancel</button>
-              <button className="inv-new" type="submit" disabled={busy}>Create</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {editing ? (
-        <div className="modal-back inv-shade" onClick={() => { if (!busy) { setEditing(null); setError(""); } }}>
-          <form className="modal dev-modal inv-dialog" onClick={(event) => event.stopPropagation()} onSubmit={saveBill}>
-            <div className="dev-modal-head"><div><p className="inv-crumb">Invoices</p><h2>Edit invoice</h2></div></div>
-            <div className="dev-modal-body">
-              <label><span>Customer</span><input name="customerName" required minLength={2} maxLength={80} defaultValue={editing.customerName} /></label>
-              <label><span>Email</span><input name="customerEmail" type="email" maxLength={120} defaultValue={editing.customerEmail ?? ""} /></label>
-              <label><span>Title</span><input name="title" required minLength={2} maxLength={120} defaultValue={editing.title} /></label>
-              <label><span>Total amount (BDT)</span><input name="total" type="number" min={1} step="0.01" required defaultValue={editing.total} /></label>
-              <label><span>Due date</span><input name="dueOn" type="date" defaultValue={editing.dueOn ?? ""} /></label>
-              <label>
-                <span>Status</span>
-                <select name="status" defaultValue={editing.status === "paid" || editing.status === "cancelled" ? editing.status : "due"}>
-                  <option value="due">Due</option>
-                  <option value="paid">Paid</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </label>
-              <label><span>Note</span><textarea name="note" rows={3} maxLength={400} defaultValue={editing.note} /></label>
-              {error ? <p className="error">{error}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => { setEditing(null); setError(""); }}>Cancel</button>
-              <button className="inv-new" type="submit" disabled={busy}>Save</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </div>
   );
 }

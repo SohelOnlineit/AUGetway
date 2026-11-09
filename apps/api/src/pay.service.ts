@@ -18,6 +18,38 @@ function money(value: MoneyRow | number | string) {
   return Number(value).toFixed(2);
 }
 
+type InvoiceLine = { description: string; quantity: number; price: number; discount: number; vat: number };
+type InvoiceExtra = {
+  items: InvoiceLine[];
+  shipping: number;
+  vatTotal: number;
+  discountTotal: number;
+  redirectUrl: string;
+  privateNote: string;
+};
+
+const invoiceMark = "@@UNIQINV@@";
+
+function splitInvoice(note: string) {
+  const index = note.indexOf(invoiceMark);
+  if (index < 0) return { note, extra: null as InvoiceExtra | null };
+  const clean = note.slice(0, index).trim();
+  try {
+    const extra = JSON.parse(note.slice(index + invoiceMark.length)) as InvoiceExtra;
+    if (!extra || !Array.isArray(extra.items)) return { note: clean, extra: null };
+    return { note: clean, extra };
+  } catch {
+    return { note: clean, extra: null };
+  }
+}
+
+function joinInvoice(note: string, extra: InvoiceExtra | null) {
+  const index = note.indexOf(invoiceMark);
+  const clean = (index < 0 ? note : note.slice(0, index)).trim().slice(0, 400);
+  if (!extra) return clean;
+  return `${clean}\n${invoiceMark}${JSON.stringify(extra)}`;
+}
+
 function publicId() {
   return randomBytes(9).toString("base64url");
 }
@@ -689,7 +721,22 @@ export class PayService implements OnModuleInit {
 
   createBill(
     ownerId: string,
-    input: { customerName: string; customerEmail?: string; title: string; total: number; note?: string; dueOn?: string },
+    input: {
+      customerName: string;
+      customerEmail?: string;
+      title: string;
+      total: number;
+      note?: string;
+      dueOn?: string;
+      currency?: string;
+      status?: string;
+      items?: InvoiceLine[];
+      shipping?: number;
+      vatTotal?: number;
+      discountTotal?: number;
+      redirectUrl?: string;
+      privateNote?: string;
+    },
   ) {
     return this.prisma.bill.create({
       data: {
@@ -699,7 +746,9 @@ export class PayService implements OnModuleInit {
         customerEmail: input.customerEmail?.trim() || null,
         title: input.title.trim(),
         total: input.total,
-        note: input.note?.trim() ?? "",
+        currency: input.currency ?? "BDT",
+        status: input.status ?? "due",
+        note: joinInvoice(input.note ?? "", this.invoiceExtra(input)),
         dueOn: this.readDay(input.dueOn),
       },
     });
@@ -708,11 +757,35 @@ export class PayService implements OnModuleInit {
   async editBill(
     ownerId: string,
     number: string,
-    input: { customerName?: string; customerEmail?: string; title?: string; total?: number; note?: string; dueOn?: string; status?: string },
+    input: {
+      customerName?: string;
+      customerEmail?: string;
+      title?: string;
+      total?: number;
+      note?: string;
+      dueOn?: string;
+      status?: string;
+      currency?: string;
+      items?: InvoiceLine[];
+      shipping?: number;
+      vatTotal?: number;
+      discountTotal?: number;
+      redirectUrl?: string;
+      privateNote?: string;
+    },
   ) {
     const row = await this.prisma.bill.findFirst({ where: { ownerId, number } });
     if (!row) throw new NotFoundException("Invoice not found");
-    const data: { customerName?: string; customerEmail?: string | null; title?: string; total?: number; note?: string; dueOn?: Date | null; status?: string } = {};
+    const data: {
+      customerName?: string;
+      customerEmail?: string | null;
+      title?: string;
+      total?: number;
+      note?: string;
+      dueOn?: Date | null;
+      status?: string;
+      currency?: string;
+    } = {};
     if (input.customerName !== undefined) data.customerName = input.customerName.trim();
     if (input.customerEmail !== undefined) {
       const email = input.customerEmail.trim();
@@ -721,9 +794,14 @@ export class PayService implements OnModuleInit {
     }
     if (input.title !== undefined) data.title = input.title.trim();
     if (input.total !== undefined) data.total = input.total;
-    if (input.note !== undefined) data.note = input.note.trim().slice(0, 400);
+    if (input.note !== undefined || input.items !== undefined) {
+      const current = splitInvoice(row.note);
+      const extra = input.items !== undefined ? this.invoiceExtra(input) : current.extra;
+      data.note = joinInvoice(input.note ?? current.note, extra);
+    }
     if (input.dueOn !== undefined) data.dueOn = this.readDay(input.dueOn);
     if (input.status !== undefined) data.status = input.status;
+    if (input.currency !== undefined) data.currency = input.currency;
     const updated = await this.prisma.bill.update({ where: { id: row.id }, data });
     return this.billView(updated);
   }
@@ -753,6 +831,34 @@ export class PayService implements OnModuleInit {
     return date;
   }
 
+  private invoiceExtra(input: {
+    items?: InvoiceLine[];
+    shipping?: number;
+    vatTotal?: number;
+    discountTotal?: number;
+    redirectUrl?: string;
+    privateNote?: string;
+  }): InvoiceExtra | null {
+    const items = (input.items ?? [])
+      .map((item) => ({
+        description: item.description.trim().slice(0, 160),
+        quantity: item.quantity,
+        price: item.price,
+        discount: item.discount,
+        vat: item.vat,
+      }))
+      .filter((item) => item.description);
+    if (!items.length) return null;
+    return {
+      items,
+      shipping: input.shipping ?? 0,
+      vatTotal: input.vatTotal ?? 0,
+      discountTotal: input.discountTotal ?? 0,
+      redirectUrl: (input.redirectUrl ?? "").trim().slice(0, 300),
+      privateNote: (input.privateNote ?? "").trim().slice(0, 400),
+    };
+  }
+
   private billView(row: {
     number: string;
     customerName: string;
@@ -765,6 +871,7 @@ export class PayService implements OnModuleInit {
     dueOn: Date | null;
     createdAt: Date;
   }) {
+    const split = splitInvoice(row.note);
     return {
       number: row.number,
       customerName: row.customerName,
@@ -773,9 +880,15 @@ export class PayService implements OnModuleInit {
       total: money(row.total),
       currency: row.currency,
       status: row.status,
-      note: row.note,
+      note: split.note,
       dueOn: row.dueOn ? row.dueOn.toISOString().slice(0, 10) : null,
       createdAt: row.createdAt.toISOString(),
+      items: split.extra?.items ?? [],
+      shipping: split.extra?.shipping ?? 0,
+      vatTotal: split.extra?.vatTotal ?? 0,
+      discountTotal: split.extra?.discountTotal ?? 0,
+      redirectUrl: split.extra?.redirectUrl ?? "",
+      privateNote: split.extra?.privateNote ?? "",
     };
   }
 
@@ -905,7 +1018,7 @@ export class PayService implements OnModuleInit {
       total: money(bill.total),
       currency: bill.currency,
       status: bill.status,
-      note: bill.note,
+      note: splitInvoice(bill.note).note,
     };
   }
 

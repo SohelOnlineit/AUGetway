@@ -1,5 +1,6 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from "class-validator";
 
 export class LoginDto {
@@ -278,6 +280,36 @@ export class ProofDto {
   receipt?: string;
 }
 
+export class InvoiceLineDto {
+  @IsString()
+  @MaxLength(160)
+  description!: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100000)
+  quantity!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  price!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  discount!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  vat!: number;
+}
+
 export class BillDto {
   @IsString()
   @MinLength(2)
@@ -308,6 +340,52 @@ export class BillDto {
   @IsString()
   @MaxLength(10)
   dueOn?: string;
+
+  @IsOptional()
+  @IsIn(["BDT", "USD", "EUR", "GBP"])
+  currency?: string;
+
+  @IsOptional()
+  @IsIn(["due", "paid", "cancelled"])
+  status?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceLineDto)
+  items?: InvoiceLineDto[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  shipping?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  vatTotal?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  discountTotal?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  redirectUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  privateNote?: string;
 }
 
 export class BillUpdateDto {
@@ -346,8 +424,50 @@ export class BillUpdateDto {
   dueOn?: string;
 
   @IsOptional()
+  @IsIn(["BDT", "USD", "EUR", "GBP"])
+  currency?: string;
+
+  @IsOptional()
   @IsIn(["due", "paid", "cancelled"])
   status?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceLineDto)
+  items?: InvoiceLineDto[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  shipping?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  vatTotal?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(250000)
+  discountTotal?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  redirectUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  privateNote?: string;
 }
 
 export class LinkDto {

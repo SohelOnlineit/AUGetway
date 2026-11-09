@@ -235,7 +235,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       <aside className="rail">
         <nav className="rail-box">
         {main.map(([label, href, icon]) => (
-          <Link key={href} href={href} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") ? "active" : ""}>
+          <Link key={href} href={href} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") || (href === "/admin/invoices" && pathname.startsWith("/admin/invoices/")) ? "active" : ""}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
           </Link>
