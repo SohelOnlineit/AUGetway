@@ -3,10 +3,20 @@ import { AppState, Dimensions, Keyboard, Linking, PermissionsAndroid, Platform, 
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import { askBattery, batteryIgnored, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
+import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
+
+function pulsePayload(uid: string, label: string) {
+  const battery = batteryLevel();
+  return JSON.stringify({
+    uid,
+    label: label.trim() || "UniqBD handset",
+    model: "Android",
+    ...(battery === null ? {} : { battery }),
+  });
+}
 
 type Handset = { id: string; uid: string; label: string; simSlot: number; lastSeenAt: string | null };
 
@@ -265,7 +275,7 @@ function App() {
         const response = await fetch(`${DESK}/handset/pulse`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ uid, label: nameRef.current.trim() || "UniqBD handset", model: "Android" }),
+          body: pulsePayload(uid, nameRef.current),
         });
         const data = (await response.json()) as { id?: string; simSlot?: number; message?: string | string[] };
         if (response.status === 401) {
@@ -460,7 +470,7 @@ function App() {
       const pulse = await fetch(`${DESK}/handset/pulse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ uid, label: name.trim() || "UniqBD handset", model: "Android" }),
+        body: pulsePayload(uid, name),
       });
       if (pulse.status === 401) {
         await signOut();

@@ -137,7 +137,9 @@ class KeepAliveService : Service() {
       setRequestProperty("Authorization", "Bearer $token")
     }
     try {
-      val body = """{"uid":${json(uid)},"label":${json(label)},"model":"Android"}"""
+      val percent = batteryPercent(this)
+      val charge = if (percent == null) "" else ""","battery":$percent"""
+      val body = """{"uid":${json(uid)},"label":${json(label)},"model":"Android"$charge}"""
       connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
       if (connection.responseCode == 401 || SmsSync.push(applicationContext, base, token, uid) == 401) {
         prefs.edit().clear().putBoolean("userStop", true).apply()

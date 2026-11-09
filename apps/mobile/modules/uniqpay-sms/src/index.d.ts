@@ -16,6 +16,8 @@ export function batteryIgnored(): boolean;
 
 export function askBattery(): void;
 
+export function batteryLevel(): number | null;
+
 export function startKeepAlive(base: string, token: string, uid: string, label: string): void;
 
 export function stopKeepAlive(): void;

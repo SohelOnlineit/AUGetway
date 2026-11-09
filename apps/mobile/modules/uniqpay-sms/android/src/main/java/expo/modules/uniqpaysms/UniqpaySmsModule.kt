@@ -44,6 +44,10 @@ class UniqpaySmsModule : Module() {
       power?.isIgnoringBatteryOptimizations(context.packageName) == true
     }
 
+    Function("batteryLevel") {
+      batteryPercent(context) ?: -1
+    }
+
     Function("askBattery") {
       val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
       intent.data = Uri.parse("package:${context.packageName}")

@@ -32,6 +32,13 @@ function askBattery() {
   native.askBattery();
 }
 
+function batteryLevel() {
+  if (!native || typeof native.batteryLevel !== "function") return null;
+  const value = Number(native.batteryLevel());
+  if (!Number.isInteger(value) || value < 0 || value > 100) return null;
+  return value;
+}
+
 function startKeepAlive(base, token, uid, label) {
   if (!native) return;
   native.startKeepAlive(String(base), String(token), String(uid), String(label || "UniqBD handset"));
@@ -74,6 +81,7 @@ module.exports = {
   listRecentSms,
   batteryIgnored,
   askBattery,
+  batteryLevel,
   startKeepAlive,
   stopKeepAlive,
   setSmsSync,
