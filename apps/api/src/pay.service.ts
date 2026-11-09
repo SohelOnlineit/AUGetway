@@ -623,7 +623,9 @@ export class PayService implements OnModuleInit {
       },
       include: { method: true },
     });
-    return this.checkoutCard(row, true);
+    await this.reserveOpenSlot(row);
+    const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id }, include: { method: true } });
+    return this.checkoutCard(fresh ?? row, true);
   }
 
   async setStatus(ownerId: string, id: string, status: "paid" | "failed", providerRef?: string) {
@@ -1552,6 +1554,13 @@ export class PayService implements OnModuleInit {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "expired" } });
       row.status = "expired";
     }
+    if (row.status === "open") {
+      const changed = await this.reserveOpenSlot(row);
+      if (changed) {
+        const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id }, include: { method: true } });
+        if (fresh) return this.checkoutCard(fresh, true);
+      }
+    }
     if (row.status === "waiting" && row.method && row.method.verifyBy !== "unique_amount" && !row.method.shiftAmount) {
       const priced = priceAmount(Number(row.amount), row.method);
       if (Math.abs(priced - Number(row.payable)) > 0.001) {
@@ -2058,11 +2067,55 @@ export class PayService implements OnModuleInit {
     return method;
   }
 
+  private async reserveOpenSlot(row: { id: string; ownerId: string; amount: unknown; payable: unknown; status: string }) {
+    if (row.status !== "open") return false;
+    const methods = await this.prisma.walletMethod.findMany({
+      where: { ownerId: row.ownerId, active: true, verifyBy: "unique_amount" },
+      select: { uniqueSlots: true },
+    });
+    if (!methods.length) return false;
+    const slots = Math.max(1, ...methods.map((method) => Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1))));
+    const baseCents = Math.round(Number(row.amount) * 100);
+    const payable = await this.prisma.$transaction(async (tx) => {
+      await this.lockKey(tx, `poisha:${row.ownerId}:${baseCents}`);
+      const peers = await tx.checkout.findMany({
+        where: {
+          ownerId: row.ownerId,
+          status: { in: ["open", "waiting", "pending"] },
+          expiresAt: { gt: new Date() },
+        },
+        select: { id: true, amount: true, payable: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      });
+      const same = peers.filter((peer) => Math.round(Number(peer.amount) * 100) === baseCents);
+      const taken = new Set(peers.filter((peer) => peer.id !== row.id).map((peer) => money(peer.payable)));
+      const index = Math.max(0, same.findIndex((peer) => peer.id === row.id));
+      let next = Number(row.payable);
+      const preferred = ((baseCents + Math.min(index, slots)) / 100).toFixed(2);
+      if (!taken.has(preferred)) next = Number(preferred);
+      else {
+        for (let step = 0; step <= slots; step += 1) {
+          const candidate = ((baseCents + step) / 100).toFixed(2);
+          if (!taken.has(candidate)) {
+            next = Number(candidate);
+            break;
+          }
+        }
+      }
+      if (Math.abs(next - Number(row.payable)) > 0.001) {
+        await tx.checkout.update({ where: { id: row.id }, data: { payable: next } });
+      }
+      return next;
+    });
+    return Math.abs(payable - Number(row.payable)) > 0.001;
+  }
+
   private async allocatePayable(
     tx: { checkout: PrismaService["checkout"] },
     checkoutId: string,
     method: {
       id: string;
+      ownerId: string;
       verifyBy: string;
       uniqueKind: string;
       uniqueSlots: number;
@@ -2075,12 +2128,12 @@ export class PayService implements OnModuleInit {
   ) {
     const pending = await tx.checkout.findMany({
       where: {
-        methodId: method.id,
+        ownerId: method.ownerId,
         id: { not: checkoutId },
-        status: { in: ["waiting", "pending"] },
+        status: { in: ["open", "waiting", "pending"] },
         expiresAt: { gt: new Date() },
       },
-      select: { amount: true, payable: true },
+      select: { amount: true, payable: true, methodId: true, status: true },
     });
     const unique = method.verifyBy === "unique_amount";
     const slots = unique ? Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1)) : 400;
@@ -2091,7 +2144,8 @@ export class PayService implements OnModuleInit {
     let same = 0;
     for (const row of pending) {
       taken.add(money(row.payable));
-      if (ladder(priceAmount(Number(row.amount), method)) === baseCents) same += 1;
+      const sameBase = ladder(priceAmount(Number(row.amount), method)) === baseCents || ladder(Number(row.amount)) === baseCents;
+      if (sameBase && (row.status === "open" || row.methodId === method.id)) same += 1;
     }
     if (unique && same > slots) {
       throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
