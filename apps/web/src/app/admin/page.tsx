@@ -103,7 +103,6 @@ export default function OverviewPage() {
       api<Handset[]>("/desk/handsets"),
     ])
       .then(([nextSummary, nextReport, nextPayments, customers, bills, links, keys, handsets]) => {
-        const now = Date.now();
         setSummary(nextSummary);
         setReport(nextReport);
         setPayments(nextPayments.slice(0, 6));
@@ -112,7 +111,7 @@ export default function OverviewPage() {
           bills: bills.length,
           links: links.length,
           keys: keys.length,
-          online: handsets.filter((row) => row.lastSeenAt && now - new Date(row.lastSeenAt).getTime() < 24 * 60 * 60 * 1000).length,
+          online: handsets.filter((row) => row.lastSeenAt).length,
         });
         setReady(true);
       })
