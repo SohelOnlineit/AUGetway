@@ -303,7 +303,7 @@ export class PayService implements OnModuleInit {
       throw new UnauthorizedException("Email or password is wrong");
     }
     clearLoginFailure(normalized);
-    return this.session(user, client === "handset" ? "30d" : "12h");
+    return this.session(user, client === "handset" ? "5y" : "12h");
   }
 
   async me(userId: string) {
@@ -2050,7 +2050,7 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "12h" | "30d" = "12h") {
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "12h" | "5y" = "12h") {
     const accessToken = this.jwt.sign({
       sub: user.deskId ?? user.id,
       email: user.email,
