@@ -15,6 +15,7 @@ const main = [
   ["Transactions", "/admin/transactions", "swap"],
   ["Financial & Transaction Reports", "/admin/reports", "chart"],
   ["Brand & System Settings", "/admin/settings", "sliders"],
+  ["Admin accounts", "/admin/admins", "admins"],
 ] as const;
 
 const smsGateway = [
@@ -40,6 +41,7 @@ function Icon({ name }: { name: string }) {
   if (name === "swap") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M7 7h11l-3-3M17 17H6l3 3" /></svg>;
   if (name === "chart") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M5 19V10M12 19V5M19 19v-7" /></svg>;
   if (name === "sliders") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M4 8h16M4 16h16M8 8v4M16 12v4" /></svg>;
+  if (name === "admins") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M12 12a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM5.5 19.2c.5-2.6 2.8-4.2 6.5-4.2s6 1.6 6.5 4.2" /><path {...common} d="M18 8v4M16 10h4" /></svg>;
   if (name === "key") return <svg width="18" height="18" viewBox="0 0 24 24"><circle {...common} cx="8" cy="14" r="3.2" /><path {...common} d="M11 14h9l-2 2M17 14l2-2" /></svg>;
   if (name === "puzzle") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M8 4h3a2 2 0 1 1 0 4h1v2h2a2 2 0 1 1 4 0v2h-2v3a2 2 0 1 1-4 0v-1H9v2H7a2 2 0 0 1-2-2V9h2a2 2 0 1 0 0-4H8z" /></svg>;
   return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12" /></svg>;

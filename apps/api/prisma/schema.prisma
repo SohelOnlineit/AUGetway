@@ -13,6 +13,10 @@ model DeskUser {
   name         String
   email        String         @unique
   passwordHash String
+  role         String         @default("owner")
+  deskId       String?
+  desk         DeskUser?      @relation("DeskStaff", fields: [deskId], references: [id], onDelete: Cascade)
+  staff        DeskUser[]     @relation("DeskStaff")
   receiptDefaulted Boolean    @default(false)
   createdAt    DateTime       @default(now())
   methods      WalletMethod[]

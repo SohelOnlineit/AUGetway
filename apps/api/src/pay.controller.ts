@@ -12,6 +12,7 @@ import {
   KeyUpdateDto,
   LinkDto,
   AccountDto,
+  AdminDto,
   LoginDto,
   MethodDto,
   NoticeDto,
@@ -43,13 +44,31 @@ export class PayController {
   @Get("auth/me")
   @UseGuards(DeskGuard)
   me(@Req() request: DeskRequest) {
-    return this.pay.me(request.desk.sub);
+    return this.pay.me(request.desk.actor || request.desk.sub);
   }
 
   @Patch("auth/account")
   @UseGuards(DeskGuard)
   account(@Req() request: DeskRequest, @Body() body: AccountDto) {
-    return this.pay.updateAccount(request.desk.sub, body);
+    return this.pay.updateAccount(request.desk.actor || request.desk.sub, body);
+  }
+
+  @Get("desk/admins")
+  @UseGuards(DeskGuard)
+  admins(@Req() request: DeskRequest) {
+    return this.pay.listAdmins(request.desk.actor || request.desk.sub, request.desk.sub);
+  }
+
+  @Post("desk/admins")
+  @UseGuards(DeskGuard)
+  addAdmin(@Req() request: DeskRequest, @Body() body: AdminDto) {
+    return this.pay.createAdmin(request.desk.actor || request.desk.sub, request.desk.sub, body);
+  }
+
+  @Delete("desk/admins/:id")
+  @UseGuards(DeskGuard)
+  removeAdmin(@Req() request: DeskRequest, @Param("id") id: string) {
+    return this.pay.removeAdmin(request.desk.actor || request.desk.sub, request.desk.sub, id);
   }
 
   @Get("desk/summary")

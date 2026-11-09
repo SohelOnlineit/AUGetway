@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
 
-export type DeskSession = { sub: string; email: string };
+export type DeskSession = { sub: string; email: string; actor?: string };
 
 @Injectable()
 export class DeskGuard implements CanActivate {

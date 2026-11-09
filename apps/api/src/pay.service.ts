@@ -217,13 +217,13 @@ export class PayService implements OnModuleInit {
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException("Email or password is wrong");
     }
-    return this.session(user.id, user.email, user.name);
+    return this.session(user);
   }
 
   async me(userId: string) {
     const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException("Sign in required");
-    return { id: user.id, name: user.name, email: user.email };
+    return { id: user.id, name: user.name, email: user.email, role: user.deskId ? "admin" : "owner" };
   }
 
   async updateAccount(userId: string, input: { currentPassword: string; email: string; newPassword?: string }) {
@@ -244,13 +244,55 @@ export class PayService implements OnModuleInit {
           ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12) } : {}),
         },
       });
-      return this.session(updated.id, updated.email, updated.name);
+      return this.session(updated);
     } catch (error) {
       if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
         throw new BadRequestException("That email is already used");
       }
       throw error;
     }
+  }
+
+  async listAdmins(actorId: string, deskId: string) {
+    await this.requireOwner(actorId, deskId);
+    const rows = await this.prisma.deskUser.findMany({
+      where: { deskId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, email: true, createdAt: true },
+    });
+    return rows;
+  }
+
+  async createAdmin(actorId: string, deskId: string, input: { name: string; email: string; password: string }) {
+    await this.requireOwner(actorId, deskId);
+    const email = input.email.trim().toLowerCase();
+    try {
+      const row = await this.prisma.deskUser.create({
+        data: {
+          name: input.name.trim(),
+          email,
+          passwordHash: await bcrypt.hash(input.password, 12),
+          role: "admin",
+          deskId,
+          receiptDefaulted: true,
+        },
+        select: { id: true, name: true, email: true, createdAt: true },
+      });
+      return row;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new BadRequestException("That email is already used");
+      }
+      throw error;
+    }
+  }
+
+  async removeAdmin(actorId: string, deskId: string, id: string) {
+    await this.requireOwner(actorId, deskId);
+    const row = await this.prisma.deskUser.findFirst({ where: { id, deskId } });
+    if (!row) throw new NotFoundException("Admin account not found");
+    await this.prisma.deskUser.delete({ where: { id: row.id } });
+    return { ok: true };
   }
 
   async summary(ownerId: string) {
@@ -1296,9 +1338,18 @@ export class PayService implements OnModuleInit {
     }
   }
 
-  private session(id: string, email: string, name: string) {
-    const accessToken = this.jwt.sign({ sub: id, email });
-    return { accessToken, user: { id, email, name } };
+  private async requireOwner(actorId: string, deskId: string) {
+    if (actorId !== deskId) throw new ForbiddenException("Only the main admin can open accounts");
+    const user = await this.prisma.deskUser.findUnique({ where: { id: actorId } });
+    if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
+  }
+
+  private session(user: { id: string; email: string; name: string; deskId: string | null }) {
+    const accessToken = this.jwt.sign({ sub: user.deskId ?? user.id, email: user.email, actor: user.id });
+    return {
+      accessToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.deskId ? "admin" : "owner" },
+    };
   }
 
   private async ownMethod(ownerId: string, id: string) {
