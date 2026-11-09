@@ -12,7 +12,7 @@ const columns: { key: Col; label: string }[] = [
   { key: "phone", label: "Phone" },
 ];
 
-type Admin = { id: string; email: string };
+type Admin = { id: string; name: string; email: string };
 
 export default function CustomersPage() {
   const [rows, setRows] = useState<Customer[]>([]);
@@ -25,7 +25,7 @@ export default function CustomersPage() {
   const [shown, setShown] = useState<Record<Col, boolean>>({ name: true, email: true, phone: true });
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [opening, setOpening] = useState<Customer | null>(null);
+  const [opening, setOpening] = useState<Customer | "new" | null>(null);
   const [busy, setBusy] = useState(false);
 
   function load() {
@@ -79,6 +79,19 @@ export default function CustomersPage() {
     }
   }
 
+  async function removeAdmin(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/desk/admins/${id}`, { method: "DELETE" });
+      setAdmins((current) => current.filter((row) => row.id !== id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not remove the account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openAdmin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!opening) return;
@@ -114,7 +127,10 @@ export default function CustomersPage() {
           <p className="keys-crumb">Customers <span>›</span> List</p>
           <h2>Customers</h2>
         </div>
-        <button className="btn" type="button" onClick={() => { setCreating(true); setError(""); }}>New customer</button>
+        <div className="row">
+          {canOpen ? <button className="btn ghost" type="button" onClick={() => { setOpening("new"); setError(""); }}>Open admin</button> : null}
+          <button className="btn" type="button" onClick={() => { setCreating(true); setError(""); }}>New customer</button>
+        </div>
       </header>
       {note ? <p className="muted">{note}</p> : null}
       <section className="keys-card">
@@ -192,10 +208,42 @@ export default function CustomersPage() {
                 </svg>
               </span>
               <strong>No customers</strong>
+              {canOpen ? <p>Use Open admin above to give someone a sign-in for this desk.</p> : null}
             </div>
           </div>
         ) : null}
       </section>
+      {canOpen ? (
+        <section className="keys-card">
+          <header className="keys-top">
+            <div>
+              <h2>Admin accounts</h2>
+              <p className="muted">Accounts opened from this page sign in to the same desk.</p>
+            </div>
+          </header>
+          <table className="keys-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th></th>
+              </tr>
+            </thead>
+            {admins.length > 0 ? (
+              <tbody>
+                {admins.map((row) => (
+                  <tr key={row.id}>
+                    <td className="name">{row.name}</td>
+                    <td>{row.email}</td>
+                    <td><button className="btn ghost" type="button" disabled={busy} onClick={() => void removeAdmin(row.id)}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            ) : null}
+          </table>
+          {admins.length === 0 ? <div className="keys-empty"><div><strong>No admin accounts yet</strong></div></div> : null}
+        </section>
+      ) : null}
 
       {creating ? (
         <div className="modal-back" onClick={() => setCreating(false)}>
@@ -225,14 +273,14 @@ export default function CustomersPage() {
         <div className="modal-back" onClick={() => setOpening(null)}>
           <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={openAdmin}>
             <h2>Open admin account</h2>
-            <p className="muted">This customer can sign in to the same desk.</p>
+            <p className="muted">They sign in to this same desk and see the same payments.</p>
             <label>
               <span>Name</span>
-              <input name="name" required minLength={2} maxLength={80} defaultValue={opening.name} />
+              <input name="name" required minLength={2} maxLength={80} defaultValue={opening === "new" ? "" : opening.name} />
             </label>
             <label>
               <span>Email</span>
-              <input name="email" type="email" required maxLength={120} defaultValue={opening.email ?? ""} autoComplete="off" />
+              <input name="email" type="email" required maxLength={120} defaultValue={opening === "new" ? "" : opening.email ?? ""} autoComplete="off" />
             </label>
             <label>
               <span>Password</span>
