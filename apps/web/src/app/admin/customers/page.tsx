@@ -4,15 +4,14 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 
 type Customer = { id: string; name: string; email: string | null; phone: string | null };
-type Col = "name" | "email" | "phone";
-
-const columns: { key: Col; label: string }[] = [
-  { key: "name", label: "Name" },
-  { key: "email", label: "Email address" },
-  { key: "phone", label: "Phone" },
-];
-
 type Admin = { id: string; name: string; email: string };
+type Tab = "customers" | "admins";
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] || "?").slice(0, 2).toUpperCase();
+}
 
 export default function CustomersPage() {
   const [rows, setRows] = useState<Customer[]>([]);
@@ -22,8 +21,7 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
-  const [shown, setShown] = useState<Record<Col, boolean>>({ name: true, email: true, phone: true });
-  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("customers");
   const [creating, setCreating] = useState(false);
   const [opening, setOpening] = useState<Customer | "new" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,15 +42,30 @@ export default function CustomersPage() {
   }
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "admins") setTab("admins");
     load();
   }, []);
 
-  const visible = columns.filter((column) => shown[column.key]);
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+  function show(next: Tab) {
+    const view = next === "admins" && canOpen ? "admins" : "customers";
+    setTab(view);
+    setQuery("");
+    setError("");
+    const url = view === "admins" ? "/admin/customers?tab=admins" : "/admin/customers";
+    window.history.replaceState(null, "", url);
+  }
+
+  const view: Tab = canOpen && tab === "admins" ? "admins" : "customers";
+  const adminEmails = new Set(admins.map((row) => row.email.toLowerCase()));
+  const needle = query.trim().toLowerCase();
+  const customers = useMemo(() => {
     if (!needle) return rows;
     return rows.filter((row) => [row.name, row.email ?? "", row.phone ?? ""].some((value) => value.toLowerCase().includes(needle)));
-  }, [rows, query]);
+  }, [rows, needle]);
+  const deskAdmins = useMemo(() => {
+    if (!needle) return admins;
+    return admins.filter((row) => [row.name, row.email].some((value) => value.toLowerCase().includes(needle)));
+  }, [admins, needle]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,6 +84,8 @@ export default function CustomersPage() {
         }),
       });
       setCreating(false);
+      setNote("Customer saved.");
+      show("customers");
       load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save");
@@ -85,6 +100,7 @@ export default function CustomersPage() {
     try {
       await api(`/desk/admins/${id}`, { method: "DELETE" });
       setAdmins((current) => current.filter((row) => row.id !== id));
+      setNote("Admin account removed.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not remove the account");
     } finally {
@@ -110,6 +126,8 @@ export default function CustomersPage() {
       });
       setOpening(null);
       setNote("Admin account opened. They can sign in with that email.");
+      setTab("admins");
+      window.history.replaceState(null, "", "/admin/customers?tab=admins");
       load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not open the account");
@@ -118,183 +136,169 @@ export default function CustomersPage() {
     }
   }
 
-  const adminEmails = new Set(admins.map((row) => row.email.toLowerCase()));
-
   return (
-    <div className="keys-page cust-page">
-      <header className="keys-top">
+    <div className="people-page">
+      <header className="people-hero">
         <div>
-          <p className="keys-crumb">Customers <span>›</span> List</p>
+          <p className="keys-crumb">Desk <span>›</span> Customers</p>
           <h2>Customers</h2>
+          <p className="muted">Customer records and desk sign-ins are on this page.</p>
         </div>
-        <div className="row">
+        <div className="people-actions">
           {canOpen ? <button className="btn ghost" type="button" onClick={() => { setOpening("new"); setError(""); }}>Open admin</button> : null}
           <button className="btn" type="button" onClick={() => { setCreating(true); setError(""); }}>New customer</button>
         </div>
       </header>
-      {note ? <p className="muted">{note}</p> : null}
-      <section className="keys-card">
-        <div className="keys-tools">
+      {note ? <p className="people-note">{note}</p> : null}
+      {!creating && !opening && error ? <p className="error">{error}</p> : null}
+
+      <section className="people-board">
+        <div className="people-stats">
+          <button type="button" className={view === "customers" ? "on" : ""} onClick={() => show("customers")}>
+            <strong>{rows.length}</strong>
+            <span>Customers</span>
+          </button>
+          {canOpen ? (
+            <button type="button" className={view === "admins" ? "on" : ""} onClick={() => show("admins")}>
+              <strong>{admins.length}</strong>
+              <span>Admins</span>
+            </button>
+          ) : null}
+        </div>
+        <div className="people-bar">
+          {canOpen ? (
+            <div className={`people-switch${view === "admins" ? " admins" : ""}`} role="tablist" aria-label="Account list">
+              <i />
+              <button type="button" role="tab" aria-selected={view === "customers"} onClick={() => show("customers")}>Customers</button>
+              <button type="button" role="tab" aria-selected={view === "admins"} onClick={() => show("admins")}>Admins</button>
+            </div>
+          ) : <span className="people-switch-label">Customers</span>}
           <label className="keys-search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
               <path d="M20 20l-3.5-3.5" />
             </svg>
-            <input value={query} placeholder="Search" aria-label="Search" onChange={(event) => setQuery(event.target.value)} />
+            <input value={query} placeholder={view === "admins" ? "Search admins" : "Search customers"} aria-label="Search" onChange={(event) => setQuery(event.target.value)} />
           </label>
-          <div className="keys-cols-wrap">
-            <button className="keys-cols" type="button" aria-label="Columns" onClick={() => setColumnsOpen((open) => !open)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="4" y="5" width="3.2" height="14" rx="1" />
-                <rect x="10.4" y="5" width="3.2" height="14" rx="1" />
-                <rect x="16.8" y="5" width="3.2" height="14" rx="1" />
-              </svg>
-            </button>
-            {columnsOpen ? (
-              <div className="keys-menu">
-                {columns.map((column) => (
-                  <label
-                    key={column.key}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      setShown((current) => ({ ...current, [column.key]: !current[column.key] }));
-                    }}
-                  >
-                    <input type="checkbox" checked={shown[column.key]} readOnly />
-                    {column.label}
-                  </label>
-                ))}
+        </div>
+
+        {view === "customers" ? (
+          <div className="people-list" key="customers">
+            {customers.map((row, index) => {
+              const opened = Boolean(row.email && adminEmails.has(row.email.toLowerCase()));
+              return (
+                <article className="people-row" key={row.id} style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}>
+                  <span className="people-avatar" aria-hidden="true">{initials(row.name)}</span>
+                  <div>
+                    <strong>{row.name}</strong>
+                    <p>{row.email || "No email"}{row.phone ? ` · ${row.phone}` : ""}</p>
+                  </div>
+                  {canOpen ? (
+                    opened ? <span className="people-chip">Admin open</span> : (
+                      <button className="btn ghost" type="button" onClick={() => { setOpening(row); setError(""); }}>Open admin</button>
+                    )
+                  ) : <span className="people-chip quiet">Customer</span>}
+                </article>
+              );
+            })}
+            {ready && customers.length === 0 ? (
+              <div className="people-empty">
+                <span className="people-empty-mark" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.5 1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.5 19c.4-2.4 2.2-4 4.5-4s4.1 1.6 4.5 4" /></svg>
+                </span>
+                <strong>{needle ? "No matches" : "No customers"}</strong>
+                <p>{needle ? "Nothing in this list matches that search." : "Add a customer, or open a desk admin from the button above."}</p>
               </div>
             ) : null}
           </div>
-        </div>
-        <table className="keys-table">
-          <thead>
-            <tr>
-              {visible.map((column) => <th key={column.key}>{column.label}</th>)}
-              {canOpen ? <th></th> : null}
-            </tr>
-          </thead>
-          {filtered.length > 0 ? (
-            <tbody>
-              {filtered.map((row) => {
-                const opened = Boolean(row.email && adminEmails.has(row.email.toLowerCase()));
-                return (
-                  <tr key={row.id}>
-                    {shown.name ? <td className="name">{row.name}</td> : null}
-                    {shown.email ? <td>{row.email || "—"}</td> : null}
-                    {shown.phone ? <td>{row.phone || "—"}</td> : null}
-                    {canOpen ? (
-                      <td>
-                        {opened ? (
-                          <span className="muted">Admin open</span>
-                        ) : (
-                          <button className="btn ghost" type="button" onClick={() => { setOpening(row); setError(""); }}>Open admin</button>
-                        )}
-                      </td>
-                    ) : null}
-                  </tr>
-                );
-              })}
-            </tbody>
-          ) : null}
-        </table>
-        {ready && filtered.length === 0 ? (
-          <div className="keys-empty">
-            <div>
-              <span className="mark">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M8 8l8 8M16 8l-8 8" />
-                </svg>
-              </span>
-              <strong>No customers</strong>
-              {canOpen ? <p>Use Open admin above to give someone a sign-in for this desk.</p> : null}
-            </div>
-          </div>
-        ) : null}
-      </section>
-      {canOpen ? (
-        <section className="keys-card">
-          <header className="keys-top">
-            <div>
-              <h2>Admin accounts</h2>
-              <p className="muted">Accounts opened from this page sign in to the same desk.</p>
-            </div>
-          </header>
-          <table className="keys-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th></th>
-              </tr>
-            </thead>
-            {admins.length > 0 ? (
-              <tbody>
-                {admins.map((row) => (
-                  <tr key={row.id}>
-                    <td className="name">{row.name}</td>
-                    <td>{row.email}</td>
-                    <td><button className="btn ghost" type="button" disabled={busy} onClick={() => void removeAdmin(row.id)}>Remove</button></td>
-                  </tr>
-                ))}
-              </tbody>
+        ) : (
+          <div className="people-list" key="admins">
+            {deskAdmins.map((row, index) => (
+              <article className="people-row" key={row.id} style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}>
+                <span className="people-avatar admin" aria-hidden="true">{initials(row.name)}</span>
+                <div>
+                  <strong>{row.name}</strong>
+                  <p>{row.email}</p>
+                </div>
+                <button className="btn ghost" type="button" disabled={busy} onClick={() => void removeAdmin(row.id)}>Remove</button>
+              </article>
+            ))}
+            {deskAdmins.length === 0 ? (
+              <div className="people-empty">
+                <span className="people-empty-mark" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 12a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM5.5 19.2c.5-2.6 2.8-4.2 6.5-4.2s6 1.6 6.5 4.2" /></svg>
+                </span>
+                <strong>{needle ? "No matches" : "No admin accounts yet"}</strong>
+                <p>{needle ? "Nothing in this list matches that search." : "An admin signs in to this same desk and sees the same payments."}</p>
+              </div>
             ) : null}
-          </table>
-          {admins.length === 0 ? <div className="keys-empty"><div><strong>No admin accounts yet</strong></div></div> : null}
-        </section>
-      ) : null}
+          </div>
+        )}
+      </section>
 
       {creating ? (
-        <div className="modal-back" onClick={() => setCreating(false)}>
-          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={onSubmit}>
-            <h2>New customer</h2>
-            <label>
-              <span>Name</span>
-              <input name="name" required minLength={2} maxLength={80} />
-            </label>
-            <label>
-              <span>Email address</span>
-              <input name="email" type="email" maxLength={120} />
-            </label>
-            <label>
-              <span>Phone</span>
-              <input name="phone" maxLength={20} />
-            </label>
-            {error ? <p className="error">{error}</p> : null}
+        <div className="modal-back people-shade" onClick={() => setCreating(false)}>
+          <form className="modal dev-modal people-dialog" onClick={(event) => event.stopPropagation()} onSubmit={onSubmit}>
+            <div className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Customers</p>
+                <h2>New customer</h2>
+              </div>
+            </div>
+            <div className="dev-modal-body">
+              <label>
+                <span>Name</span>
+                <input name="name" required minLength={2} maxLength={80} />
+              </label>
+              <label>
+                <span>Email address</span>
+                <input name="email" type="email" maxLength={120} />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" maxLength={20} />
+              </label>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
             <div className="dev-modal-actions">
-              <button className="btn" type="submit" disabled={busy}>Create</button>
               <button className="btn ghost" type="button" onClick={() => setCreating(false)}>Cancel</button>
+              <button className="btn" type="submit" disabled={busy}>Create</button>
             </div>
           </form>
         </div>
       ) : null}
       {opening ? (
-        <div className="modal-back" onClick={() => setOpening(null)}>
-          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={openAdmin}>
-            <h2>Open admin account</h2>
-            <p className="muted">They sign in to this same desk and see the same payments.</p>
-            <label>
-              <span>Name</span>
-              <input name="name" required minLength={2} maxLength={80} defaultValue={opening === "new" ? "" : opening.name} />
-            </label>
-            <label>
-              <span>Email</span>
-              <input name="email" type="email" required maxLength={120} defaultValue={opening === "new" ? "" : opening.email ?? ""} autoComplete="off" />
-            </label>
-            <label>
-              <span>Password</span>
-              <input name="password" type="password" required minLength={8} maxLength={80} autoComplete="new-password" />
-            </label>
-            {error ? <p className="error">{error}</p> : null}
+        <div className="modal-back people-shade" onClick={() => setOpening(null)}>
+          <form className="modal dev-modal people-dialog" onClick={(event) => event.stopPropagation()} onSubmit={openAdmin}>
+            <div className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Desk admin</p>
+                <h2>Open admin account</h2>
+              </div>
+            </div>
+            <div className="dev-modal-body">
+              <p className="muted">They sign in to this same desk and see the same payments.</p>
+              <label>
+                <span>Name</span>
+                <input name="name" required minLength={2} maxLength={80} defaultValue={opening === "new" ? "" : opening.name} />
+              </label>
+              <label>
+                <span>Email</span>
+                <input name="email" type="email" required maxLength={120} defaultValue={opening === "new" ? "" : opening.email ?? ""} autoComplete="off" />
+              </label>
+              <label>
+                <span>Password</span>
+                <input name="password" type="password" required minLength={8} maxLength={80} autoComplete="new-password" />
+              </label>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
             <div className="dev-modal-actions">
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Opening…" : "Open account"}</button>
               <button className="btn ghost" type="button" onClick={() => setOpening(null)}>Cancel</button>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Opening…" : "Open account"}</button>
             </div>
           </form>
         </div>
       ) : null}
-      {!creating && !opening && error ? <p className="error">{error}</p> : null}
     </div>
   );
 }

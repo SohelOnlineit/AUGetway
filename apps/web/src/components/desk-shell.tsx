@@ -16,7 +16,6 @@ const main = [
   ["Transactions", "/admin/transactions", "swap"],
   ["Financial & Transaction Reports", "/admin/reports", "chart"],
   ["Brand & System Settings", "/admin/settings", "sliders"],
-  ["Admin accounts", "/admin/admins", "admins"],
 ] as const;
 
 const smsGateway = [
@@ -236,7 +235,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       <aside className="rail">
         <nav className="rail-box">
         {main.map(([label, href, icon]) => (
-          <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+          <Link key={href} href={href} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") ? "active" : ""}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
           </Link>
