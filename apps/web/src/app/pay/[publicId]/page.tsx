@@ -59,11 +59,11 @@ async function copyValue(value: string) {
 }
 
 const BRAND_LOGOS: { key: string; src: string; alt: string }[] = [
-  { key: "bkash", src: "/gateways/bkash.png?v=2", alt: "bKash" },
-  { key: "nagad", src: "/gateways/nagad.png", alt: "Nagad" },
-  { key: "rocket", src: "/gateways/rocket.png", alt: "Rocket" },
-  { key: "upay", src: "/gateways/upay.png", alt: "Upay" },
-  { key: "upai", src: "/gateways/upay.png", alt: "Upay" },
+  { key: "bkash", src: "/gateways/bkash.png?v=3", alt: "bKash" },
+  { key: "nagad", src: "/gateways/nagad.png?v=3", alt: "Nagad" },
+  { key: "rocket", src: "/gateways/rocket.png?v=3", alt: "Rocket" },
+  { key: "upay", src: "/gateways/upay.png?v=3", alt: "Upay" },
+  { key: "upai", src: "/gateways/upay.png?v=3", alt: "Upay" },
 ];
 
 function MethodMark({ label }: { label: string }) {
