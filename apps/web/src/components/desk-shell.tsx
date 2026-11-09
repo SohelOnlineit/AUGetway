@@ -204,9 +204,16 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           </div>
           <ThemeToggle />
           <button className={`cache-clear${clearing ? " busy" : ""}`} type="button" aria-label="Clear website cache" title="Clear website cache" disabled={clearing} onClick={() => void clearCache()}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-              <path d="M21 3v6h-6" />
+            <svg className="cache-server" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3.5" y="3" width="17" height="6.2" rx="1.6" />
+              <rect x="3.5" y="14.8" width="17" height="6.2" rx="1.6" />
+              <path className="cache-link" d="M8 9.2v5.6" />
+              <path className="cache-link" d="M12 9.2v5.6" />
+              <path className="cache-link" d="M16 9.2v5.6" />
+              <path d="M10.5 6.1h6" />
+              <path d="M10.5 17.9h6" />
+              <circle className="cache-led" cx="7.2" cy="6.1" r="0.95" fill="currentColor" stroke="none" />
+              <circle className="cache-led cache-led-b" cx="7.2" cy="17.9" r="0.95" fill="currentColor" stroke="none" />
             </svg>
           </button>
           {cacheNote ? <p className="cache-note">Cache cleared</p> : null}
