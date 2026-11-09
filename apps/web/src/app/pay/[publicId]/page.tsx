@@ -291,7 +291,6 @@ export default function PayPage() {
                     <span className="ck-logo-box"><MethodMark label={method.label} /></span>
                     <span className="ck-line" />
                     <span className="ck-name">{method.label}</span>
-                    {method.accountNumber ? <span className="ck-account">{method.accountNumber}</span> : null}
                   </button>
                 ))}
               </div>
