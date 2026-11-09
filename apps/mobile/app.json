@@ -3,14 +3,14 @@
     "name": "AuGetway",
     "slug": "uniqbd-pay",
     "scheme": "uniqpay",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.uniqbd.pay",
       "usesCleartextTraffic": true,
-      "permissions": ["READ_SMS", "SEND_SMS", "READ_PHONE_STATE"]
+      "permissions": ["READ_SMS", "SEND_SMS", "READ_PHONE_STATE", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"]
     }
   }
 }

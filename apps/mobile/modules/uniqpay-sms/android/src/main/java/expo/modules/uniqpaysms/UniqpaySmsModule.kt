@@ -2,8 +2,12 @@ package expo.modules.uniqpaysms
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import android.provider.Telephony
@@ -25,7 +29,26 @@ class UniqpaySmsModule : Module() {
       if (!granted(Manifest.permission.READ_SMS)) {
         throw CodedException("SMS permission is not granted")
       }
-      readPaymentSms(limit.coerceIn(1, 20))
+      readPaymentSms(limit.coerceIn(1, 40))
+    }
+
+    AsyncFunction("listRecentSms") Coroutine { limit: Int ->
+      if (!granted(Manifest.permission.READ_SMS)) {
+        throw CodedException("SMS permission is not granted")
+      }
+      readRecentSms(limit.coerceIn(1, 40))
+    }
+
+    Function("batteryIgnored") {
+      val power = context.getSystemService(PowerManager::class.java)
+      power?.isIgnoringBatteryOptimizations(context.packageName) == true
+    }
+
+    Function("askBattery") {
+      val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+      intent.data = Uri.parse("package:${context.packageName}")
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
     }
 
     AsyncFunction("sendSms") Coroutine { to: String, message: String, slot: Int ->
@@ -71,7 +94,15 @@ class UniqpaySmsModule : Module() {
     }
   }
 
+  private fun readRecentSms(limit: Int): List<Map<String, Any>> {
+    return readInbox(limit, paymentOnly = false)
+  }
+
   private fun readPaymentSms(limit: Int): List<Map<String, Any>> {
+    return readInbox(limit, paymentOnly = true)
+  }
+
+  private fun readInbox(limit: Int, paymentOnly: Boolean): List<Map<String, Any>> {
     val rows = ArrayList<Map<String, Any>>()
     val cursor = context.contentResolver.query(
       Telephony.Sms.Inbox.CONTENT_URI,
@@ -85,11 +116,11 @@ class UniqpaySmsModule : Module() {
       val bodyIdx = it.getColumnIndex(Telephony.Sms.BODY)
       val dateIdx = it.getColumnIndex(Telephony.Sms.DATE)
       var scanned = 0
-      while (it.moveToNext() && rows.size < limit && scanned < 80) {
+      while (it.moveToNext() && rows.size < limit && scanned < 150) {
         scanned += 1
         val address = if (addressIdx >= 0) it.getString(addressIdx).orEmpty() else ""
         val body = if (bodyIdx >= 0) it.getString(bodyIdx).orEmpty() else ""
-        if (!isPayment(address, body)) continue
+        if (paymentOnly && !isPayment(address, body)) continue
         rows.add(
           mapOf(
             "address" to address,
