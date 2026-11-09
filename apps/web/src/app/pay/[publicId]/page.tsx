@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { CheckoutCard } from "@uniqpay/types";
 import { api } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Lang = "bn" | "en";
 type Filter = "all" | "mfs" | "bank";
@@ -224,10 +225,13 @@ export default function PayPage() {
               </div>
             </div>
           </div>
+          <div className="ck-tools">
           <button type="button" className="ck-lang" onClick={() => setLang(lang === "bn" ? "en" : "bn")}>
             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
             {lang === "bn" ? "English" : "বাংলা"}
           </button>
+          <ThemeToggle />
+          </div>
         </aside>
 
         <section className="ck-main">

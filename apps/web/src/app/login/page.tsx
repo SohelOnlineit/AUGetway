@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function LoginPage() {
 
   return (
     <main className="pay-shell">
+      <div className="row" style={{ justifyContent: "flex-end" }}><ThemeToggle /></div>
       <p className="kicker">Desk sign in</p>
       <h1 style={{ fontSize: 48 }}>UniqBD Pay</h1>
       <form className="card" onSubmit={onSubmit}>

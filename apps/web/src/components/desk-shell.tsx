@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const main = [
   ["Dashboard", "/admin", "home"],
@@ -211,6 +212,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
               </div>
             ) : null}
           </div>
+          <ThemeToggle />
           <button className={`cache-clear${clearing ? " busy" : ""}`} type="button" aria-label="Clear website cache" title="Clear website cache" disabled={clearing} onClick={() => void clearCache()}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 0 0-9-9 9.7 9.7 0 0 0-6.7 2.7L3 8" />

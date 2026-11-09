@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function HomePage() {
   return (
@@ -10,6 +11,7 @@ export default function HomePage() {
         </Link>
         <nav className="nav">
           <a href="#flow">How it works</a>
+          <ThemeToggle />
           <Link href="/login" className="btn">Open desk</Link>
         </nav>
       </header>

@@ -10,10 +10,15 @@ export const metadata: Metadata = {
   description: "Merchant checkout desk for UniqBD.",
 };
 
+const themeBoot = `(function(){try{var pref=localStorage.getItem("uniqpay_theme");var dark=pref==="DARK"||(pref!=="LIGHT"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var root=document.documentElement;root.setAttribute("data-theme",dark?"dark":"light");root.style.colorScheme=dark?"dark":"light";}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${display.variable} ${body.variable}`}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${display.variable} ${body.variable}`}>
+        <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+        {children}
+      </body>
     </html>
   );
 }
