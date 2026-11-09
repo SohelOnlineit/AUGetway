@@ -14,6 +14,7 @@ function initials(name: string, email: string) {
 
 export default function AccountPage() {
   const [user, setUser] = useState<Account | null>(null);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -28,6 +29,7 @@ export default function AccountPage() {
     api<Account>("/auth/me")
       .then((row) => {
         setUser(row);
+        setName(row.name);
         setEmail(row.email);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load the account"));
@@ -36,7 +38,13 @@ export default function AccountPage() {
   async function save(event: FormEvent) {
     event.preventDefault();
     if (busy || !user) return;
+    const nextName = name.trim();
     const next = email.trim().toLowerCase();
+    if (nextName.length < 2) {
+      setError("Name must be at least 2 characters");
+      setNote("");
+      return;
+    }
     if (!next.includes("@") || !next.includes(".")) {
       setError("Enter a valid email");
       setNote("");
@@ -52,8 +60,8 @@ export default function AccountPage() {
       setNote("");
       return;
     }
-    if (next === user.email && !newPassword) {
-      setError("Change the email or the password");
+    if (nextName === user.name && next === user.email && !newPassword) {
+      setError("Change the name, email, or password");
       setNote("");
       return;
     }
@@ -63,15 +71,22 @@ export default function AccountPage() {
     try {
       const result = await api<{ accessToken: string; user: Account }>("/auth/account", {
         method: "PATCH",
-        body: JSON.stringify({ currentPassword, email: next, ...(newPassword ? { newPassword } : {}) }),
+        body: JSON.stringify({ currentPassword, email: next, name: nextName, ...(newPassword ? { newPassword } : {}) }),
       });
       sessionStorage.setItem("uniqpay_token", result.accessToken);
       setUser(result.user);
+      setName(result.user.name);
       setEmail(result.user.email);
+      window.dispatchEvent(new CustomEvent("uniqpay-account", { detail: result.user }));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setNote(next !== user.email && newPassword ? "Email and password updated" : newPassword ? "Password updated" : "Email updated");
+      const changed = [
+        nextName !== user.name ? "Name" : "",
+        next !== user.email ? "Email" : "",
+        newPassword ? "Password" : "",
+      ].filter(Boolean);
+      setNote(`${changed.join(", ")} updated`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not update the account");
     } finally {
@@ -87,7 +102,7 @@ export default function AccountPage() {
         <div>
           <p className="keys-crumb">Desk <span>›</span> Account</p>
           <h2>Your account</h2>
-          <p className="muted">Change the email you sign in with, or set a new password. The current password confirms either change.</p>
+          <p className="muted">Change the name shown on this desk, the sign-in email, or the password. The current password confirms the change.</p>
         </div>
       </header>
 
@@ -101,6 +116,21 @@ export default function AccountPage() {
       </section>
 
       <form className="account-form" onSubmit={(event) => void save(event)}>
+        <article className="account-card account-name">
+          <header>
+            <span className="account-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 19.2c.5-2.6 2.8-4.2 6.5-4.2s6 1.6 6.5 4.2" /></svg>
+            </span>
+            <div>
+              <h3>Display name</h3>
+              <p>This is the name on the account menu. It is not the public brand name.</p>
+            </div>
+          </header>
+          <label className="account-field">
+            <span className="account-label">Name</span>
+            <input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} maxLength={80} autoComplete="name" />
+          </label>
+        </article>
         <article className="account-card">
           <header>
             <span className="account-icon" aria-hidden="true">

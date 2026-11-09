@@ -86,6 +86,12 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     api<{ name: string; email: string }>("/auth/me")
       .then(setUser)
       .catch(() => setUser(null));
+    function onAccount(event: Event) {
+      const detail = (event as CustomEvent<{ name?: string; email?: string }>).detail;
+      if (!detail?.name || !detail.email) return;
+      setUser({ name: detail.name, email: detail.email });
+    }
+    window.addEventListener("uniqpay-account", onAccount);
     api<{ brandName: string; prefs: Record<string, string> }>("/desk/settings")
       .then((row) => {
         setAdminMode(row.prefs.themeMode ?? "");
@@ -107,6 +113,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         });
       })
       .catch(() => undefined);
+    return () => window.removeEventListener("uniqpay-account", onAccount);
   }, [router]);
 
   useEffect(() => {

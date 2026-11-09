@@ -265,21 +265,24 @@ export class PayService implements OnModuleInit {
     return { id: user.id, name: user.name, email: user.email, role: user.deskId ? "admin" : "owner" };
   }
 
-  async updateAccount(userId: string, input: { currentPassword: string; email: string; newPassword?: string }) {
+  async updateAccount(userId: string, input: { currentPassword: string; email: string; name: string; newPassword?: string }) {
     const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
     if (!user || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
       throw new BadRequestException("Current password is wrong");
     }
     const email = input.email.trim().toLowerCase();
+    const name = input.name.trim();
     const newPassword = input.newPassword?.trim() ?? "";
-    if (email === user.email && !newPassword) {
-      throw new BadRequestException("Change the email or the password");
+    if (name.length < 2) throw new BadRequestException("Name must be at least 2 characters");
+    if (email === user.email && name === user.name && !newPassword) {
+      throw new BadRequestException("Change the name, email, or password");
     }
     try {
       const updated = await this.prisma.deskUser.update({
         where: { id: user.id },
         data: {
           email,
+          name,
           ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12) } : {}),
         },
       });

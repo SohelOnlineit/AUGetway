@@ -1106,6 +1106,7 @@ a.ck-cancel:hover { color: var(--fg); }
   font-weight: 700;
 }
 .account-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.account-name { grid-column: 1 / -1; }
 .account-card {
   display: grid;
   gap: 14px;
