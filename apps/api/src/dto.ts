@@ -349,9 +349,32 @@ export class KeyDto {
   active!: boolean;
 }
 
-export class KeyStateDto {
+export class KeyUpdateDto {
+  @IsOptional()
   @IsBoolean()
-  active!: boolean;
+  active?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  label?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(["payment:checkout", "payment:verify"], { each: true })
+  abilities?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  webhookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  expiresAt?: string;
 }
 
 export class StartLinkDto {

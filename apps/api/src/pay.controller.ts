@@ -9,7 +9,7 @@ import {
   CustomerDto,
   HandsetDto,
   KeyDto,
-  KeyStateDto,
+  KeyUpdateDto,
   LinkDto,
   AccountDto,
   LoginDto,
@@ -148,8 +148,14 @@ export class PayController {
 
   @Patch("desk/keys/:id")
   @UseGuards(DeskGuard)
-  setKey(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: KeyStateDto) {
-    return this.pay.setKeyActive(request.desk.sub, id, body.active);
+  setKey(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: KeyUpdateDto) {
+    return this.pay.updateKey(request.desk.sub, id, body);
+  }
+
+  @Delete("desk/keys/:id")
+  @UseGuards(DeskGuard)
+  removeKey(@Req() request: DeskRequest, @Param("id") id: string) {
+    return this.pay.removeKey(request.desk.sub, id);
   }
 
   @Get("desk/handsets")

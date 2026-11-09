@@ -27,9 +27,22 @@ const columns: { key: Col; label: string }[] = [
   { key: "active", label: "Active" },
 ];
 
+const abilityCopy: Record<string, string> = {
+  "payment:checkout": "Create a checkout",
+  "payment:verify": "Verify a checkout",
+};
+
 function expiryLabel(value: string | null) {
   if (!value) return "Never";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function dateInput(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export default function KeysPage() {
@@ -49,6 +62,11 @@ export default function KeysPage() {
   });
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState("");
+  const [draft, setDraft] = useState<{ id: string; label: string; abilities: string[]; webhookUrl: string; expiresAt: string } | null>(null);
+  const [removing, setRemoving] = useState<KeyRow | null>(null);
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const issued = sessionStorage.getItem("uniqpay_fresh_key");
@@ -105,11 +123,84 @@ export default function KeysPage() {
     }
   }
 
-  async function copyKey(value: string) {
+  async function copyKey(id: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
+      setCopied(id);
+      window.setTimeout(() => setCopied((current) => (current === id ? "" : current)), 1500);
     } catch {
       setError("Could not copy the key");
+    }
+  }
+
+  function openEdit(row: KeyRow) {
+    setFormError("");
+    setDraft({
+      id: row.id,
+      label: row.label,
+      abilities: Array.isArray(row.abilities) ? row.abilities.filter((item) => item === "payment:checkout" || item === "payment:verify") : [],
+      webhookUrl: row.webhookUrl,
+      expiresAt: dateInput(row.expiresAt),
+    });
+  }
+
+  function toggleDraftAbility(ability: string) {
+    setDraft((current) => current && ({
+      ...current,
+      abilities: current.abilities.includes(ability)
+        ? current.abilities.filter((item) => item !== ability)
+        : [...current.abilities, ability],
+    }));
+  }
+
+  async function saveEdit() {
+    if (!draft || busy) return;
+    const label = draft.label.trim();
+    if (label.length < 2) {
+      setFormError("Key name must be at least 2 characters");
+      return;
+    }
+    if (draft.abilities.length === 0) {
+      setFormError("Choose at least one ability");
+      return;
+    }
+    setBusy(true);
+    setFormError("");
+    try {
+      await api(`/desk/keys/${draft.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          label,
+          abilities: draft.abilities,
+          webhookUrl: draft.webhookUrl.trim(),
+          expiresAt: draft.expiresAt,
+        }),
+      });
+      setRows((current) => current.map((row) => (
+        row.id === draft.id
+          ? { ...row, label, abilities: draft.abilities, webhookUrl: draft.webhookUrl.trim(), expiresAt: draft.expiresAt ? new Date(`${draft.expiresAt}T23:59:59`).toISOString() : null }
+          : row
+      )));
+      setDraft(null);
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeKey() {
+    if (!removing || busy) return;
+    setBusy(true);
+    setFormError("");
+    try {
+      await api(`/desk/keys/${removing.id}`, { method: "DELETE" });
+      setRows((current) => current.filter((row) => row.id !== removing.id));
+      setRemoving(null);
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : "Could not delete");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -170,6 +261,7 @@ export default function KeysPage() {
                   ) : column.label}
                 </th>
               ))}
+              <th>Actions</th>
             </tr>
           </thead>
           {filtered.length > 0 ? (
@@ -187,7 +279,15 @@ export default function KeysPage() {
                     ) : null}
                     {shown.key ? (
                       <td>
-                        <button className="key-secret" type="button" onClick={() => copyKey(secret)}>{secret}</button>
+                        <div className="key-line">
+                          <span className="key-secret">{secret}</span>
+                          <button className="key-copy" type="button" aria-label={copied === row.id ? "Copied" : "Copy API key"} onClick={() => copyKey(row.id, secret)}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="9" y="9" width="11" height="11" rx="2" />
+                              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     ) : null}
                     {shown.abilities ? (
@@ -201,6 +301,18 @@ export default function KeysPage() {
                         </button>
                       </td>
                     ) : null}
+                    <td>
+                      <div className="dev-actions">
+                        <button type="button" className="dev-edit" onClick={() => openEdit(row)}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                          Edit
+                        </button>
+                        <button type="button" className="dev-delete" onClick={() => { setFormError(""); setRemoving(row); }}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -221,6 +333,77 @@ export default function KeysPage() {
         ) : null}
       </section>
       {error ? <p className="error">{error}</p> : null}
+      {draft ? (
+        <div className="modal-back" onClick={() => { if (!busy) setDraft(null); }}>
+          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void saveEdit(); }}>
+            <header className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Api Keys <span>›</span> Edit</p>
+                <h2>Edit API key</h2>
+              </div>
+              <button className="dev-close" type="button" onClick={() => setDraft(null)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                Close
+              </button>
+            </header>
+            <div className="dev-modal-body">
+              <label>
+                <span>Key name</span>
+                <input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} required minLength={2} maxLength={80} />
+              </label>
+              <fieldset>
+                <legend>Abilities</legend>
+                <div className="key-checks">
+                  {Object.entries(abilityCopy).map(([ability, label]) => (
+                    <label key={ability}>
+                      <input type="checkbox" checked={draft.abilities.includes(ability)} onChange={() => toggleDraftAbility(ability)} />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label>
+                <span>Webhook URL</span>
+                <input value={draft.webhookUrl} placeholder="https://your-domain.com/api/payment-webhook" onChange={(event) => setDraft({ ...draft, webhookUrl: event.target.value })} />
+              </label>
+              <label>
+                <span>Expires at</span>
+                <input type="date" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })} />
+              </label>
+              <p className="muted">The secret key stays the same. Copy it from the list when it is still shown in full.</p>
+              {formError ? <p className="error">{formError}</p> : null}
+            </div>
+            <div className="dev-modal-actions">
+              <button className="btn-line" type="button" onClick={() => setDraft(null)}>Cancel</button>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {removing ? (
+        <div className="modal-back" onClick={() => { if (!busy) setRemoving(null); }}>
+          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void removeKey(); }}>
+            <header className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Api Keys <span>›</span> Delete</p>
+                <h2>Delete API key</h2>
+              </div>
+              <button className="dev-close" type="button" onClick={() => setRemoving(null)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                Close
+              </button>
+            </header>
+            <div className="dev-modal-body">
+              <p>Delete <strong>{removing.label}</strong>? A store using this key will no longer be able to create or verify checkouts.</p>
+              {formError ? <p className="error">{formError}</p> : null}
+            </div>
+            <div className="dev-modal-actions">
+              <button className="btn-line" type="button" onClick={() => setRemoving(null)}>Cancel</button>
+              <button className="btn danger" type="submit" disabled={busy}>{busy ? "Deleting" : "Delete"}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

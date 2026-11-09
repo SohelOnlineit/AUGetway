@@ -636,10 +636,53 @@ export class PayService implements OnModuleInit {
     }
   }
 
-  async setKeyActive(ownerId: string, id: string, active: boolean) {
-    const updated = await this.prisma.merchantKey.updateMany({ where: { id, ownerId }, data: { active } });
+  async updateKey(
+    ownerId: string,
+    id: string,
+    input: { label?: string; abilities?: string[]; webhookUrl?: string; expiresAt?: string; active?: boolean },
+  ) {
+    const data: { label?: string; abilities?: string[]; webhookUrl?: string; expiresAt?: Date | null; active?: boolean } = {};
+    if (input.label !== undefined) {
+      const label = input.label.trim();
+      if (label.length < 2 || label.length > 80) throw new BadRequestException("Key name must be 2 to 80 characters");
+      data.label = label;
+    }
+    if (input.abilities !== undefined) {
+      const abilities = [...new Set(input.abilities.filter((item) => item === "payment:checkout" || item === "payment:verify"))];
+      if (abilities.length === 0) throw new BadRequestException("Choose at least one ability");
+      data.abilities = abilities;
+    }
+    if (input.webhookUrl !== undefined) {
+      const webhookUrl = input.webhookUrl.trim();
+      if (webhookUrl) {
+        try {
+          const url = new URL(webhookUrl);
+          if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("protocol");
+        } catch {
+          throw new BadRequestException("Webhook URL must start with http:// or https://");
+        }
+      }
+      data.webhookUrl = webhookUrl;
+    }
+    if (input.expiresAt !== undefined) {
+      if (!input.expiresAt) data.expiresAt = null;
+      else {
+        const expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59`);
+        if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException("Expiry date is not valid");
+        data.expiresAt = expiresAt;
+      }
+    }
+    if (input.active !== undefined) data.active = input.active;
+    if (Object.keys(data).length === 0) throw new BadRequestException("Nothing to update");
+    const updated = await this.prisma.merchantKey.updateMany({ where: { id, ownerId }, data });
     if (updated.count === 0) throw new NotFoundException("Key not found");
-    return { ok: true, active };
+    return { ok: true };
+  }
+
+  async removeKey(ownerId: string, id: string) {
+    const removed = await this.prisma.merchantKey.deleteMany({ where: { id, ownerId } });
+    if (removed.count === 0) throw new NotFoundException("Key not found");
+    return { ok: true };
   }
 
   listHandsets(ownerId: string) {

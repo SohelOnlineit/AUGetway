@@ -116,7 +116,15 @@ export default function CreateKeyPage() {
           <div className="key-body">
             <h3>API Key created</h3>
             <p className="muted">Copy this key now. It is shown only once. Send it as <span className="token">x-merchant-key</span>.</p>
-            <button className="key-reveal" type="button" onClick={() => copy(issued)}>{issued}</button>
+            <div className="key-line">
+              <button className="key-reveal" type="button" onClick={() => copy(issued)}>{issued}</button>
+              <button className="key-copy" type="button" aria-label="Copy API key" onClick={() => copy(issued)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                </svg>
+              </button>
+            </div>
             <div className="key-actions">
               <button className="btn" type="button" onClick={() => router.push("/admin/api-keys")}>Back to list</button>
             </div>
