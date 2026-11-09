@@ -102,6 +102,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   async function clearCache() {
     if (clearing) return;
     setClearing(true);
+    const token = sessionStorage.getItem("uniqpay_token");
     try {
       if ("caches" in window) {
         const keys = await caches.keys();
@@ -111,9 +112,16 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map((registration) => registration.unregister()));
       }
+      const assets = [...document.querySelectorAll("script[src], link[rel='stylesheet'][href]")]
+        .map((node) => (node instanceof HTMLScriptElement ? node.src : node instanceof HTMLLinkElement ? node.href : ""))
+        .filter((url) => url.startsWith(window.location.origin));
+      await Promise.all([window.location.href, ...assets].map((url) => (
+        fetch(url, { cache: "reload", credentials: "same-origin", signal: AbortSignal.timeout(8000) }).catch(() => undefined)
+      )));
     } catch {
-      setClearing(false);
+      // The navigation below still replaces the saved page.
     }
+    if (token) sessionStorage.setItem("uniqpay_token", token);
     const next = new URL(window.location.href);
     next.searchParams.set("fresh", String(Date.now()));
     window.location.replace(next.toString());
