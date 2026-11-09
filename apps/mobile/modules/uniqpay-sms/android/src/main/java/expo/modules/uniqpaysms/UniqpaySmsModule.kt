@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.exception.CodedException
@@ -27,14 +28,14 @@ class UniqpaySmsModule : Module() {
       readPaymentSms(limit.coerceIn(1, 20))
     }
 
-    AsyncFunction("sendSms") Coroutine { to: String, message: String ->
+    AsyncFunction("sendSms") Coroutine { to: String, message: String, slot: Int ->
       if (!granted(Manifest.permission.SEND_SMS)) {
         throw CodedException("SMS permission is not granted")
       }
       val number = normalizeBd(to) ?: throw CodedException("Use a Bangladesh mobile number, like 01XXXXXXXXX")
       val text = message.trim()
       if (text.length !in 1..320) throw CodedException("Message must be 1 to 320 characters")
-      val manager = smsManager()
+      val manager = smsManager(if (slot == 1) 1 else 0)
       if (text.length <= 160) {
         manager.sendTextMessage(number, null, text, null, null)
       } else {
@@ -47,14 +48,27 @@ class UniqpaySmsModule : Module() {
     return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
   }
 
-  private fun smsManager(): SmsManager {
-    val manager = if (Build.VERSION.SDK_INT >= 31) {
+  private fun smsManager(slot: Int): SmsManager {
+    val fallback = if (Build.VERSION.SDK_INT >= 31) {
       context.getSystemService(SmsManager::class.java)
     } else {
       @Suppress("DEPRECATION")
       SmsManager.getDefault()
+    } ?: throw CodedException("This phone cannot send SMS")
+    if (!granted(Manifest.permission.READ_PHONE_STATE)) {
+      throw CodedException("Allow phone permission so the desk can choose SIM 1 or SIM 2")
     }
-    return manager ?: throw CodedException("This phone cannot send SMS")
+    val subscriptions = context.getSystemService(SubscriptionManager::class.java)
+      ?: return fallback
+    val match = subscriptions.activeSubscriptionInfoList
+      ?.firstOrNull { it.simSlotIndex == slot }
+      ?: throw CodedException(if (slot == 1) "SIM 2 is not in this phone" else "SIM 1 is not in this phone")
+    return if (Build.VERSION.SDK_INT >= 31) {
+      fallback.createForSubscriptionId(match.subscriptionId)
+    } else {
+      @Suppress("DEPRECATION")
+      SmsManager.getSmsManagerForSubscriptionId(match.subscriptionId)
+    }
   }
 
   private fun readPaymentSms(limit: Int): List<Map<String, Any>> {

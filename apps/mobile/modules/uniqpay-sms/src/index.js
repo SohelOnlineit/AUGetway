@@ -17,9 +17,9 @@ async function listPaymentSms(limit = 15) {
   return native.listPaymentSms(limit);
 }
 
-async function sendOneSms(to, message) {
+async function sendOneSms(to, message, slot = 0) {
   if (!native) throw new Error("SMS sending needs the UniqBD Pay Android build.");
-  return native.sendSms(to, message);
+  return native.sendSms(to, message, slot === 1 ? 1 : 0);
 }
 
 module.exports = {

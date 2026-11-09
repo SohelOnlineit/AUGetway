@@ -481,11 +481,51 @@ export class HandsetDto {
   @MaxLength(80)
   label!: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(1)
-  simSlot!: number;
+  simSlot?: number;
+}
+
+export class QueueSmsDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(40)
+  handsetId!: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(20)
+  to!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(320)
+  body!: string;
+}
+
+export class JobsQueryDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+}
+
+export class JobResultDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+
+  @IsBoolean()
+  ok!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  error?: string;
 }
 
 export class PulseDto {
@@ -527,4 +567,9 @@ export class NoticeDto {
   @IsString()
   @MaxLength(40)
   sender?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  receivedKey?: string;
 }

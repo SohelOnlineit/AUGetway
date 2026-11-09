@@ -43,6 +43,15 @@ export default function SmsGatewayPage() {
   const [simSlot, setSimSlot] = useState(0);
   const [removing, setRemoving] = useState<Handset | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sendDevice, setSendDevice] = useState("");
+  const [sendTo, setSendTo] = useState("");
+  const [sendBody, setSendBody] = useState("");
+  const [sendNote, setSendNote] = useState("");
+  const [jobs, setJobs] = useState<{ id: string; handset: string; to: string; body: string; simSlot: number; status: string; error: string; createdAt: string }[]>([]);
+
+  function loadJobs() {
+    api<typeof jobs>("/desk/sms").then(setJobs).catch(() => setJobs([]));
+  }
 
   function load() {
     api<Handset[]>("/desk/handsets").then(setRows).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load devices"));
@@ -50,7 +59,33 @@ export default function SmsGatewayPage() {
 
   useEffect(() => {
     load();
+    loadJobs();
+    const timer = setInterval(loadJobs, 10000);
+    return () => clearInterval(timer);
   }, []);
+
+  async function sendSms() {
+    if (busy) return;
+    if (!sendDevice) {
+      setSendNote("Choose the phone that should send this SMS.");
+      return;
+    }
+    setBusy(true);
+    setSendNote("");
+    try {
+      const job = await api<{ simSlot: number }>("/desk/sms", {
+        method: "POST",
+        body: JSON.stringify({ handsetId: sendDevice, to: sendTo, body: sendBody }),
+      });
+      setSendBody("");
+      setSendNote(`Queued. The phone will send it from ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}.`);
+      loadJobs();
+    } catch (reason) {
+      setSendNote(reason instanceof Error ? reason.message : "Could not queue the SMS");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -111,6 +146,63 @@ export default function SmsGatewayPage() {
 
   return (
     <div className="dev-page">
+      <section className="dev-card">
+        <header className="dev-head">
+          <div>
+            <p className="keys-crumb">SMS Gateway <span>›</span> Send</p>
+            <h2>Send SMS</h2>
+          </div>
+        </header>
+        <form className="dev-modal-body dev-send" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>
+          <label>
+            <span>Phone</span>
+            <select value={sendDevice} onChange={(event) => setSendDevice(event.target.value)} required>
+              <option value="">Choose a device</option>
+              {rows.map((row) => (
+                <option key={row.id} value={row.id}>{row.label} · {row.simSlot === 1 ? "SIM 2" : "SIM 1"}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Number</span>
+            <input value={sendTo} onChange={(event) => setSendTo(event.target.value)} placeholder="01XXXXXXXXX" required />
+          </label>
+          <label>
+            <span>Message</span>
+            <input value={sendBody} onChange={(event) => setSendBody(event.target.value)} maxLength={320} required />
+          </label>
+          {sendNote ? <p className="muted">{sendNote}</p> : null}
+          <div className="dev-modal-actions">
+            <button className="btn" type="submit" disabled={busy}>Queue SMS</button>
+          </div>
+        </form>
+        {jobs.length > 0 ? (
+          <table className="keys-table">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Phone</th>
+                <th>To</th>
+                <th>SIM</th>
+                <th>Status</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr key={job.id}>
+                  <td className="muted">{new Date(job.createdAt).toLocaleString()}</td>
+                  <td>{job.handset}</td>
+                  <td>{job.to}</td>
+                  <td>{job.simSlot === 1 ? "SIM 2" : "SIM 1"}</td>
+                  <td>{job.status}{job.error ? ` · ${job.error}` : ""}</td>
+                  <td className="sms-body">{job.body}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </section>
       <section className="dev-card">
         <header className="dev-head">
           <div>
@@ -242,7 +334,7 @@ export default function SmsGatewayPage() {
                   <option value={0}>SIM 1 (Default)</option>
                   <option value={1}>SIM 2 (Secondary)</option>
                 </select>
-                <small>This is the SIM marked as active on the phone. UniqBD Pay does not send SMS from here.</small>
+                <small>The phone sends queued SMS from this SIM. Change it here, and the next message uses the new SIM.</small>
               </label>
               {formError ? <p className="error">{formError}</p> : null}
             </div>

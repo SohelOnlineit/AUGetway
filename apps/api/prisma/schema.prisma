@@ -149,10 +149,11 @@ model Handset {
   label      String
   model      String?
   battery    Int?
-  simSlot    Int       @default(0)
+  simSlot    Int           @default(0)
   lastSeenAt DateTime?
   createdAt  DateTime      @default(now())
   notices    InboxNotice[]
+  outbound   OutboundSms[]
 }
 
 model Customer {
@@ -178,12 +179,28 @@ model BrandSetting {
 }
 
 model InboxNotice {
-  id         String    @id @default(cuid())
-  handsetId  String
-  handset    Handset   @relation(fields: [handsetId], references: [id], onDelete: Cascade)
-  sender     String    @default("")
-  body       String
-  checkoutId String?
-  checkout   Checkout? @relation(fields: [checkoutId], references: [id])
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(cuid())
+  handsetId   String
+  handset     Handset   @relation(fields: [handsetId], references: [id], onDelete: Cascade)
+  sender      String    @default("")
+  body        String
+  receivedKey String?
+  checkoutId  String?
+  checkout    Checkout? @relation(fields: [checkoutId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([handsetId, receivedKey])
+}
+
+model OutboundSms {
+  id        String   @id @default(cuid())
+  handsetId String
+  handset   Handset  @relation(fields: [handsetId], references: [id], onDelete: Cascade)
+  toNumber  String
+  body      String
+  simSlot   Int
+  status    String   @default("queued")
+  error     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -34,7 +34,7 @@ export default function SmsLogsPage() {
       <header className="keys-top">
         <div>
           <h2>Sms Logs</h2>
-          <p className="muted">Payment messages submitted from a signed-in UniqBD phone.</p>
+          <p className="muted">Payment SMS the signed-in phone collects and sends to this desk.</p>
         </div>
       </header>
       {error ? <p className="error">{error}</p> : null}

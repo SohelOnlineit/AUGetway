@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { DeskGuard, type DeskSession } from "./desk.guard";
 import {
@@ -8,6 +8,8 @@ import {
   ChooseMethodDto,
   CustomerDto,
   HandsetDto,
+  JobResultDto,
+  JobsQueryDto,
   KeyDto,
   KeyUpdateDto,
   LinkDto,
@@ -18,6 +20,7 @@ import {
   NoticeDto,
   ProofDto,
   PulseDto,
+  QueueSmsDto,
   SettingsDto,
   StartLinkDto,
   UddoktaCheckoutDto,
@@ -221,6 +224,18 @@ export class PayController {
     return this.pay.smsLogs(request.desk.sub);
   }
 
+  @Get("desk/sms")
+  @UseGuards(DeskGuard)
+  outbound(@Req() request: DeskRequest) {
+    return this.pay.listOutbound(request.desk.sub);
+  }
+
+  @Post("desk/sms")
+  @UseGuards(DeskGuard)
+  queueSms(@Req() request: DeskRequest, @Body() body: QueueSmsDto) {
+    return this.pay.queueSms(request.desk.sub, body);
+  }
+
   @Get("desk/reports")
   @UseGuards(DeskGuard)
   reports(@Req() request: DeskRequest) {
@@ -289,6 +304,18 @@ export class PayController {
   @UseGuards(DeskGuard)
   notice(@Req() request: DeskRequest, @Body() body: NoticeDto) {
     return this.pay.notice(request.desk.sub, body);
+  }
+
+  @Get("handset/jobs")
+  @UseGuards(DeskGuard)
+  jobs(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    return this.pay.pollJobs(request.desk.sub, query.uid);
+  }
+
+  @Post("handset/jobs/:id")
+  @UseGuards(DeskGuard)
+  jobResult(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: JobResultDto) {
+    return this.pay.finishJob(request.desk.sub, id, body);
   }
 
   @Post("checkout-v2")

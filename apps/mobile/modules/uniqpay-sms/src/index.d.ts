@@ -10,4 +10,4 @@ export const smsReady: boolean;
 
 export function listPaymentSms(limit?: number): Promise<PaymentSms[]>;
 
-export function sendOneSms(to: string, message: string): Promise<void>;
+export function sendOneSms(to: string, message: string, slot?: number): Promise<void>;

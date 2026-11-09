@@ -110,6 +110,13 @@ function priceAmount(
   return Math.max(0, Math.round((amount - discount + charge) * 100) / 100);
 }
 
+function bdMobile(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  if (/^01[3-9]\d{8}$/.test(digits)) return digits;
+  if (/^8801[3-9]\d{8}$/.test(digits)) return `0${digits.slice(3)}`;
+  return "";
+}
+
 function looksLikeDebit(body: string) {
   const lower = body.toLowerCase();
   return DEBIT_HINTS.some((hint) => lower.includes(hint));
@@ -942,13 +949,13 @@ export class PayService implements OnModuleInit {
     });
   }
 
-  async saveHandset(ownerId: string, id: string, input: { label: string; simSlot: number }) {
+  async saveHandset(ownerId: string, id: string, input: { label: string; simSlot?: number }) {
     const label = input.label.trim();
     if (label.length < 2 || label.length > 80) throw new BadRequestException("Device name must be 2 to 80 characters");
-    if (input.simSlot !== 0 && input.simSlot !== 1) throw new BadRequestException("Choose SIM 1 or SIM 2");
+    if (input.simSlot !== undefined && input.simSlot !== 0 && input.simSlot !== 1) throw new BadRequestException("Choose SIM 1 or SIM 2");
     const updated = await this.prisma.handset.updateMany({
       where: { id, ownerId },
-      data: { label, simSlot: input.simSlot },
+      data: { label, ...(input.simSlot === 0 || input.simSlot === 1 ? { simSlot: input.simSlot } : {}) },
     });
     if (updated.count === 0) throw new NotFoundException("Device not found");
     return { ok: true };
@@ -1206,7 +1213,7 @@ export class PayService implements OnModuleInit {
         where: { id: existing.id },
         data: { model: input.model, battery: input.battery, lastSeenAt: new Date() },
       });
-      return { id: handset.id, label: handset.label, lastSeenAt: handset.lastSeenAt };
+      return { id: handset.id, label: handset.label, simSlot: handset.simSlot, lastSeenAt: handset.lastSeenAt };
     }
     try {
       const handset = await this.prisma.handset.create({
@@ -1219,7 +1226,7 @@ export class PayService implements OnModuleInit {
           lastSeenAt: new Date(),
         },
       });
-      return { id: handset.id, label: handset.label, lastSeenAt: handset.lastSeenAt };
+      return { id: handset.id, label: handset.label, simSlot: handset.simSlot, lastSeenAt: handset.lastSeenAt };
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "P2002")) throw error;
       const raced = await this.prisma.handset.findUnique({ where: { uid: input.uid } });
@@ -1228,24 +1235,108 @@ export class PayService implements OnModuleInit {
         where: { id: raced.id },
         data: { model: input.model, battery: input.battery, lastSeenAt: new Date() },
       });
-      return { id: handset.id, label: handset.label, lastSeenAt: handset.lastSeenAt };
+      return { id: handset.id, label: handset.label, simSlot: handset.simSlot, lastSeenAt: handset.lastSeenAt };
     }
   }
 
-  async notice(userId: string, input: { uid: string; body: string; sender?: string }) {
+  async queueSms(ownerId: string, input: { handsetId: string; to: string; body: string }) {
+    const to = bdMobile(input.to);
+    if (!to) throw new BadRequestException("Use a Bangladesh mobile number, like 01XXXXXXXXX");
+    const body = input.body.trim();
+    if (body.length < 1 || body.length > 320) throw new BadRequestException("Message must be 1 to 320 characters");
+    const handset = await this.prisma.handset.findFirst({ where: { id: input.handsetId, ownerId } });
+    if (!handset) throw new NotFoundException("Device not found");
+    const waiting = await this.prisma.outboundSms.count({ where: { handsetId: handset.id, status: { in: ["queued", "sending"] } } });
+    if (waiting >= 20) throw new BadRequestException("This phone already has 20 messages waiting");
+    const job = await this.prisma.outboundSms.create({
+      data: { handsetId: handset.id, toNumber: to, body, simSlot: handset.simSlot === 1 ? 1 : 0 },
+    });
+    return { id: job.id, status: job.status, simSlot: job.simSlot };
+  }
+
+  async listOutbound(ownerId: string) {
+    const rows = await this.prisma.outboundSms.findMany({
+      where: { handset: { ownerId } },
+      include: { handset: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      handsetId: row.handsetId,
+      handset: row.handset.label,
+      to: row.toNumber,
+      body: row.body,
+      simSlot: row.simSlot,
+      status: row.status,
+      error: row.error,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async pollJobs(userId: string, uid: string) {
+    const handset = await this.ownedHandset(userId, uid);
+    const stale = new Date(Date.now() - 90_000);
+    await this.prisma.outboundSms.updateMany({
+      where: { handsetId: handset.id, status: "sending", updatedAt: { lt: stale } },
+      data: { status: "queued" },
+    });
+    const waiting = await this.prisma.outboundSms.findMany({
+      where: { handsetId: handset.id, status: "queued" },
+      orderBy: { createdAt: "asc" },
+      take: 3,
+    });
+    const jobs = [];
+    for (const job of waiting) {
+      const claimed = await this.prisma.outboundSms.updateMany({
+        where: { id: job.id, status: "queued" },
+        data: { status: "sending" },
+      });
+      if (claimed.count === 1) {
+        jobs.push({ id: job.id, to: job.toNumber, body: job.body, simSlot: job.simSlot });
+      }
+    }
+    return { simSlot: handset.simSlot === 1 ? 1 : 0, jobs };
+  }
+
+  async finishJob(userId: string, id: string, input: { uid: string; ok: boolean; error?: string }) {
+    const handset = await this.ownedHandset(userId, input.uid);
+    const updated = await this.prisma.outboundSms.updateMany({
+      where: { id, handsetId: handset.id, status: "sending" },
+      data: input.ok ? { status: "sent", error: "" } : { status: "failed", error: (input.error || "Could not send").slice(0, 180) },
+    });
+    if (updated.count === 0) throw new NotFoundException("Message not found");
+    return { ok: true };
+  }
+
+  private async ownedHandset(userId: string, uid: string) {
+    const handset = await this.prisma.handset.findUnique({ where: { uid } });
+    if (!handset || handset.ownerId !== userId) throw new NotFoundException("Register this handset first");
+    return handset;
+  }
+
+  async notice(userId: string, input: { uid: string; body: string; sender?: string; receivedKey?: string }) {
     const handset = await this.prisma.handset.findUnique({ where: { uid: input.uid } });
     if (!handset || handset.ownerId !== userId) {
       throw new NotFoundException("Register this handset first");
     }
-    const saved = await this.prisma.inboxNotice.create({
-      data: {
-        handsetId: handset.id,
-        body: input.body.trim(),
-        sender: input.sender?.trim() ?? "",
-      },
-    });
-    const matched = await this.matchOwner(userId, input.body, saved.id);
-    return { id: saved.id, matched };
+    const receivedKey = input.receivedKey?.trim().slice(0, 80) || null;
+    try {
+      const saved = await this.prisma.inboxNotice.create({
+        data: {
+          handsetId: handset.id,
+          body: input.body.trim(),
+          sender: input.sender?.trim() ?? "",
+          receivedKey,
+        },
+      });
+      const matched = await this.matchOwner(userId, input.body, saved.id);
+      return { id: saved.id, matched };
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "P2002") || !receivedKey) throw error;
+      const existing = await this.prisma.inboxNotice.findFirst({ where: { handsetId: handset.id, receivedKey } });
+      return { id: existing?.id ?? "", matched: existing?.checkoutId ?? null, duplicate: true };
+    }
   }
 
   async merchantCreate(token: string, input: { reference: string; amount: number; currency?: string; successUrl?: string; cancelUrl?: string }) {
