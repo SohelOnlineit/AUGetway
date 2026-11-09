@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { DeskGuard, type DeskSession } from "./desk.guard";
 import {
   BillDto,
+  BillUpdateDto,
   BulkIdsDto,
   CheckoutDto,
   ChooseMethodDto,
@@ -171,6 +172,18 @@ export class PayController {
   @UseGuards(DeskGuard)
   addBill(@Req() request: DeskRequest, @Body() body: BillDto) {
     return this.pay.createBill(request.desk.sub, body);
+  }
+
+  @Patch("desk/bills/:number")
+  @UseGuards(DeskGuard)
+  editBill(@Req() request: DeskRequest, @Param("number") number: string, @Body() body: BillUpdateDto) {
+    return this.pay.editBill(request.desk.sub, number, body);
+  }
+
+  @Post("desk/bills/bulk-delete")
+  @UseGuards(DeskGuard)
+  removeBills(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    return this.pay.removeBills(request.desk.sub, body.ids);
   }
 
   @Get("desk/links")

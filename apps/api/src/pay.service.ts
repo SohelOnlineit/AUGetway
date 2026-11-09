@@ -683,22 +683,13 @@ export class PayService implements OnModuleInit {
   }
 
   async listBills(ownerId: string) {
-    const rows = await this.prisma.bill.findMany({ where: { ownerId }, orderBy: { createdAt: "desc" }, take: 100 });
-    return rows.map((row) => ({
-      number: row.number,
-      customerName: row.customerName,
-      customerEmail: row.customerEmail,
-      title: row.title,
-      total: money(row.total),
-      currency: row.currency,
-      status: row.status,
-      note: row.note,
-    }));
+    const rows = await this.prisma.bill.findMany({ where: { ownerId }, orderBy: { createdAt: "desc" }, take: 500 });
+    return rows.map((row) => this.billView(row));
   }
 
   createBill(
     ownerId: string,
-    input: { customerName: string; customerEmail?: string; title: string; total: number; note?: string },
+    input: { customerName: string; customerEmail?: string; title: string; total: number; note?: string; dueOn?: string },
   ) {
     return this.prisma.bill.create({
       data: {
@@ -709,8 +700,83 @@ export class PayService implements OnModuleInit {
         title: input.title.trim(),
         total: input.total,
         note: input.note?.trim() ?? "",
+        dueOn: this.readDay(input.dueOn),
       },
     });
+  }
+
+  async editBill(
+    ownerId: string,
+    number: string,
+    input: { customerName?: string; customerEmail?: string; title?: string; total?: number; note?: string; dueOn?: string; status?: string },
+  ) {
+    const row = await this.prisma.bill.findFirst({ where: { ownerId, number } });
+    if (!row) throw new NotFoundException("Invoice not found");
+    const data: { customerName?: string; customerEmail?: string | null; title?: string; total?: number; note?: string; dueOn?: Date | null; status?: string } = {};
+    if (input.customerName !== undefined) data.customerName = input.customerName.trim();
+    if (input.customerEmail !== undefined) {
+      const email = input.customerEmail.trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException("Email is not valid");
+      data.customerEmail = email || null;
+    }
+    if (input.title !== undefined) data.title = input.title.trim();
+    if (input.total !== undefined) data.total = input.total;
+    if (input.note !== undefined) data.note = input.note.trim().slice(0, 400);
+    if (input.dueOn !== undefined) data.dueOn = this.readDay(input.dueOn);
+    if (input.status !== undefined) data.status = input.status;
+    const updated = await this.prisma.bill.update({ where: { id: row.id }, data });
+    return this.billView(updated);
+  }
+
+  async removeBills(ownerId: string, numbers: string[]) {
+    const wanted = [...new Set(numbers.map((number) => number.trim()).filter(Boolean))].slice(0, 200);
+    if (!wanted.length) return { ok: true, removed: 0 };
+    const rows = await this.prisma.bill.findMany({ where: { ownerId, number: { in: wanted } }, select: { id: true } });
+    const ids = rows.map((row) => row.id);
+    if (!ids.length) return { ok: true, removed: 0 };
+    await this.prisma.$transaction([
+      this.prisma.checkout.updateMany({ where: { billId: { in: ids } }, data: { billId: null } }),
+      this.prisma.bill.deleteMany({ where: { ownerId, id: { in: ids } } }),
+    ]);
+    return { ok: true, removed: ids.length };
+  }
+
+  private readDay(value?: string) {
+    if (value === undefined) return undefined;
+    const day = value.trim();
+    if (!day) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new BadRequestException("Due date must be a calendar date");
+    const date = new Date(`${day}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== day) {
+      throw new BadRequestException("Due date must be a calendar date");
+    }
+    return date;
+  }
+
+  private billView(row: {
+    number: string;
+    customerName: string;
+    customerEmail: string | null;
+    title: string;
+    total: MoneyRow;
+    currency: string;
+    status: string;
+    note: string;
+    dueOn: Date | null;
+    createdAt: Date;
+  }) {
+    return {
+      number: row.number,
+      customerName: row.customerName,
+      customerEmail: row.customerEmail,
+      title: row.title,
+      total: money(row.total),
+      currency: row.currency,
+      status: row.status,
+      note: row.note,
+      dueOn: row.dueOn ? row.dueOn.toISOString().slice(0, 10) : null,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   async startBill(number: string) {

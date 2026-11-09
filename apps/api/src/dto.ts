@@ -303,6 +303,51 @@ export class BillDto {
   @IsString()
   @MaxLength(400)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  dueOn?: string;
+}
+
+export class BillUpdateDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  title?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(250000)
+  total?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  dueOn?: string;
+
+  @IsOptional()
+  @IsIn(["due", "paid", "cancelled"])
+  status?: string;
 }
 
 export class LinkDto {
