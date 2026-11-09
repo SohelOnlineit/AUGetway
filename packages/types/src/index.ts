@@ -27,6 +27,7 @@ export type CheckoutCard = {
   hasReceipt?: boolean;
   receipt?: string;
   successUrl?: string | null;
+  cancelUrl?: string | null;
   method: MethodCard | null;
   methods?: { id: string; label: string }[];
 };

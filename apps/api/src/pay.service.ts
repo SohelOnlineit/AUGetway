@@ -913,7 +913,7 @@ export class PayService implements OnModuleInit {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "expired" } });
       row.status = "expired";
     }
-    return this.checkoutCard(row, row.status === "open");
+    return this.checkoutCard(row, row.status === "open" || row.status === "waiting");
   }
 
   async chooseMethod(id: string, methodId: string) {
@@ -1334,6 +1334,7 @@ export class PayService implements OnModuleInit {
       receipt: string;
       expiresAt: Date;
       successUrl: string | null;
+      cancelUrl?: string | null;
       ownerId: string;
       method: {
         id: string;
@@ -1368,6 +1369,7 @@ export class PayService implements OnModuleInit {
       hasReceipt: Boolean(row.receipt),
       receipt: includeReceipt ? row.receipt : "",
       successUrl: row.successUrl,
+      cancelUrl: row.cancelUrl ?? null,
       method: row.method
         ? {
             id: row.method.id,

@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import type { CheckoutCard } from "@uniqpay/types";
 import { api } from "@/lib/api";
 
+type Lang = "bn" | "en";
+type Filter = "all" | "mfs" | "bank";
+
 async function readReceipt(value: FormDataEntryValue | null) {
   if (!(value instanceof File) || value.size === 0) return "";
   if (!value.type.startsWith("image/")) throw new Error("Receipt must be an image");
@@ -22,11 +25,46 @@ function returnHref(url: string, invoiceId: string) {
   return `${url}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
 }
 
-function leftLabel(expiresAt: string, now: number) {
+function moneyText(value: string) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount.toFixed(2) : value;
+}
+
+function leftClock(expiresAt: string, now: number) {
   const left = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
   const minutes = Math.floor(left / 60);
   const seconds = left % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function shortId(value: string) {
+  if (value.length <= 16) return value;
+  return `${value.slice(0, 14)}...`;
+}
+
+function methodKind(label: string): Filter | "other" {
+  const name = label.toLowerCase();
+  if (["bkash", "nagad", "rocket", "upay", "cellfin", "tap"].some((key) => name.includes(key))) return "mfs";
+  if (["bank", "qr", "bangla", "brac", "islami", "city", "ebl", "eastern", "dutch", "dbbl"].some((key) => name.includes(key))) return "bank";
+  return "other";
+}
+
+function text(lang: Lang, en: string, bn: string) {
+  return lang === "bn" ? bn : en;
+}
+
+async function copyValue(value: string) {
+  await navigator.clipboard.writeText(value);
+}
+
+function MethodMark({ label }: { label: string }) {
+  const name = label.toLowerCase();
+  if (name.includes("bkash")) return <span className="ck-logo bkash"><i />bKash</span>;
+  if (name.includes("nagad")) return <span className="ck-logo nagad"><i>ন</i>নগদ</span>;
+  if (name.includes("rocket")) return <span className="ck-logo rocket">রকেট</span>;
+  if (name.includes("binance")) return <span className="ck-logo binance"><i />BINANCE</span>;
+  if (name.includes("upay")) return <span className="ck-logo upay">upay</span>;
+  return <span className="ck-logo plain">{label.trim()}</span>;
 }
 
 export default function PayPage() {
@@ -35,13 +73,21 @@ export default function PayPage() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [lang, setLang] = useState<Lang>("bn");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [picked, setPicked] = useState("");
+  const [picking, setPicking] = useState(true);
+  const [copied, setCopied] = useState("");
 
-  async function load() {
-    setCard(await api<CheckoutCard>(`/public/pay/${params.publicId}`));
+  async function load(resetPick = false) {
+    const next = await api<CheckoutCard>(`/public/pay/${params.publicId}`);
+    setCard(next);
+    if (resetPick) setPicking(next.status === "open" || !next.method);
+    return next;
   }
 
   useEffect(() => {
-    load().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Checkout not found"));
+    load(true).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Checkout not found"));
   }, [params.publicId]);
 
   useEffect(() => {
@@ -57,14 +103,27 @@ export default function PayPage() {
     return () => window.clearInterval(timer);
   }, [card?.status, params.publicId]);
 
-  async function choose(methodId: string) {
+  async function flashCopy(key: string, value: string) {
+    try {
+      await copyValue(value);
+      setCopied(key);
+      window.setTimeout(() => setCopied((current) => (current === key ? "" : current)), 1200);
+    } catch {
+      setError(text(lang, "Could not copy", "কপি করা যায়নি"));
+    }
+  }
+
+  async function paySelected() {
+    if (!picked) return;
     setPending(true);
     setError("");
     try {
-      setCard(await api<CheckoutCard>(`/public/pay/${params.publicId}/method`, {
+      const next = await api<CheckoutCard>(`/public/pay/${params.publicId}/method`, {
         method: "POST",
-        body: JSON.stringify({ methodId }),
-      }));
+        body: JSON.stringify({ methodId: picked }),
+      });
+      setCard(next);
+      setPicking(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not choose method");
     } finally {
@@ -86,6 +145,7 @@ export default function PayPage() {
           receipt: await readReceipt(form.get("receipt")),
         }),
       }));
+      setPicking(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not submit");
     } finally {
@@ -93,59 +153,194 @@ export default function PayPage() {
     }
   }
 
+  const methods = (card?.methods ?? []).filter((method) => filter === "all" || methodKind(method.label) === filter);
+  const showPicker = !card || card.status === "open" || (card.status === "waiting" && picking);
+  const amount = card ? moneyText(card.payable) : "0.00";
+  const subtotal = card ? moneyText(card.amount) : "0.00";
+  const currency = card?.currency || "BDT";
+  const reference = card?.reference || card?.publicId || "";
+
   return (
-    <main className="pay-shell">
-      <p className="kicker">UniqBD Pay</p>
-      <div className="receipt">
-        <header>
-          <span>{card?.reference ?? "Checkout"}</span>
-          <span className={`pill ${card?.status ?? ""}`}>{card?.status ?? "…"}</span>
-        </header>
-        <div className="amount">{card ? `৳ ${card.payable}` : "—"}</div>
-        {card?.status === "open" ? (
-          <div className="choices">
-            <p>Choose how you will pay.</p>
-            {card.methods?.map((method) => (
-              <button key={method.id} className="btn" disabled={pending} onClick={() => choose(method.id)}>
-                {method.label}
-              </button>
-            ))}
-            {card.methods?.length === 0 ? <p className="muted">No payment method is turned on.</p> : null}
+    <main className="ck-page">
+      <section className="ck-card">
+        <aside className="ck-side">
+          <div className="ck-side-top">
+            <div className="ck-brand" aria-label="UniQbd">
+              <span className="ck-bag" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
+                  <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="ck-word">Uni<span>Q</span>bd</span>
+            </div>
+
+            <div className="ck-trx">
+              <div className="ck-trx-row">
+                <span>Trx ID:</span>
+                <strong>{reference ? shortId(reference) : "…"}</strong>
+                <button type="button" className="ck-icon-btn" aria-label="Copy transaction id" onClick={() => reference && flashCopy("trx", reference)}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                </button>
+                {copied === "trx" ? <em>{text(lang, "Copied", "কপি")}</em> : null}
+              </div>
+              {card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired" ? (
+                <div className="ck-expiry"><i />Expires in <b>{leftClock(card.expiresAt, now)}</b></div>
+              ) : null}
+              {card?.status === "paid" ? <div className="ck-expiry"><i />{text(lang, "Payment verified", "পেমেন্ট সফল হয়েছে")}</div> : null}
+            </div>
+
+            <div className="ck-amount">
+              <p>{text(lang, "Payable amount", "পরিশোধযোগ্য পরিমাণ")}</p>
+              <strong>{amount} <span>{currency}</span></strong>
+              <div className="ck-break">
+                <div><span>{text(lang, "Subtotal", "সাবটোটাল")}</span><b>{subtotal} {currency}</b></div>
+                <div className="total"><span>{text(lang, "Total", "সর্বমোট")}</span><b>{amount} {currency}</b></div>
+              </div>
+            </div>
           </div>
-        ) : null}
-        {card?.status === "waiting" && card.method ? (
-          <form onSubmit={onSubmit}>
-            <p>Send <strong>৳ {card.payable}</strong> with {card.method.label}{card.method.accountNumber ? <> to <strong>{card.method.accountNumber}</strong></> : null}.</p>
-            {card.method.qrImage ? <img className="pay-qr" src={card.method.qrImage} alt="" /> : null}
-            {card.method.instructions ? <p className="muted">{card.method.instructions}</p> : null}
-            <p className="muted">Time left {leftLabel(card.expiresAt, now)}</p>
-            {card.method.verifyBy !== "unique_amount" ? (
-              card.method.verifyBy === "sender_number" ? (
-                <label className="field"><span>Sender number</span><input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" title="Start with 01 and use 11 digits" /></label>
-              ) : (
+          <button type="button" className="ck-lang" onClick={() => setLang(lang === "bn" ? "en" : "bn")}>
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
+            {lang === "bn" ? "English" : "বাংলা"}
+          </button>
+        </aside>
+
+        <section className="ck-main">
+          {showPicker ? (
+            <div className="ck-picker">
+              <header>
+                <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
+                <span>{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
+              </header>
+              <div className="ck-tabs">
+                <button type="button" className={filter === "all" ? "on" : ""} onClick={() => setFilter("all")}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h4v4H4zM14 6h4v4h-4zM4 16h4v4H4zM14 16h4v4h-4z" /></svg>
+                  {text(lang, "All options", "সবগুলো")}
+                </button>
+                <button type="button" className={filter === "mfs" ? "on" : ""} onClick={() => setFilter("mfs")}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 3h8a2 2 0 012 2v14a2 2 0 01-2 2H8a2 2 0 01-2-2V5a2 2 0 012-2zm4 16h.01" /></svg>
+                  {text(lang, "Mobile banking", "মোবাইল ব্যাংকিং")}
+                </button>
+                <button type="button" className={filter === "bank" ? "on" : ""} onClick={() => setFilter("bank")}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 10h16M6 10V6l6-3 6 3v4M6 10v8m6-8v8m6-8v8M4 18h16" /></svg>
+                  {text(lang, "Bank transfer", "ব্যাংক ট্রান্সফার")}
+                </button>
+              </div>
+              <div className="ck-grid">
+                {methods.map((method) => (
+                  <button type="button" key={method.id} className={picked === method.id ? "ck-tile on" : "ck-tile"} onClick={() => setPicked(method.id)}>
+                    <span className="ck-check">✓</span>
+                    <span className="ck-logo-box"><MethodMark label={method.label} /></span>
+                    <span className="ck-line" />
+                    <span className="ck-name">{method.label}</span>
+                  </button>
+                ))}
+              </div>
+              {card && methods.length === 0 ? <p className="ck-empty">{text(lang, "No payment method is turned on.", "কোনো পেমেন্ট মাধ্যম চালু নেই।")}</p> : null}
+            </div>
+          ) : null}
+
+          {card && !showPicker && card.method && (card.status === "waiting" || card.status === "pending") ? (
+            <form className="ck-verify" onSubmit={onSubmit}>
+              <div className="ck-verify-top">
+                {card.status === "waiting" ? (
+                  <button type="button" className="ck-back" onClick={() => setPicking(true)}>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    {text(lang, "Change method", "পেমেন্ট মাধ্যম পরিবর্তন")}
+                  </button>
+                ) : <span />}
+                <span className="ck-active">{card.method.label}</span>
+              </div>
+              <p className="ck-note">
+                {card.method.instructions || text(lang, `Send exactly ${amount} ${currency}.`, `ঠিক ${amount} ${currency} পাঠান।`)}
+              </p>
+              {card.method.qrImage ? <img className="ck-qr" src={card.method.qrImage} alt="" /> : null}
+              {card.method.accountNumber ? (
+                <div className="ck-copy">
+                  <div>
+                    <small>{text(lang, "Send to this number", "এই নম্বরে টাকা পাঠান")}</small>
+                    <b>{card.method.accountNumber}</b>
+                  </div>
+                  <button type="button" onClick={() => flashCopy("num", card.method?.accountNumber ?? "")}>{copied === "num" ? text(lang, "Copied", "কপি") : text(lang, "Copy", "কপি")}</button>
+                </div>
+              ) : null}
+              <div className="ck-copy">
+                <div>
+                  <small>{text(lang, "Send exactly", "পাঠানোর সঠিক পরিমাণ")}</small>
+                  <b>{amount} {currency}</b>
+                </div>
+                <button type="button" onClick={() => flashCopy("amt", amount)}>{copied === "amt" ? text(lang, "Copied", "কপি") : text(lang, "Copy", "কপি")}</button>
+              </div>
+              {card.method.verifyBy === "sender_number" ? (
+                <label className="ck-field">
+                  <span>{text(lang, "Sender number", "যে নম্বর থেকে পাঠাবেন")}</span>
+                  <input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" />
+                </label>
+              ) : null}
+              {card.method.verifyBy !== "unique_amount" && card.method.verifyBy !== "sender_number" ? (
                 <>
-                  <label className="field"><span>Transaction reference</span><input name="providerRef" required minLength={6} /></label>
-                  <label className="field"><span>Your wallet number</span><input name="payerAccount" required minLength={6} /></label>
+                  <label className="ck-field">
+                    <span>{text(lang, "Transaction ID", "ট্রানজেকশন আইডি")}</span>
+                    <input name="providerRef" required minLength={6} placeholder="8N70O2M4RB" />
+                  </label>
+                  <label className="ck-field">
+                    <span>{text(lang, "Your wallet number", "আপনার ওয়ালেট নম্বর")}</span>
+                    <input name="payerAccount" required minLength={6} />
+                  </label>
                 </>
-              )
+              ) : null}
+              {card.method.acceptProof ? (
+                <label className="ck-field">
+                  <span>{text(lang, "Receipt image", "রসিদের ছবি")}</span>
+                  <input name="receipt" type="file" accept="image/*" />
+                </label>
+              ) : null}
+              {card.status === "pending" ? <p className="ck-note">{text(lang, "This payment is pending a check.", "পেমেন্টটি যাচাইয়ের অপেক্ষায়।")}</p> : null}
+              {card.providerRef ? <p className="ck-note">{text(lang, `Waiting for confirmation of ${card.providerRef}.`, `${card.providerRef} নিশ্চিত হওয়ার অপেক্ষায়।`)}</p> : null}
+              {card.method.verifyBy === "unique_amount" && card.method.acceptProof === false ? (
+                <p className="ck-wait"><i />{text(lang, "Waiting for your payment...", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
+              ) : (
+                <button className="ck-pay on" disabled={pending} type="submit">{text(lang, "I have paid", "পেমেন্ট যাচাই করুন")}</button>
+              )}
+            </form>
+          ) : null}
+
+          {card?.status === "paid" ? (
+            <div className="ck-done">
+              <h2>{text(lang, "Payment successful", "পেমেন্ট সফল হয়েছে")}</h2>
+              <p>{text(lang, "Your transaction has been verified.", "আপনার লেনদেন যাচাই হয়েছে।")}</p>
+              {card.successUrl ? <a className="ck-pay on" href={returnHref(card.successUrl, params.publicId)}>{text(lang, "Return to merchant", "মার্চেন্টে ফিরে যান")}</a> : null}
+            </div>
+          ) : null}
+          {card?.status === "failed" ? <div className="ck-done"><h2>{text(lang, "Payment was not accepted", "পেমেন্ট গ্রহণ করা হয়নি")}</h2></div> : null}
+          {card?.status === "expired" ? <div className="ck-done"><h2>{text(lang, "This checkout has expired", "চেকআউটের সময় শেষ")}</h2></div> : null}
+          {error ? <p className="ck-error">{error}</p> : null}
+
+          <footer className="ck-foot">
+            {showPicker ? (
+              <button type="button" className={picked ? "ck-pay on" : "ck-pay"} disabled={!picked || pending} onClick={paySelected}>
+                {text(lang, `Pay ${amount} ${currency}`, `পেমেন্ট করুন ${amount} ${currency}`)}
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" d="M5 12h14m-6-6 6 6-6 6" /></svg>
+              </button>
             ) : null}
-            {card.method.acceptProof ? (
-              <label className="field"><span>Receipt image</span><input name="receipt" type="file" accept="image/*" /></label>
+            {card?.cancelUrl ? (
+              <a className="ck-cancel" href={card.cancelUrl}>{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</a>
+            ) : showPicker ? (
+              <span className="ck-cancel">{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</span>
             ) : null}
-            {card.method.verifyBy === "unique_amount" && card.method.acceptProof === false ? (
-              <p className="muted">This checkout completes when the deposit notice matches the amount.</p>
-            ) : (
-              <button className="btn wide" disabled={pending} type="submit">I have paid</button>
-            )}
-            {card.providerRef ? <p className="muted">Waiting for confirmation of {card.providerRef}.</p> : null}
-          </form>
-        ) : null}
-        {card?.status === "pending" ? <p>This payment is pending a check.</p> : null}
-        {card?.status === "paid" ? <p>Payment received. {card.successUrl ? <a href={returnHref(card.successUrl, params.publicId)}>Continue</a> : null}</p> : null}
-        {card?.status === "failed" ? <p>This checkout was not accepted.</p> : null}
-        {card?.status === "expired" ? <p>This checkout has expired.</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-      </div>
+            <div className="ck-secure">
+              <span>
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656 3.536 3.536M9.172 9.172 5.636 5.636m3.536 9.192-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                {text(lang, "Support", "সহায়তা")}
+              </span>
+              <span className="ssl">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                256-Bit SSL Encrypted
+              </span>
+            </div>
+          </footer>
+        </section>
+      </section>
     </main>
   );
 }
