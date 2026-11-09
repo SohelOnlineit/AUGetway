@@ -13,6 +13,7 @@ model DeskUser {
   name         String
   email        String         @unique
   passwordHash String
+  receiptDefaulted Boolean    @default(false)
   createdAt    DateTime       @default(now())
   methods      WalletMethod[]
   checkouts    Checkout[]
@@ -46,7 +47,7 @@ model WalletMethod {
   payWindow     Int        @default(15)
   uniqueSlots   Int        @default(3)
   uniqueKind    String     @default("integer")
-  acceptProof   Boolean    @default(true)
+  acceptProof   Boolean    @default(false)
   holdUnmatched Boolean    @default(false)
   holdAbove     Decimal    @default(0) @db.Decimal(12, 2)
   underTolerance Decimal   @default(0) @db.Decimal(12, 2)

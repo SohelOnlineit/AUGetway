@@ -58,6 +58,20 @@ async function copyValue(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
+function CopyButton({ done, onClick }: { done: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={done ? "ck-copy-btn done" : "ck-copy-btn"} aria-label={done ? "Copied" : "Copy"} onClick={onClick}>
+      <svg className="ico-copy" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="9" y="9" width="13" height="13" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+      <svg className="ico-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    </button>
+  );
+}
+
 const BRAND_LOGOS: { key: string; src: string; alt: string }[] = [
   { key: "bkash", src: "/gateways/bkash.png?v=3", alt: "bKash" },
   { key: "nagad", src: "/gateways/nagad.png?v=3", alt: "Nagad" },
@@ -133,7 +147,7 @@ export default function PayPage() {
     try {
       await copyValue(value);
       setCopied(key);
-      window.setTimeout(() => setCopied((current) => (current === key ? "" : current)), 1200);
+      window.setTimeout(() => setCopied((current) => (current === key ? "" : current)), 1600);
     } catch {
       setError(text(lang, "Could not copy", "কপি করা যায়নি"));
     }
@@ -290,7 +304,7 @@ export default function PayPage() {
                     <small>{text(lang, "Send to this number", "এই নম্বরে টাকা পাঠান")}</small>
                     <b>{card.method.accountNumber}</b>
                   </div>
-                  <button type="button" onClick={() => flashCopy("num", card.method?.accountNumber ?? "")}>{copied === "num" ? text(lang, "Copied", "কপি") : text(lang, "Copy", "কপি")}</button>
+                  <CopyButton done={copied === "num"} onClick={() => flashCopy("num", card.method?.accountNumber ?? "")} />
                 </div>
               ) : null}
               <div className="ck-copy">
@@ -298,7 +312,7 @@ export default function PayPage() {
                   <small>{text(lang, "Send exactly", "পাঠানোর সঠিক পরিমাণ")}</small>
                   <b>{amount} {currency}</b>
                 </div>
-                <button type="button" onClick={() => flashCopy("amt", amount)}>{copied === "amt" ? text(lang, "Copied", "কপি") : text(lang, "Copy", "কপি")}</button>
+                <CopyButton done={copied === "amt"} onClick={() => flashCopy("amt", amount)} />
               </div>
               {card.method.verifyBy === "sender_number" ? (
                 <label className="ck-field">

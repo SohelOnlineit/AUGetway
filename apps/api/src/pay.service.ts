@@ -206,7 +206,10 @@ export class PayService implements OnModuleInit {
 
   async onModuleInit() {
     const owner = await this.ensureOwner();
-    if (owner) await this.ensureCatalog(owner.id);
+    if (owner) {
+      await this.ensureCatalog(owner.id);
+      await this.applyReceiptDefault();
+    }
   }
 
   async login(email: string, password: string) {
@@ -335,7 +338,7 @@ export class PayService implements OnModuleInit {
         payWindow: input.payWindow ?? 15,
         uniqueSlots: input.uniqueSlots ?? 3,
         uniqueKind: input.uniqueKind ?? "integer",
-        acceptProof: input.acceptProof !== false,
+        acceptProof: input.acceptProof === true,
         holdUnmatched: Boolean(input.holdUnmatched),
         holdAbove: input.holdAbove ?? 0,
         underTolerance: input.underTolerance ?? 0,
@@ -1180,8 +1183,17 @@ export class PayService implements OnModuleInit {
         name: "UniqBD Desk",
         email,
         passwordHash: await bcrypt.hash(password, 12),
+        receiptDefaulted: true,
       },
     });
+  }
+
+  private async applyReceiptDefault() {
+    const owners = await this.prisma.deskUser.findMany({ where: { receiptDefaulted: false }, select: { id: true } });
+    for (const owner of owners) {
+      await this.prisma.walletMethod.updateMany({ where: { ownerId: owner.id }, data: { acceptProof: false } });
+      await this.prisma.deskUser.update({ where: { id: owner.id }, data: { receiptDefaulted: true } });
+    }
   }
 
   private async ensureCatalog(ownerId: string) {

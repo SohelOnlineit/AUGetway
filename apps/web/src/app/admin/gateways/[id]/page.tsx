@@ -277,12 +277,12 @@ export default function EditGatewayPage() {
               <p className="gw-help">Integer rounds each checkout up to the next whole number (e.g. 101) for providers that refuse fractional amounts. Decimal adds fractional digits (e.g. 100.04) so the customer pays almost exactly the invoice.</p>
             </label>
             <label>
-              <span className="gw-label">Accept Payment Proof</span>
+              <span className="gw-label">Receipt image upload</span>
               <select value={form.acceptProof ? "enable" : "disable"} onChange={(event) => patch({ acceptProof: event.target.value === "enable" })}>
-                <option value="enable">Enable</option>
                 <option value="disable">Disable</option>
+                <option value="enable">Enable</option>
               </select>
-              <p className="gw-help">Enable: a customer whose deposit was not matched can upload a receipt, and the payment waits as Pending for you to check. Disable: they can only wait for the automatic match.</p>
+              <p className="gw-help">Off unless you enable it. Enable to let the customer upload a receipt image on the checkout. Disable hides that file field.</p>
             </label>
           </div>
         ) : null}
