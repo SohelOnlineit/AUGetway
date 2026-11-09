@@ -278,7 +278,7 @@ export default function EditGatewayPage() {
                     <option value="integer">Integer (e.g. 11)</option>
                     <option value="decimal">Decimal (e.g. 100.04)</option>
                   </select>
-                  <p className="gw-help">Each next customer pays 1 poisha (0.01) more, not 1 taka. A second customer paying 100.00 is asked for 100.01, then 100.02.</p>
+                  <p className="gw-help">Each next customer pays 1 poisha (0.01) more, not 1 taka. A second customer paying 100.00 is asked for 100.01, then 100.02. If they pay 1 to 4 poisha less than that and enter the Transaction ID, it still verifies, as long as the payment is not below the invoice.</p>
                 </label>
                 <label>
                   <span className="gw-label">Unique Amount Slots<i>*</i></span>

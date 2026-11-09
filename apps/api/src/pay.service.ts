@@ -9,6 +9,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
+import { paidFitsCheckout } from "./amount-window";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
 import { publicHttpUrl } from "./public-url";
 import { PrismaService } from "./prisma.service";
@@ -1693,8 +1694,6 @@ export class PayService implements OnModuleInit {
     const expected = Number(row.payable);
     const base = Number(row.amount);
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
-    const floor = verifyBy === "unique_amount" && expected > base + 0.001 ? Math.max(0, base - under) : expected - under;
-    const cap = verifyBy === "unique_amount" ? expected + (over > 0 ? over : 0) : over > 0 ? expected + over : Number.POSITIVE_INFINITY;
     const hits = notices.filter((notice) =>
       isPaymentSender(notice.sender)
       && !isOtpMessage(notice.body)
@@ -1707,11 +1706,14 @@ export class PayService implements OnModuleInit {
     const fit = hits.find((notice) => {
       const paid = parsePaidAmount(notice.body);
       if (paid === null) return false;
-      return paid + 0.001 >= floor && paid <= cap + 0.001;
+      return paidFitsCheckout(paid, expected, base, under, over, verifyBy);
     });
     if (!fit) {
       if (hits.length > 0) {
         throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
+      }
+      if (verifyBy === "unique_amount") {
+        await this.reserveReference(row.ownerId, row.id, providerRef, { payerAccount });
       }
       if (row.method?.holdUnmatched) {
         await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
@@ -2190,9 +2192,7 @@ export class PayService implements OnModuleInit {
       const over = Number(named.method?.overTolerance ?? 0);
       const verifyBy = named.method?.verifyBy ?? "transaction_id";
       if (verifyBy === "unique_amount" && !isCreditMessage(body)) return null;
-      const floor = verifyBy === "unique_amount" && payable > base + 0.001 ? Math.max(0, base - under) : payable - under;
-      const cap = verifyBy === "unique_amount" ? payable + (over > 0 ? over : 0) : over > 0 ? payable + over : Number.POSITIVE_INFINITY;
-      const ok = paidAmount !== null && paidAmount + 0.001 >= floor && paidAmount <= cap + 0.001;
+      const ok = paidAmount !== null && paidFitsCheckout(paidAmount, payable, base, under, over, verifyBy);
       if (!ok) return null;
     }
     const fits = named ? [named] : waiting.filter((row) => {
@@ -2208,8 +2208,8 @@ export class PayService implements OnModuleInit {
         return senderInNotice(row.payerAccount ?? "", body) && paidAmount !== null && amountFits(paidAmount, payable, under, over);
       }
       if (verifyBy === "unique_amount") {
-        if (!smsRef || !isCreditMessage(body) || (stored && stored !== smsRef)) return false;
-        return paidAmount !== null && Math.abs(paidAmount - payable) < 0.001;
+        if (!smsRef || !isCreditMessage(body) || stored !== smsRef) return false;
+        return paidAmount !== null && paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);
       }
       if (!stored || !bodyHasRef(body, stored) || claimed.has(stored)) return false;
       return paidAmount !== null && amountFits(paidAmount, payable, under, over);
@@ -2268,7 +2268,7 @@ export class PayService implements OnModuleInit {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(CAST(${key} AS text)))`;
   }
 
-  private async reserveReference(ownerId: string, checkoutId: string, providerRef: string, save?: { status: "pending"; payerAccount: string }) {
+  private async reserveReference(ownerId: string, checkoutId: string, providerRef: string, save?: { status?: "pending"; payerAccount: string }) {
     await this.prisma.$transaction(async (tx) => {
       await this.lockKey(tx, `${ownerId}:${providerRef}`);
       const used = await tx.checkout.findFirst({
@@ -2279,7 +2279,11 @@ export class PayService implements OnModuleInit {
       if (!save) return;
       const saved = await tx.checkout.updateMany({
         where: { id: checkoutId, status: { in: ["waiting", "pending"] } },
-        data: { status: save.status, providerRef, ...(save.payerAccount ? { payerAccount: save.payerAccount } : {}) },
+        data: {
+          providerRef,
+          ...(save.status ? { status: save.status } : {}),
+          ...(save.payerAccount ? { payerAccount: save.payerAccount } : {}),
+        },
       });
       if (saved.count !== 1) throw new BadRequestException("This checkout can no longer be changed");
     });
