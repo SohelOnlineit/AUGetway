@@ -408,6 +408,18 @@ export class PayService implements OnModuleInit {
     return rows.map((row) => this.methodView(row, false));
   }
 
+  async reorderMethods(ownerId: string, ids: string[]) {
+    const rows = await this.prisma.walletMethod.findMany({ where: { ownerId }, select: { id: true }, orderBy: [{ sortOrder: "asc" }, { label: "asc" }] });
+    const known = new Set(rows.map((row) => row.id));
+    const wanted = [...new Set(ids.map((id) => id.trim()).filter((id) => known.has(id)))].slice(0, 200);
+    const rest = rows.map((row) => row.id).filter((id) => !wanted.includes(id));
+    const order = [...wanted, ...rest];
+    await this.prisma.$transaction(
+      order.map((id, index) => this.prisma.walletMethod.updateMany({ where: { id, ownerId }, data: { sortOrder: index + 1 } })),
+    );
+    return this.listMethods(ownerId);
+  }
+
   async getMethod(ownerId: string, id: string) {
     return this.methodView(await this.ownMethod(ownerId, id), true);
   }
@@ -2277,7 +2289,7 @@ export class PayService implements OnModuleInit {
       ? await this.prisma.walletMethod.findMany({
           where: { ownerId: row.ownerId, active: true },
           select: { id: true, label: true, accountNumber: true },
-          orderBy: { label: "asc" },
+          orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
         })
       : undefined;
     return {

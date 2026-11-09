@@ -114,6 +114,12 @@ export class PayController {
     return this.pay.removeMethods(request.desk.sub, body.ids);
   }
 
+  @Post("desk/methods/reorder")
+  @UseGuards(DeskGuard)
+  reorderMethods(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    return this.pay.reorderMethods(request.desk.sub, body.ids);
+  }
+
   @Get("desk/checkouts")
   @UseGuards(DeskGuard)
   checkouts(@Req() request: DeskRequest) {

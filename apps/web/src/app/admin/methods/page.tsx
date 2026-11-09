@@ -107,6 +107,10 @@ function payload(draft: Draft) {
   };
 }
 
+function GripIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" /></svg>;
+}
+
 function pretty(value: string) {
   const amount = Number(value);
   return amount.toLocaleString("en-US", { maximumFractionDigits: amount % 1 === 0 ? 0 : 2 });
@@ -124,6 +128,8 @@ export default function MethodsPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [picking, setPicking] = useState(false);
+  const [dragId, setDragId] = useState("");
+  const [overId, setOverId] = useState("");
 
   async function load() {
     setRows(await api<Gateway[]>("/desk/methods"));
@@ -190,6 +196,27 @@ export default function MethodsPage() {
     }
   }
 
+  async function reorder(fromId: string, toId: string) {
+    if (!fromId || fromId === toId || query.trim()) return;
+    const ordered = [...filtered];
+    const from = ordered.findIndex((row) => row.id === fromId);
+    const to = ordered.findIndex((row) => row.id === toId);
+    if (from < 0 || to < 0) return;
+    const [item] = ordered.splice(from, 1);
+    ordered.splice(to, 0, item);
+    const next = ordered.map((row, index) => ({ ...row, sortOrder: index + 1 }));
+    setRows(next);
+    setSortKey("sortOrder");
+    setSortDir("asc");
+    setError("");
+    try {
+      await api("/desk/methods/reorder", { method: "POST", body: JSON.stringify({ ids: next.map((row) => row.id) }) });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the order");
+      await load();
+    }
+  }
+
   async function removeSelected() {
     if (picked.length === 0) return;
     setError("");
@@ -207,7 +234,10 @@ export default function MethodsPage() {
       {error ? <p className="error">{error}</p> : null}
       <section className="card gw-card">
         <div className="gw-head">
-          <h2>Gateways</h2>
+          <div>
+            <h2>Gateways</h2>
+            <p className="gw-order">Drag a row up or down. The top gateway is offered first at checkout.</p>
+          </div>
           <button className="btn" onClick={() => { setPicking(true); setDraft(null); }}>New gateway</button>
         </div>
         <div className="gw-tools">
@@ -224,6 +254,7 @@ export default function MethodsPage() {
         <table className="gw-table">
           <thead>
             <tr>
+              <th aria-label="Reorder" />
               <th>
                 <input
                   type="checkbox"
@@ -242,7 +273,38 @@ export default function MethodsPage() {
           </thead>
           <tbody>
             {visible.map((row) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                className={overId === row.id && dragId !== row.id ? "gw-over" : dragId === row.id ? "gw-dragging" : ""}
+                onDragOver={(event) => {
+                  if (!dragId || query.trim()) return;
+                  event.preventDefault();
+                  if (overId !== row.id) setOverId(row.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const from = event.dataTransfer.getData("text/plain") || dragId;
+                  setDragId("");
+                  setOverId("");
+                  void reorder(from, row.id);
+                }}
+              >
+                <td>
+                  <button
+                    className="gw-grip"
+                    type="button"
+                    draggable={!query.trim()}
+                    aria-label={`Drag ${row.internalLabel?.trim() || row.label}`}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", row.id);
+                      setDragId(row.id);
+                    }}
+                    onDragEnd={() => { setDragId(""); setOverId(""); }}
+                  >
+                    <GripIcon />
+                  </button>
+                </td>
                 <td>
                   <input
                     type="checkbox"
@@ -266,7 +328,7 @@ export default function MethodsPage() {
                 <td><Link className="edit-link" href={`/admin/gateways/${row.id}`}>Edit</Link></td>
               </tr>
             ))}
-            {visible.length === 0 ? <tr><td colSpan={8}>No gateways match.</td></tr> : null}
+            {visible.length === 0 ? <tr><td colSpan={9}>No gateways match.</td></tr> : null}
           </tbody>
         </table>
         <div className="gw-foot">

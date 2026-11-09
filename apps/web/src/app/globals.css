@@ -326,6 +326,11 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   padding: 16px 18px; border-bottom: 1px solid var(--line);
 }
 .gw-head h2 { margin: 0; font-size: 20px; font-weight: 650; }
+.gw-order { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.gw-grip { background: none; border: 0; color: var(--muted); cursor: grab; padding: 2px; display: grid; }
+.gw-grip:active { cursor: grabbing; }
+.gw-table tr.gw-over td { box-shadow: inset 0 2px 0 var(--brand); }
+.gw-table tr.gw-dragging { opacity: 0.45; }
 .gw-card { padding: 0; overflow: hidden; }
 .gw-tools { display: flex; justify-content: flex-end; gap: 10px; align-items: center; padding: 14px 16px 0; }
 .gw-tools input {
