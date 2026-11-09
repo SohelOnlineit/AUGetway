@@ -73,7 +73,7 @@ function CopyButton({ done, onClick }: { done: boolean; onClick: () => void }) {
 }
 
 const BRAND_LOGOS: { key: string; src: string; alt: string }[] = [
-  { key: "bkash", src: "/gateways/bkash.png?v=3", alt: "bKash" },
+  { key: "bkash", src: "/gateways/bkash.png?v=4", alt: "bKash" },
   { key: "nagad", src: "/gateways/nagad.png?v=3", alt: "Nagad" },
   { key: "rocket", src: "/gateways/rocket.png?v=3", alt: "Rocket" },
   { key: "upay", src: "/gateways/upay.png?v=3", alt: "Upay" },
