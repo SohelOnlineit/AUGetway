@@ -12,14 +12,20 @@ const columns: { key: Col; label: string }[] = [
   { key: "phone", label: "Phone" },
 ];
 
+type Admin = { id: string; email: string };
+
 export default function CustomersPage() {
   const [rows, setRows] = useState<Customer[]>([]);
+  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [canOpen, setCanOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState<Record<Col, boolean>>({ name: true, email: true, phone: true });
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [opening, setOpening] = useState<Customer | null>(null);
   const [busy, setBusy] = useState(false);
 
   function load() {
@@ -29,6 +35,12 @@ export default function CustomersPage() {
         setReady(true);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load"));
+    api<Admin[]>("/desk/admins")
+      .then((list) => {
+        setAdmins(list);
+        setCanOpen(true);
+      })
+      .catch(() => setCanOpen(false));
   }
 
   useEffect(() => {
@@ -67,6 +79,34 @@ export default function CustomersPage() {
     }
   }
 
+  async function openAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!opening) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    setNote("");
+    try {
+      await api("/desk/admins", {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(form.get("name") ?? ""),
+          email: String(form.get("email") ?? ""),
+          password: String(form.get("password") ?? ""),
+        }),
+      });
+      setOpening(null);
+      setNote("Admin account opened. They can sign in with that email.");
+      load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not open the account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const adminEmails = new Set(admins.map((row) => row.email.toLowerCase()));
+
   return (
     <div className="keys-page cust-page">
       <header className="keys-top">
@@ -76,6 +116,7 @@ export default function CustomersPage() {
         </div>
         <button className="btn" type="button" onClick={() => { setCreating(true); setError(""); }}>New customer</button>
       </header>
+      {note ? <p className="muted">{note}</p> : null}
       <section className="keys-card">
         <div className="keys-tools">
           <label className="keys-search">
@@ -115,17 +156,30 @@ export default function CustomersPage() {
           <thead>
             <tr>
               {visible.map((column) => <th key={column.key}>{column.label}</th>)}
+              {canOpen ? <th></th> : null}
             </tr>
           </thead>
           {filtered.length > 0 ? (
             <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id}>
-                  {shown.name ? <td className="name">{row.name}</td> : null}
-                  {shown.email ? <td>{row.email || "—"}</td> : null}
-                  {shown.phone ? <td>{row.phone || "—"}</td> : null}
-                </tr>
-              ))}
+              {filtered.map((row) => {
+                const opened = Boolean(row.email && adminEmails.has(row.email.toLowerCase()));
+                return (
+                  <tr key={row.id}>
+                    {shown.name ? <td className="name">{row.name}</td> : null}
+                    {shown.email ? <td>{row.email || "—"}</td> : null}
+                    {shown.phone ? <td>{row.phone || "—"}</td> : null}
+                    {canOpen ? (
+                      <td>
+                        {opened ? (
+                          <span className="muted">Admin open</span>
+                        ) : (
+                          <button className="btn ghost" type="button" onClick={() => { setOpening(row); setError(""); }}>Open admin</button>
+                        )}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
             </tbody>
           ) : null}
         </table>
@@ -167,7 +221,32 @@ export default function CustomersPage() {
           </form>
         </div>
       ) : null}
-      {!creating && error ? <p className="error">{error}</p> : null}
+      {opening ? (
+        <div className="modal-back" onClick={() => setOpening(null)}>
+          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={openAdmin}>
+            <h2>Open admin account</h2>
+            <p className="muted">This customer can sign in to the same desk.</p>
+            <label>
+              <span>Name</span>
+              <input name="name" required minLength={2} maxLength={80} defaultValue={opening.name} />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" required maxLength={120} defaultValue={opening.email ?? ""} autoComplete="off" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input name="password" type="password" required minLength={8} maxLength={80} autoComplete="new-password" />
+            </label>
+            {error ? <p className="error">{error}</p> : null}
+            <div className="dev-modal-actions">
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Opening…" : "Open account"}</button>
+              <button className="btn ghost" type="button" onClick={() => setOpening(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {!creating && !opening && error ? <p className="error">{error}</p> : null}
     </div>
   );
 }
