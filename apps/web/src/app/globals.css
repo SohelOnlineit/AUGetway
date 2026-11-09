@@ -892,6 +892,23 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   gap: 28px;
   padding: 36px 32px 26px;
 }
+.ck-cart-row { display: flex; justify-content: flex-end; }
+.ck-main-top { display: flex; flex-direction: column; gap: 16px; }
+.ck-cart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 750;
+}
+.ck-cart:hover { border-color: var(--brand); color: var(--brand); }
 .ck-picker header, .ck-verify-top, .ck-secure, .ck-copy, .ck-foot {
   display: flex;
   align-items: center;

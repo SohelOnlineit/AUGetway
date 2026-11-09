@@ -34,6 +34,18 @@ function returnHref(url: string, invoiceId: string) {
   return `${parsed.toString()}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
 }
 
+function safeHttp(url: string | null | undefined) {
+  if (!url) return "";
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return "";
+  }
+  if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) return "";
+  return parsed.toString();
+}
+
 function moneyText(value: string) {
   const amount = Number(value);
   return Number.isFinite(amount) ? amount.toFixed(2) : value;
@@ -224,6 +236,8 @@ export default function PayPage() {
   const priced = (value: string) => (symbol ? `${symbol} ${value}` : `${value} ${currency}`);
   const supportHref = card?.site?.supportPhone ? `tel:${card.site.supportPhone}` : card?.site?.supportEmail ? `mailto:${card.site.supportEmail}` : "";
   const supportLabel = card?.site?.supportPhone || card?.site?.supportEmail || text(lang, "Support", "সহায়তা");
+  const cartHref = safeHttp(card?.cancelUrl);
+  const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
 
   return (
     <main className="ck-page">
@@ -277,6 +291,20 @@ export default function PayPage() {
         </aside>
 
         <section className="ck-main">
+          <div className="ck-main-top">
+          <div className="ck-cart-row">
+            {cartHref ? (
+              <a className="ck-cart" href={cartHref}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                {cartLabel}
+              </a>
+            ) : (
+              <button type="button" className="ck-cart" onClick={() => window.history.back()}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                {cartLabel}
+              </button>
+            )}
+          </div>
           {showPicker ? (
             <div className="ck-picker">
               <header>
@@ -396,6 +424,7 @@ export default function PayPage() {
           {card?.status === "failed" ? <div className="ck-done"><h2>{text(lang, "Payment was not accepted", "পেমেন্ট গ্রহণ করা হয়নি")}</h2></div> : null}
           {card?.status === "expired" ? <div className="ck-done"><h2>{text(lang, "This checkout has expired", "চেকআউটের সময় শেষ")}</h2></div> : null}
           {error ? <p className="ck-error">{error}</p> : null}
+          </div>
 
           <footer className="ck-foot">
             {showPicker ? (
