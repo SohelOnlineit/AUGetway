@@ -1000,14 +1000,16 @@ a.ck-cancel:hover { color: var(--fg); }
 .ck-secure span { display: inline-flex; align-items: center; gap: 6px; }
 .ck-secure .ssl svg { color: var(--brand); }
 .ck-verify { display: flex; flex-direction: column; gap: 12px; }
+.ck-verify-top { align-items: center; min-height: 44px; }
 .ck-back {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 6px 16px 6px 6px;
+  height: 44px;
+  padding: 4px 14px 4px 4px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--cta);
   color: #fff;
   font-size: 12px;
@@ -1022,18 +1024,19 @@ a.ck-cancel:hover { color: var(--fg); }
   display: grid;
   place-items: center;
   flex: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: rgb(255 255 255 / 0.16);
 }
 .ck-active {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   justify-content: center;
   min-width: 112px;
   height: 44px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff;
   color: #161616;
 }
