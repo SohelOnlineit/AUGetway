@@ -119,10 +119,10 @@ export default function OverviewPage() {
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load the dashboard"));
   }, []);
 
-  const today = Number(report?.today.amount ?? 0);
-  const month = Number(report?.this_month.amount ?? 0);
-  const rate = report?.this_month.successRate ?? 0;
-  const peak = Math.max(1, ...bars.map(([key]) => Number(report?.[key].amount ?? 0)));
+  const today = Number(report?.today?.amount ?? 0);
+  const month = Number(report?.this_month?.amount ?? 0);
+  const rate = report?.this_month?.successRate ?? 0;
+  const peak = Math.max(1, ...bars.map(([key]) => Number(report?.[key]?.amount ?? 0)));
   const todayLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   const tiles = [
@@ -160,13 +160,13 @@ export default function OverviewPage() {
           <span className="dash-icon"><Icon name="sun" /></span>
           <p>Today</p>
           <Taka value={today} ready={ready} />
-          <small>{ready ? `${report?.today.completed ?? 0} payments` : "Loading"}</small>
+          <small>{ready ? `${report?.today?.completed ?? 0} payments` : "Loading"}</small>
         </article>
         <article>
           <span className="dash-icon"><Icon name="calendar" /></span>
           <p>This month</p>
           <Taka value={month} ready={ready} />
-          <small>{ready ? `${report?.this_month.completed ?? 0} payments` : "Loading"}</small>
+          <small>{ready ? `${report?.this_month?.completed ?? 0} payments` : "Loading"}</small>
         </article>
         <article>
           <span className="dash-icon"><Icon name="chart" /></span>
@@ -214,7 +214,7 @@ export default function OverviewPage() {
           </header>
           <ul className="dash-bars">
             {bars.map(([key, label]) => {
-              const amount = Number(report?.[key].amount ?? 0);
+              const amount = Number(report?.[key]?.amount ?? 0);
               const width = ready ? Math.max(amount > 0 ? 8 : 0, (amount / peak) * 100) : 0;
               return (
                 <li key={key}>

@@ -129,7 +129,7 @@ export default function ReportsPage() {
   const completed = bucket?.completed ?? 0;
   const total = bucket?.total ?? 0;
   const rate = bucket?.successRate ?? 0;
-  const peak = Math.max(1, ...cards.map(([key]) => Number(report?.[key].amount ?? 0)));
+  const peak = Math.max(1, ...cards.map(([key]) => Number(report?.[key]?.amount ?? 0)));
 
   function choose(key: RangeKey) {
     setRange(key);
