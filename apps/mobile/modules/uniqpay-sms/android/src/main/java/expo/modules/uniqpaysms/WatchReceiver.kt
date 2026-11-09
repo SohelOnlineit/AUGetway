@@ -15,12 +15,29 @@ class WatchReceiver : BroadcastReceiver() {
     val token = prefs.getString("token", null) ?: return
     val uid = prefs.getString("uid", null) ?: return
     val label = prefs.getString("label", null) ?: "UniqBD handset"
-    try {
-      KeepAliveService.start(context, base, token, uid, label)
-    } catch (_: Exception) {
-      // The alarm will try again. A phone with no exact-alarm permission still wakes on the inexact clock.
+    val pending = goAsync()
+    Thread {
+      try {
+        val code = Heartbeat.send(context)
+        if (code == 401) {
+          prefs.edit().clear().putBoolean("userStop", true).apply()
+          Watch.cancel(context)
+          context.stopService(Intent(context, KeepAliveService::class.java))
+          return@Thread
+        }
+        try {
+          KeepAliveService.start(context, base, token, uid, label)
+        } catch (_: Exception) {
+          // The pulse above already checked in. The next alarm starts the watch again.
+        }
+        Watch.schedule(context)
+      } finally {
+        pending.finish()
+      }
+    }.apply {
+      name = "uniqpay-wake"
+      start()
     }
-    Watch.schedule(context)
   }
 }
 

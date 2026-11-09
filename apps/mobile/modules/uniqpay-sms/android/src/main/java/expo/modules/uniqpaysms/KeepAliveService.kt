@@ -12,8 +12,6 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import java.net.HttpURLConnection
-import java.net.URL
 
 class KeepAliveService : Service() {
   @Volatile private var running = false
@@ -120,37 +118,23 @@ class KeepAliveService : Service() {
   }
 
   private fun ping() {
+    val code = Heartbeat.send(this)
     val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-    if (prefs.getBoolean("userStop", false)) return
+    if (code == 401) {
+      signOff()
+      return
+    }
+    if (code !in 200..299) return
     val base = prefs.getString("base", null) ?: return
     val token = prefs.getString("token", null) ?: return
     val uid = prefs.getString("uid", null) ?: return
-    val label = prefs.getString("label", null) ?: "UniqBD handset"
-    if (!base.startsWith("https://")) return
-    val endpoint = URL("${base.trimEnd('/')}/handset/pulse")
-    val connection = (endpoint.openConnection() as HttpURLConnection).apply {
-      requestMethod = "POST"
-      connectTimeout = 8000
-      readTimeout = 8000
-      doOutput = true
-      setRequestProperty("Content-Type", "application/json")
-      setRequestProperty("Authorization", "Bearer $token")
-    }
-    try {
-      val percent = batteryPercent(this)
-      val charge = if (percent == null) "" else ""","battery":$percent"""
-      val body = """{"uid":${json(uid)},"label":${json(label)},"model":"Android"$charge}"""
-      connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-      if (connection.responseCode == 401 || SmsSync.push(applicationContext, base, token, uid) == 401) {
-        prefs.edit().clear().putBoolean("userStop", true).apply()
-        Watch.cancel(applicationContext)
-        stopSelf()
-      }
-    } catch (_: Exception) {
-      // The next pulse retries. The desk keeps the phone online through a short network drop.
-    } finally {
-      connection.disconnect()
-    }
+    if (SmsSync.push(applicationContext, base, token, uid) == 401) signOff()
+  }
+
+  private fun signOff() {
+    getSharedPreferences(PREFS, MODE_PRIVATE).edit().clear().putBoolean("userStop", true).apply()
+    Watch.cancel(applicationContext)
+    stopSelf()
   }
 
   private fun ensureChannel() {
@@ -179,11 +163,6 @@ class KeepAliveService : Service() {
     if (open != null) builder.setContentIntent(open)
     if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
     return builder.build()
-  }
-
-  private fun json(value: String): String {
-    val escaped = value.take(80).replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
-    return "\"$escaped\""
   }
 
   companion object {
