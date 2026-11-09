@@ -10,3 +10,5 @@ apps/api/src/generated
 .turbo
 .expo
 apps/mobile/.expo
+apps/mobile/android
+apps/mobile/modules/**/build

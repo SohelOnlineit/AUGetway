@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
 import { listPaymentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
 
-const DEFAULT_BASE = Platform.OS === "android" ? "http://10.0.2.2:4100/api" : "http://127.0.0.1:4100/api";
+const DEFAULT_BASE = "https://pay.uniqbd.com/api";
 
 type Handset = { id: string; uid: string; label: string; simSlot: number; lastSeenAt: string | null };
 
@@ -161,7 +161,7 @@ export default function App() {
       setToken(data.accessToken);
       setNote(smsReady ? "This phone can read payment SMS and send one SMS at a time." : "Sign-in worked. SMS reading needs the UniqBD Pay Android build. You can still paste a message.");
     } catch {
-      setNote("Could not reach the desk. On a real phone, use this computer's address instead of 10.0.2.2.");
+      setNote("Could not reach the desk. Check the desk URL and your internet connection.");
     } finally {
       setBusy(false);
     }
