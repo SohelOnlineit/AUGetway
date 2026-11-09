@@ -381,7 +381,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .dev-sim { background: var(--tint); color: var(--brand); }
 .dev-sim.alt { background: #3a3118; color: #e2b15a; }
 .dev-actions { display: flex; justify-content: flex-end; gap: 4px; white-space: nowrap; }
-.dev-edit, .dev-delete { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 8px; border-radius: 8px; font-weight: 650; cursor: pointer; }
+.dev-edit, .dev-delete { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 8px; border-radius: 8px; font-weight: 650; cursor: pointer; text-decoration: none; }
 .dev-edit { color: var(--brand); }
 .dev-edit:hover { background: rgba(61, 220, 151, 0.12); }
 .dev-delete { color: #f07178; }

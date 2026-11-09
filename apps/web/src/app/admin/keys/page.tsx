@@ -27,22 +27,23 @@ const columns: { key: Col; label: string }[] = [
   { key: "active", label: "Active" },
 ];
 
-const abilityCopy: Record<string, string> = {
-  "payment:checkout": "Create a checkout",
-  "payment:verify": "Verify a checkout",
-};
+function typeLabel(keyType: string) {
+  return keyType === "sms" ? "SMS Gateway" : "Payment Gateway";
+}
+
+function readSeen() {
+  try {
+    const raw = sessionStorage.getItem("uniqpay_seen_keys");
+    const parsed = raw ? JSON.parse(raw) as Record<string, string> : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 function expiryLabel(value: string | null) {
   if (!value) return "Never";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function dateInput(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export default function KeysPage() {
@@ -63,22 +64,24 @@ export default function KeysPage() {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<{ id: string; ok: boolean } | null>(null);
-  const [draft, setDraft] = useState<{ id: string; label: string; abilities: string[]; webhookUrl: string; expiresAt: string } | null>(null);
   const [removing, setRemoving] = useState<KeyRow | null>(null);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    const stored = readSeen();
     const issued = sessionStorage.getItem("uniqpay_fresh_key");
     if (issued) {
       try {
         const parsed = JSON.parse(issued) as { id: string; token: string };
-        if (parsed.id && parsed.token) setSeen({ [parsed.id]: parsed.token });
+        if (parsed.id && parsed.token) stored[parsed.id] = parsed.token;
       } catch {
-        setSeen({});
+        /* keep the keys already stored in this tab */
       }
       sessionStorage.removeItem("uniqpay_fresh_key");
+      sessionStorage.setItem("uniqpay_seen_keys", JSON.stringify(stored));
     }
+    setSeen(stored);
     api<KeyRow[]>("/desk/keys")
       .then((list) => {
         setRows(list);
@@ -133,62 +136,6 @@ export default function KeysPage() {
     }
     setCopied({ id, ok });
     window.setTimeout(() => setCopied((current) => (current?.id === id ? null : current)), 2000);
-  }
-
-  function openEdit(row: KeyRow) {
-    setFormError("");
-    setDraft({
-      id: row.id,
-      label: row.label,
-      abilities: Array.isArray(row.abilities) ? row.abilities.filter((item) => item === "payment:checkout" || item === "payment:verify") : [],
-      webhookUrl: row.webhookUrl,
-      expiresAt: dateInput(row.expiresAt),
-    });
-  }
-
-  function toggleDraftAbility(ability: string) {
-    setDraft((current) => current && ({
-      ...current,
-      abilities: current.abilities.includes(ability)
-        ? current.abilities.filter((item) => item !== ability)
-        : [...current.abilities, ability],
-    }));
-  }
-
-  async function saveEdit() {
-    if (!draft || busy) return;
-    const label = draft.label.trim();
-    if (label.length < 2) {
-      setFormError("Key name must be at least 2 characters");
-      return;
-    }
-    if (draft.abilities.length === 0) {
-      setFormError("Choose at least one ability");
-      return;
-    }
-    setBusy(true);
-    setFormError("");
-    try {
-      await api(`/desk/keys/${draft.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          label,
-          abilities: draft.abilities,
-          webhookUrl: draft.webhookUrl.trim(),
-          expiresAt: draft.expiresAt,
-        }),
-      });
-      setRows((current) => current.map((row) => (
-        row.id === draft.id
-          ? { ...row, label, abilities: draft.abilities, webhookUrl: draft.webhookUrl.trim(), expiresAt: draft.expiresAt ? new Date(`${draft.expiresAt}T23:59:59`).toISOString() : null }
-          : row
-      )));
-      setDraft(null);
-    } catch (cause) {
-      setFormError(cause instanceof Error ? cause.message : "Could not save");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function removeKey() {
@@ -276,7 +223,7 @@ export default function KeysPage() {
                     {shown.name ? <td className="name">{row.label}</td> : null}
                     {shown.type ? (
                       <td>
-                        <span className="key-type">Checkout</span>
+                        <span className="key-type">{typeLabel(row.keyType)}</span>
                       </td>
                     ) : null}
                     {shown.key ? (
@@ -321,10 +268,10 @@ export default function KeysPage() {
                     ) : null}
                     <td>
                       <div className="dev-actions">
-                        <button type="button" className="dev-edit" onClick={() => openEdit(row)}>
+                        <Link className="dev-edit" href={`/admin/api-keys/${row.id}/edit`}>
                           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                           Edit
-                        </button>
+                        </Link>
                         <button type="button" className="dev-delete" onClick={() => { setFormError(""); setRemoving(row); }}>
                           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
                           Delete
@@ -351,53 +298,6 @@ export default function KeysPage() {
         ) : null}
       </section>
       {error ? <p className="error">{error}</p> : null}
-      {draft ? (
-        <div className="modal-back" onClick={() => { if (!busy) setDraft(null); }}>
-          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void saveEdit(); }}>
-            <header className="dev-modal-head">
-              <div>
-                <p className="keys-crumb">Api Keys <span>›</span> Edit</p>
-                <h2>Edit API key</h2>
-              </div>
-              <button className="dev-close" type="button" onClick={() => setDraft(null)}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg>
-                Close
-              </button>
-            </header>
-            <div className="dev-modal-body">
-              <label>
-                <span>Key name</span>
-                <input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} required minLength={2} maxLength={80} />
-              </label>
-              <fieldset>
-                <legend>Abilities</legend>
-                <div className="key-checks">
-                  {Object.entries(abilityCopy).map(([ability, label]) => (
-                    <label key={ability}>
-                      <input type="checkbox" checked={draft.abilities.includes(ability)} onChange={() => toggleDraftAbility(ability)} />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <label>
-                <span>Webhook URL</span>
-                <input value={draft.webhookUrl} placeholder="https://your-domain.com/api/payment-webhook" onChange={(event) => setDraft({ ...draft, webhookUrl: event.target.value })} />
-              </label>
-              <label>
-                <span>Expires at</span>
-                <input type="date" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })} />
-              </label>
-              <p className="muted">The secret key stays the same. Copy it from the list when it is still shown in full.</p>
-              {formError ? <p className="error">{formError}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => setDraft(null)}>Cancel</button>
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving" : "Save"}</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
       {removing ? (
         <div className="modal-back" onClick={() => { if (!busy) setRemoving(null); }}>
           <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void removeKey(); }}>

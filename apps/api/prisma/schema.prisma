@@ -127,6 +127,7 @@ model MerchantKey {
   label      String
   prefix     String
   secretHash String    @unique
+  altHash    String?
   keyType    String    @default("checkout")
   abilities  Json      @default("[\"payment:checkout\", \"payment:verify\"]")
   webhookUrl String    @default("")

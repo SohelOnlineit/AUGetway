@@ -44,6 +44,16 @@ function hashKey(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+const keyAbilities = ["payment:checkout", "payment:verify", "payment:refund", "sms:sync", "sms:receive", "sms:send"];
+
+function freshKey(keyType: string) {
+  if (keyType === "sms") {
+    const mark = randomBytes(6).toString("hex").slice(0, 8);
+    return `sg_live_${mark}.${randomBytes(24).toString("base64url")}`;
+  }
+  return `uq_live_${randomBytes(24).toString("base64url")}`;
+}
+
 function siteBase() {
   const origin = (process.env.WEB_ORIGIN ?? "http://127.0.0.1:3100").split(",")[0]?.trim().replace(/\/+$/, "");
   return origin || "http://127.0.0.1:3100";
@@ -732,16 +742,39 @@ export class PayService implements OnModuleInit {
   async updateKey(
     ownerId: string,
     id: string,
-    input: { label?: string; abilities?: string[]; webhookUrl?: string; expiresAt?: string; active?: boolean },
+    input: {
+      label?: string;
+      keyType?: "checkout" | "sms";
+      abilities?: string[];
+      webhookUrl?: string;
+      expiresAt?: string;
+      active?: boolean;
+      token?: string;
+      secret?: string;
+      generate?: boolean;
+    },
   ) {
-    const data: { label?: string; abilities?: string[]; webhookUrl?: string; expiresAt?: Date | null; active?: boolean } = {};
+    const existing = await this.prisma.merchantKey.findFirst({ where: { id, ownerId } });
+    if (!existing) throw new NotFoundException("Key not found");
+    const data: {
+      label?: string;
+      keyType?: string;
+      abilities?: string[];
+      webhookUrl?: string;
+      expiresAt?: Date | null;
+      active?: boolean;
+      prefix?: string;
+      secretHash?: string;
+      altHash?: string | null;
+    } = {};
     if (input.label !== undefined) {
       const label = input.label.trim();
       if (label.length < 2 || label.length > 80) throw new BadRequestException("Key name must be 2 to 80 characters");
       data.label = label;
     }
+    if (input.keyType !== undefined) data.keyType = input.keyType;
     if (input.abilities !== undefined) {
-      const abilities = [...new Set(input.abilities.filter((item) => item === "payment:checkout" || item === "payment:verify"))];
+      const abilities = [...new Set(input.abilities.filter((item) => keyAbilities.includes(item)))];
       if (abilities.length === 0) throw new BadRequestException("Choose at least one ability");
       data.abilities = abilities;
     }
@@ -766,10 +799,45 @@ export class PayService implements OnModuleInit {
       }
     }
     if (input.active !== undefined) data.active = input.active;
+    const keyType = input.keyType ?? existing.keyType;
+    let issued = (input.token ?? "").trim();
+    if (!issued && input.generate) issued = freshKey(keyType);
+    if (issued) {
+      if (issued.length < 12 || issued.length > 120) throw new BadRequestException("API key must be 12 to 120 characters");
+      data.prefix = issued.slice(0, 16);
+      data.secretHash = hashKey(issued);
+    }
+    if (input.secret !== undefined) {
+      const secret = input.secret.trim();
+      if (!secret || (issued && secret === issued)) data.altHash = null;
+      else {
+        if (secret.length < 12 || secret.length > 120) throw new BadRequestException("Secret key must be 12 to 120 characters");
+        data.altHash = hashKey(secret);
+      }
+    }
     if (Object.keys(data).length === 0) throw new BadRequestException("Nothing to update");
-    const updated = await this.prisma.merchantKey.updateMany({ where: { id, ownerId }, data });
-    if (updated.count === 0) throw new NotFoundException("Key not found");
-    return { ok: true };
+    if (data.altHash) {
+      const clash = await this.prisma.merchantKey.findFirst({
+        where: { NOT: { id }, OR: [{ secretHash: data.altHash }, { altHash: data.altHash }] },
+      });
+      if (clash) throw new BadRequestException("That key is already in use");
+    }
+    if (data.secretHash) {
+      const clash = await this.prisma.merchantKey.findFirst({
+        where: { NOT: { id }, altHash: data.secretHash },
+      });
+      if (clash) throw new BadRequestException("That key is already in use");
+    }
+    try {
+      const updated = await this.prisma.merchantKey.updateMany({ where: { id, ownerId }, data });
+      if (updated.count === 0) throw new NotFoundException("Key not found");
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new BadRequestException("That key is already in use");
+      }
+      throw error;
+    }
+    return { ok: true as const, token: input.generate && issued ? issued : undefined };
   }
 
   async removeKey(ownerId: string, id: string) {
@@ -1307,7 +1375,9 @@ export class PayService implements OnModuleInit {
   }
 
   private async keyFromToken(token: string) {
-    const key = await this.prisma.merchantKey.findUnique({ where: { secretHash: hashKey(token) } });
+    const hash = hashKey(token);
+    const key = await this.prisma.merchantKey.findUnique({ where: { secretHash: hash } })
+      ?? await this.prisma.merchantKey.findFirst({ where: { altHash: hash } });
     if (!key || !key.active) throw new UnauthorizedException("Merchant key is not valid");
     if (key.expiresAt && key.expiresAt.getTime() <= Date.now()) {
       throw new UnauthorizedException("Merchant key has expired");

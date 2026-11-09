@@ -349,6 +349,15 @@ export class KeyDto {
   active!: boolean;
 }
 
+const keyAbilities = [
+  "payment:checkout",
+  "payment:verify",
+  "payment:refund",
+  "sms:sync",
+  "sms:receive",
+  "sms:send",
+] as const;
+
 export class KeyUpdateDto {
   @IsOptional()
   @IsBoolean()
@@ -362,8 +371,12 @@ export class KeyUpdateDto {
   label?: string;
 
   @IsOptional()
+  @IsIn(["checkout", "sms"])
+  keyType?: "checkout" | "sms";
+
+  @IsOptional()
   @IsArray()
-  @IsIn(["payment:checkout", "payment:verify"], { each: true })
+  @IsIn(keyAbilities, { each: true })
   abilities?: string[];
 
   @IsOptional()
@@ -375,6 +388,20 @@ export class KeyUpdateDto {
   @IsString()
   @MaxLength(40)
   expiresAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  token?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  secret?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  generate?: boolean;
 }
 
 export class UddoktaCheckoutDto {
