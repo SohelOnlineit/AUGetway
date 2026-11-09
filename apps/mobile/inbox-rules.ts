@@ -67,6 +67,14 @@ export function keepMessage(
   return rules.senders.some((sender) => sender.enabled && matchesSender(row.address, row.body, sender.name));
 }
 
+const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
+
+export function shouldUpload(row: { body: string; trxId: string; amount: string }) {
+  const lower = row.body.toLowerCase();
+  if (DEBIT.some((hint) => lower.includes(hint))) return false;
+  return Boolean(row.trxId || row.amount);
+}
+
 export function senderLabel(address: string, body: string, senders: Sender[]) {
   const hit = senders
     .filter((sender) => matchesSender(address, body, sender.name))

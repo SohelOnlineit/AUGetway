@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_SENDERS, keepMessage, senderLabel, type InboxRules } from "./inbox-rules.ts";
+import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules } from "./inbox-rules.ts";
 
 const now = Date.parse("2026-11-09T07:00:00Z");
 const fresh = now - 60_000;
@@ -53,6 +53,12 @@ test("a bank sender name is the card title", () => {
 test("a short code does not match a number inside the message", () => {
   const row = { address: "01711111111", body: "Call me about 16216 later", receivedAt: fresh };
   assert.equal(keepMessage(row, rules(), now), false);
+});
+
+test("a received payment is uploaded and an outgoing transfer is not", () => {
+  assert.equal(shouldUpload({ body: "You have received payment Tk 260.00", trxId: "", amount: "260.00" }), true);
+  assert.equal(shouldUpload({ body: "Cash out Tk 100.00", trxId: "ABC12345", amount: "100.00" }), false);
+  assert.equal(shouldUpload({ body: "bKash offer", trxId: "", amount: "" }), false);
 });
 
 test("a two-letter keyword cannot hide every message", () => {

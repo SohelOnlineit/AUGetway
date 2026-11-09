@@ -36,7 +36,7 @@ class UniqpaySmsModule : Module() {
       if (!granted(Manifest.permission.READ_SMS)) {
         throw CodedException("SMS permission is not granted")
       }
-      readRecentSms(limit.coerceIn(1, 40))
+      readRecentSms(limit.coerceIn(1, 60))
     }
 
     Function("batteryIgnored") {
@@ -116,7 +116,7 @@ class UniqpaySmsModule : Module() {
       val bodyIdx = it.getColumnIndex(Telephony.Sms.BODY)
       val dateIdx = it.getColumnIndex(Telephony.Sms.DATE)
       var scanned = 0
-      while (it.moveToNext() && rows.size < limit && scanned < 150) {
+      while (it.moveToNext() && rows.size < limit && scanned < 200) {
         scanned += 1
         val address = if (addressIdx >= 0) it.getString(addressIdx).orEmpty() else ""
         val body = if (bodyIdx >= 0) it.getString(bodyIdx).orEmpty() else ""

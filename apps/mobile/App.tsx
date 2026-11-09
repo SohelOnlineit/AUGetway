@@ -3,7 +3,7 @@ import { AppState, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaVie
 import { StatusBar } from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
-import { DEFAULT_SENDERS, keepMessage, senderLabel, type InboxRules, type Sender } from "./inbox-rules";
+import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -47,8 +47,6 @@ type InboxItem = PaymentSms & { key: string; status: SyncState; wallet: string }
 type Tab = "home" | "filters" | "settings";
 type ListFilter = "all" | SyncState;
 
-const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
-
 function dayKey(time: number) {
   const date = new Date(time);
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -67,11 +65,6 @@ function stamp(time: number) {
   const day = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const clock = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   return `${day} at ${clock}`;
-}
-
-function looksLikeDebit(body: string) {
-  const lower = body.toLowerCase();
-  return DEBIT.some((hint) => lower.includes(hint));
 }
 
 async function allowSms() {
@@ -118,6 +111,8 @@ export default function App() {
   const [smsText, setSmsText] = useState("");
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
   const seenSms = useRef(new Set<string>());
+  const sentJobs = useRef(new Set<string>());
+  const askedSend = useRef(false);
   const work = useRef(false);
   const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -175,9 +170,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name")]).then(
-      ([savedToken, savedUid, savedName]) => {
+    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name"), readStore("uniqpay_sent_jobs")]).then(
+      ([savedToken, savedUid, savedName, savedJobs]) => {
         if (savedName) setName(savedName);
+        if (savedJobs) {
+          try {
+            const ids = JSON.parse(savedJobs) as string[];
+            if (Array.isArray(ids)) sentJobs.current = new Set(ids.filter((id) => typeof id === "string").slice(-100));
+          } catch {
+            // A bad saved list just means a queued SMS can be sent once more.
+          }
+        }
         const nextUid = savedUid || deviceUid();
         setUid(nextUid);
         if (!savedUid) void writeStore("uniqpay_uid", nextUid);
@@ -379,7 +382,7 @@ export default function App() {
         body: JSON.stringify({
           uid,
           body: text,
-          ...(from.trim() ? { sender: from.trim() } : {}),
+          ...(from.trim() ? { sender: from.trim().slice(0, 80) } : {}),
           ...(receivedKey ? { receivedKey: receivedKey.slice(0, 80) } : {}),
         }),
       });
@@ -430,7 +433,7 @@ export default function App() {
       }
     }
     try {
-      const rows = await listRecentSms(40);
+      const rows = await listRecentSms(60);
       const rules = rulesRef.current;
       const now = Date.now();
       const kept = rows.filter((row) => keepMessage(row, rules, now));
@@ -446,7 +449,7 @@ export default function App() {
       if (!submitNew) return;
       for (const row of next) {
         if (statusRef.current[row.key] === "synced") continue;
-        if (!row.trxId || !row.amount || looksLikeDebit(row.body)) continue;
+        if (!shouldUpload(row)) continue;
         if (seenSms.current.has(row.key)) continue;
         const ok = await submitMessage(row.body, row.address, row.key, true);
         const status: SyncState = ok ? "synced" : "failed";
@@ -503,6 +506,15 @@ export default function App() {
     let stop = false;
     const deliver = async () => {
       if (work.current) return;
+      const canRead = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
+      const canChooseSim = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
+      if (!canRead || !canChooseSim) {
+        if (!askedSend.current) {
+          askedSend.current = true;
+          await allowSms();
+        }
+        return;
+      }
       try {
         const response = await fetch(`${DESK}/handset/jobs?uid=${encodeURIComponent(uid)}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -511,12 +523,20 @@ export default function App() {
           if (!stop) void signOut();
           return;
         }
+        if (response.status === 404) {
+          if (!stop) setNote("Update the website before this phone can send desk SMS.");
+          return;
+        }
         if (!response.ok) return;
         const data = (await response.json()) as { simSlot?: number; jobs?: { id: string; to: string; body: string; simSlot: number }[] };
         if (!stop && (data.simSlot === 0 || data.simSlot === 1)) setSimSlot(data.simSlot);
         for (const job of data.jobs ?? []) {
           try {
-            await sendOneSms(job.to, job.body, job.simSlot);
+            if (!sentJobs.current.has(job.id)) {
+              await sendOneSms(job.to, job.body, job.simSlot);
+              sentJobs.current.add(job.id);
+              void writeStore("uniqpay_sent_jobs", JSON.stringify([...sentJobs.current].slice(-100)));
+            }
             await fetch(`${DESK}/handset/jobs/${job.id}`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

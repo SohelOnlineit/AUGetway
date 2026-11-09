@@ -565,7 +565,7 @@ export class NoticeDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(40)
+  @MaxLength(80)
   sender?: string;
 
   @IsOptional()

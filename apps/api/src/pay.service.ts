@@ -958,6 +958,12 @@ export class PayService implements OnModuleInit {
       data: { label, ...(input.simSlot === 0 || input.simSlot === 1 ? { simSlot: input.simSlot } : {}) },
     });
     if (updated.count === 0) throw new NotFoundException("Device not found");
+    if (input.simSlot === 0 || input.simSlot === 1) {
+      await this.prisma.outboundSms.updateMany({
+        where: { handsetId: id, status: "queued" },
+        data: { simSlot: input.simSlot },
+      });
+    }
     return { ok: true };
   }
 

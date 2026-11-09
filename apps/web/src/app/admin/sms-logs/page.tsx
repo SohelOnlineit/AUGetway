@@ -12,12 +12,25 @@ export default function SmsLogsPage() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    api<Log[]>("/desk/sms-logs")
-      .then((list) => {
-        setRows(list);
-        setReady(true);
-      })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load"));
+    let stop = false;
+    const load = () => {
+      api<Log[]>("/desk/sms-logs")
+        .then((list) => {
+          if (stop) return;
+          setRows(list);
+          setReady(true);
+          setError("");
+        })
+        .catch((cause: unknown) => {
+          if (!stop) setError(cause instanceof Error ? cause.message : "Could not load");
+        });
+    };
+    load();
+    const timer = setInterval(load, 10000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
   }, []);
 
   const filtered = useMemo(() => {

@@ -49,8 +49,15 @@ export default function SmsGatewayPage() {
   const [sendNote, setSendNote] = useState("");
   const [jobs, setJobs] = useState<{ id: string; handset: string; to: string; body: string; simSlot: number; status: string; error: string; createdAt: string }[]>([]);
 
+  const [jobsError, setJobsError] = useState("");
+
   function loadJobs() {
-    api<typeof jobs>("/desk/sms").then(setJobs).catch(() => setJobs([]));
+    api<typeof jobs>("/desk/sms")
+      .then((list) => {
+        setJobs(list);
+        setJobsError("");
+      })
+      .catch((reason) => setJobsError(reason instanceof Error ? reason.message : "Could not load outgoing SMS"));
   }
 
   function load() {
@@ -60,7 +67,10 @@ export default function SmsGatewayPage() {
   useEffect(() => {
     load();
     loadJobs();
-    const timer = setInterval(loadJobs, 10000);
+    const timer = setInterval(() => {
+      load();
+      loadJobs();
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -172,6 +182,7 @@ export default function SmsGatewayPage() {
             <input value={sendBody} onChange={(event) => setSendBody(event.target.value)} maxLength={320} required />
           </label>
           {sendNote ? <p className="muted">{sendNote}</p> : null}
+          {jobsError ? <p className="error">{jobsError}</p> : null}
           <div className="dev-modal-actions">
             <button className="btn" type="submit" disabled={busy}>Queue SMS</button>
           </div>
