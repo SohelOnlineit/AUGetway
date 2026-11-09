@@ -1860,9 +1860,11 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .fin-hero { padding: 16px; }
   .fin-hero strong { font-size: 28px; word-break: break-word; }
   .people-stats { grid-template-columns: 1fr 1fr; }
-  .ck-page { padding: 12px; align-items: stretch; }
-  .ck-card { min-height: 0; border-radius: 18px; }
-  .ck-side, .ck-main { padding: 20px 16px; }
+  .ck-page { padding: 0; align-items: stretch; }
+  .ck-card { width: 100%; min-height: 0; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
+  .ck-side, .ck-main { padding: 14px 8px; }
+  .ck-amount { padding: 12px 10px; }
+  .ck-grid { gap: 10px; }
   .account-top h2 { font-size: 26px; }
   .modal, .dev-modal, .txn-dialog, .pl-dialog, .inv-dialog, .people-dialog { width: min(520px, calc(100vw - 24px)); }
 }
