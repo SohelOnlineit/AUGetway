@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, isOtpMessage, isPaymentSender } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, trxRefOk } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -25,6 +25,15 @@ test("the desk stores a wallet payment and refuses a personal message", () => {
   assert.equal(acceptInboundSms("Mom", "Send Tk 20"), false);
   assert.equal(acceptInboundSms("Dutch Bangla", "Cash in Tk 500.00. TrxID ZXCVBN12"), true);
   assert.equal(acceptInboundSms("bKash", "Your OTP is 123456"), false);
+});
+
+test("a transaction id is a whole code, not part of an amount", () => {
+  assert.equal(trxRefOk("8N70O2M4RB"), true);
+  assert.equal(trxRefOk("100"), false);
+  assert.equal(trxRefOk("ABC"), false);
+  assert.equal(bodyHasRef("You have received Tk 1.00. TrxID 8N70O2M4RB.", "8N70O2M4RB"), true);
+  assert.equal(bodyHasRef("You have received Tk 100.00.", "100"), false);
+  assert.equal(bodyHasRef("TrxID 8N70O2M4RBX extra", "8N70O2M4RB"), false);
 });
 
 test("an otp or verification code is not a payment", () => {

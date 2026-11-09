@@ -1048,6 +1048,7 @@ a.ck-cancel:hover { color: var(--fg); }
 .ck-field { display: flex; flex-direction: column; gap: 6px; }
 .ck-field span { color: var(--fg); font-size: 13px; font-weight: 700; }
 .ck-field input { width: 100%; padding: 12px 14px; color: var(--fg); outline: none; }
+.ck-ref { text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
 .ck-field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 245, 160, 0.14); }
 .ck-field input::placeholder { color: var(--muted); }
 .ck-field input[type="file"] { color: var(--muted); }

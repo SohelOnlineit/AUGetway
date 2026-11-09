@@ -336,11 +336,21 @@ export default function PayPage() {
                   <input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" />
                 </label>
               ) : null}
+              {card.method.verifyBy === "unique_amount" ? (
+                <>
+                  <p className="ck-wait"><i />{text(lang, "Waiting for your payment...", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
+                  <p className="ck-note">{text(lang, "Please wait. Your payment will be verified automatically, or enter your Transaction ID below:", "অনুগ্রহ করে অপেক্ষা করুন। আপনার পেমেন্টটি অটোমেটিক ভেরিফাই হয়ে যাবে, অথবা নিচে ট্রানজেকশন আইডি দিন:")}</p>
+                  <label className="ck-field">
+                    <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
+                    <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
+                  </label>
+                </>
+              ) : null}
               {card.method.verifyBy !== "unique_amount" && card.method.verifyBy !== "sender_number" ? (
                 <>
                   <label className="ck-field">
-                    <span>{text(lang, "Transaction ID", "ট্রানজেকশন আইডি")}</span>
-                    <input name="providerRef" required minLength={6} placeholder="8N70O2M4RB" />
+                    <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
+                    <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
                   </label>
                   <label className="ck-field">
                     <span>{text(lang, "Your wallet number", "আপনার ওয়ালেট নম্বর")}</span>
@@ -356,11 +366,9 @@ export default function PayPage() {
               ) : null}
               {card.status === "pending" ? <p className="ck-note">{text(lang, "This payment is pending a check.", "পেমেন্টটি যাচাইয়ের অপেক্ষায়।")}</p> : null}
               {card.providerRef ? <p className="ck-note">{text(lang, `Waiting for confirmation of ${card.providerRef}.`, `${card.providerRef} নিশ্চিত হওয়ার অপেক্ষায়।`)}</p> : null}
-              {card.method.verifyBy === "unique_amount" && card.method.acceptProof === false ? (
-                <p className="ck-wait"><i />{text(lang, "Waiting for your payment...", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
-              ) : (
-                <button className="ck-pay on" disabled={pending} type="submit">{text(lang, "I have paid", "পেমেন্ট যাচাই করুন")}</button>
-              )}
+              <button className="ck-pay on" disabled={pending} type="submit">
+                {text(lang, card.method.verifyBy === "unique_amount" ? "Submit" : "I have paid", card.method.verifyBy === "unique_amount" ? "সাবমিট করুন" : "পেমেন্ট যাচাই করুন")}
+              </button>
             </form>
           ) : null}
 

@@ -55,6 +55,26 @@ function paymentSignals(body: string) {
   };
 }
 
+export function trxRefOk(value: string) {
+  return /^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(value);
+}
+
+export function bodyHasRef(body: string, ref: string) {
+  const upper = body.toUpperCase();
+  let from = 0;
+  while (from < upper.length) {
+    const index = upper.indexOf(ref, from);
+    if (index < 0) return false;
+    const before = upper[index - 1] ?? " ";
+    const after = upper[index + ref.length] ?? " ";
+    const beforeOk = !/[A-Z0-9.]/.test(before);
+    const afterOk = !/[A-Z0-9]/.test(after) && !(after === "." && /^[0-9]+$/.test(ref));
+    if (beforeOk && afterOk) return true;
+    from = index + 1;
+  }
+  return false;
+}
+
 export function acceptInboundSms(sender: string, body: string) {
   const text = body.trim();
   if (text.length < 4 || text.length > 500) return false;

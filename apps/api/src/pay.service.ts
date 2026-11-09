@@ -9,7 +9,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { acceptInboundSms, isOtpMessage, isPaymentSender } from "./payment-sms";
+import { acceptInboundSms, bodyHasRef, isOtpMessage, isPaymentSender, trxRefOk } from "./payment-sms";
 import { PrismaService } from "./prisma.service";
 
 const DEBIT_HINTS = [
@@ -1155,28 +1155,24 @@ export class PayService implements OnModuleInit {
     const payerAccount = (input.payerAccount ?? "").trim();
     const receipt = input.receipt?.startsWith("data:image/") ? input.receipt : "";
     if (input.receipt && !receipt) throw new BadRequestException("Receipt must be an image");
-    if (verifyBy === "transaction_id" && providerRef.length < 6 && !row.providerRef) {
-      throw new BadRequestException("Enter the transaction reference");
+    if (providerRef && !trxRefOk(providerRef)) {
+      throw new BadRequestException("Enter the transaction ID from the payment message");
     }
-    if (verifyBy === "sender_number" && !senderNumberOk(payerAccount || row.payerAccount || "")) {
+    if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
+      throw new BadRequestException("Enter the transaction ID from the payment message");
+    }
+    if (verifyBy === "sender_number" && !providerRef && !senderNumberOk(payerAccount || row.payerAccount || "")) {
       throw new BadRequestException("Sender number must start with 01 and be exactly 11 digits (e.g. 01XXXXXXXXX).");
-    }
-    const claimedRef = (providerRef || row.providerRef || "").toUpperCase();
-    if (verifyBy === "transaction_id" && claimedRef) {
-      const used = await this.prisma.checkout.findFirst({
-        where: { ownerId: row.ownerId, status: "paid", providerRef: claimedRef, id: { not: row.id } },
-      });
-      if (used) {
-        throw new BadRequestException("This Transaction ID has already been verified and used for another completed order.");
-      }
     }
     if (receipt && !row.method?.acceptProof) {
       throw new BadRequestException("This method does not accept a receipt");
     }
+    if (providerRef) {
+      return this.claimByReference(row, providerRef, payerAccount);
+    }
     await this.prisma.checkout.update({
       where: { id: row.id },
       data: {
-        providerRef: providerRef || row.providerRef,
         payerAccount: payerAccount || row.payerAccount,
         receipt: receipt || undefined,
       },
@@ -1193,26 +1189,87 @@ export class PayService implements OnModuleInit {
     const fresh = await this.publicPay(id);
     const linked = await this.prisma.inboxNotice.findFirst({ where: { checkoutId: row.id } });
     if (fresh.status === "paid" || linked) return fresh;
-    if (verifyBy === "transaction_id" && claimedRef) {
-      const hit = notices.find((notice) => isPaymentSender(notice.sender) && !isOtpMessage(notice.body) && !looksLikeDebit(notice.body) && notice.body.toUpperCase().includes(claimedRef));
-      if (hit) {
-        const paidAmount = parsePaidAmount(hit.body);
-        const under = Number(row.method?.underTolerance ?? 0);
-        const over = Number(row.method?.overTolerance ?? 0);
-        if (paidAmount === null || !amountFits(paidAmount, Number(row.payable), under, over)) {
-          throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
-        }
-      }
-    }
-    const acceptProof = Boolean(row.method?.acceptProof);
-    const holdUnmatched = Boolean(row.method?.holdUnmatched);
-    if ((receipt && acceptProof) || (verifyBy === "transaction_id" && holdUnmatched)) {
+    if (receipt && row.method?.acceptProof) {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "pending" } });
       return this.publicPay(id);
     }
     if (verifyBy !== "transaction_id") return fresh;
-    await this.prisma.checkout.update({ where: { id: row.id }, data: { providerRef: null, receipt: "" } });
     throw new BadRequestException("That payment was not found");
+  }
+
+  private async claimByReference(
+    row: {
+      id: string;
+      publicId: string;
+      ownerId: string;
+      amount: unknown;
+      payable: unknown;
+      billId: string | null;
+      method: { verifyBy: string; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
+    },
+    providerRef: string,
+    payerAccount: string,
+  ) {
+    const used = await this.prisma.checkout.findFirst({
+      where: { ownerId: row.ownerId, status: "paid", providerRef, id: { not: row.id } },
+    });
+    if (used) {
+      throw new BadRequestException("This Transaction ID has already been verified and used for another completed order.");
+    }
+    const notices = await this.prisma.inboxNotice.findMany({
+      where: { handset: { ownerId: row.ownerId }, checkoutId: null },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    });
+    const hits = notices.filter((notice) =>
+      isPaymentSender(notice.sender) && !isOtpMessage(notice.body) && !looksLikeDebit(notice.body) && bodyHasRef(notice.body, providerRef),
+    );
+    const under = Number(row.method?.underTolerance ?? 0);
+    const over = Number(row.method?.overTolerance ?? 0);
+    const expected = Number(row.payable);
+    const base = Number(row.amount);
+    const verifyBy = row.method?.verifyBy ?? "transaction_id";
+    const floor = verifyBy === "unique_amount" && expected > base + 0.001 ? Math.max(0, base - under) : expected - under;
+    const fit = hits.find((notice) => {
+      const paid = parsePaidAmount(notice.body);
+      if (paid === null) return false;
+      if (paid + 0.001 < floor) return false;
+      if (over > 0 && paid > expected + over + 0.001) return false;
+      return true;
+    });
+    if (!fit) {
+      if (hits.length > 0) {
+        throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
+      }
+      if (row.method?.holdUnmatched) {
+        await this.prisma.checkout.update({
+          where: { id: row.id },
+          data: { status: "pending", providerRef, ...(payerAccount ? { payerAccount } : {}) },
+        });
+        return this.publicPay(row.publicId);
+      }
+      throw new BadRequestException("That payment was not found");
+    }
+    const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
+    const claimed = await this.prisma.inboxNotice.updateMany({
+      where: { id: fit.id, checkoutId: null },
+      data: { checkoutId: row.id },
+    });
+    if (claimed.count !== 1) throw new BadRequestException("That payment was not found");
+    const saved = await this.prisma.checkout.updateMany({
+      where: { id: row.id, status: { in: ["waiting", "pending"] } },
+      data: { status: held ? "pending" : "paid", providerRef, ...(payerAccount ? { payerAccount } : {}) },
+    });
+    if (saved.count !== 1) {
+      await this.prisma.inboxNotice.update({ where: { id: fit.id }, data: { checkoutId: null } });
+      return this.publicPay(row.publicId);
+    }
+    if (!held) {
+      if (row.billId) await this.prisma.bill.update({ where: { id: row.billId }, data: { status: "paid" } });
+      const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id } });
+      if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
+    }
+    return this.publicPay(row.publicId);
   }
 
   async pulse(userId: string, input: { uid: string; label?: string; model?: string; battery?: number }) {
