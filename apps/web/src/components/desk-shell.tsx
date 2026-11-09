@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { applySiteChrome, customBrand, type PublicSite } from "@/lib/site";
@@ -48,7 +48,7 @@ function Icon({ name }: { name: string }) {
   return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12" /></svg>;
 }
 
-const pages = [...main, ...smsGateway, ...developers];
+const pages = [...main, ...smsGateway, ...developers, ["Account", "/admin/account", "admins"] as const];
 
 function initials(name: string, email: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -66,14 +66,6 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [query, setQuery] = useState("");
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [nextEmail, setNextEmail] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [accountError, setAccountError] = useState("");
-  const [accountNote, setAccountNote] = useState("");
-  const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [site, setSite] = useState<PublicSite | null>(null);
   const [adminMode, setAdminMode] = useState("");
@@ -158,54 +150,6 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     window.location.replace(next.toString());
   }
 
-  function openAccount() {
-    setMenuOpen(false);
-    setNextEmail(user?.email ?? "");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setAccountError("");
-    setAccountOpen(true);
-  }
-
-  async function saveAccount(event: FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    const email = nextEmail.trim().toLowerCase();
-    if (!email.includes("@")) {
-      setAccountError("Enter a valid email");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setAccountError("New passwords do not match");
-      return;
-    }
-    if (newPassword && newPassword.length < 8) {
-      setAccountError("New password must be at least 8 characters");
-      return;
-    }
-    if (email === user?.email && !newPassword) {
-      setAccountError("Change the email or the password");
-      return;
-    }
-    setBusy(true);
-    setAccountError("");
-    try {
-      const result = await api<{ accessToken: string; user: { name: string; email: string } }>("/auth/account", {
-        method: "PATCH",
-        body: JSON.stringify({ currentPassword, email, ...(newPassword ? { newPassword } : {}) }),
-      });
-      sessionStorage.setItem("uniqpay_token", result.accessToken);
-      setUser(result.user);
-      setAccountOpen(false);
-      setAccountNote("Account updated");
-    } catch (error) {
-      setAccountError(error instanceof Error ? error.message : "Could not update the account");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="desk">
       <header className="topbar">
@@ -265,8 +209,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
             <div className="avatar-menu">
               <p>{user?.name || "Desk"}</p>
               <p className="tiny">{user?.email}</p>
-              {accountNote ? <p className="tiny">{accountNote}</p> : null}
-              <button className="menu-row" type="button" onClick={openAccount}>Change email or password</button>
+              <Link className="menu-row" href="/admin/account" onClick={() => setMenuOpen(false)}>Email and password</Link>
               <button className="btn-line" type="button" onClick={signOut}>Sign out</button>
             </div>
           ) : null}
@@ -307,45 +250,6 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
       <section className="stage">{children}</section>
-      {accountOpen ? (
-        <div className="modal-back" onClick={() => { if (!busy) setAccountOpen(false); }}>
-          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => void saveAccount(event)}>
-            <header className="dev-modal-head">
-              <div>
-                <p className="keys-crumb">Account <span>›</span> Edit</p>
-                <h2>Change email or password</h2>
-              </div>
-              <button className="dev-close" type="button" onClick={() => setAccountOpen(false)}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg>
-                Close
-              </button>
-            </header>
-            <div className="dev-modal-body">
-              <label>
-                <span>Login email</span>
-                <input type="email" value={nextEmail} onChange={(event) => setNextEmail(event.target.value)} required maxLength={120} autoComplete="username" />
-              </label>
-              <label>
-                <span>Current password</span>
-                <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required minLength={8} autoComplete="current-password" />
-              </label>
-              <label>
-                <span>New password</span>
-                <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} maxLength={80} autoComplete="new-password" placeholder="Leave blank to keep the current password" />
-              </label>
-              <label>
-                <span>Confirm new password</span>
-                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
-              </label>
-              {accountError ? <p className="error">{accountError}</p> : null}
-            </div>
-            <div className="dev-modal-actions">
-              <button className="btn-line" type="button" onClick={() => setAccountOpen(false)}>Cancel</button>
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving" : "Save"}</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </div>
   );
 }

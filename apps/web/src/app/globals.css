@@ -189,6 +189,8 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   background: transparent;
   color: var(--fg);
   text-align: left;
+  text-decoration: none;
+  display: block;
   padding: 8px 10px;
   border-radius: 8px;
   font-weight: 650;
@@ -1042,5 +1044,112 @@ a.ck-cancel:hover { color: var(--fg); }
 }
 .theme-toggle:hover { color: var(--brand); border-color: var(--brand); }
 .theme-toggle svg { width: 18px; height: 18px; }
+
+.account-page { display: grid; gap: 18px; max-width: 920px; }
+.account-top h2 { margin: 6px 0 0; font-size: 32px; font-weight: 750; letter-spacing: -0.03em; }
+.account-top .muted { margin: 8px 0 0; max-width: 560px; }
+.account-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  background:
+    linear-gradient(135deg, rgb(38 191 176 / 0.16), transparent 42%),
+    var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.account-mark {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--cta);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+.account-hero h3 { margin: 0; font-size: 22px; font-weight: 750; }
+.account-hero p { margin: 4px 0 0; color: var(--muted); }
+.account-role {
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 700;
+}
+.account-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.account-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.account-card header { display: flex; gap: 12px; align-items: flex-start; }
+.account-card h3 { margin: 0; font-size: 18px; font-weight: 750; }
+.account-card header p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.account-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--tint);
+  color: var(--brand);
+}
+.account-field { display: grid; gap: 7px; }
+.account-label { font-weight: 650; font-size: 13.5px; }
+.account-field input {
+  width: 100%;
+  min-height: 46px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.account-field input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgb(38 191 176 / 0.18); }
+.account-field input::placeholder { color: var(--muted); }
+.account-secret { position: relative; display: block; }
+.account-secret input { padding-right: 72px; }
+.account-secret button {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.account-save {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+.account-save .btn { min-height: 44px; padding: 0 20px; background: var(--brand); color: #fff; font-weight: 700; }
+.account-save .btn:disabled { opacity: 0.65; }
+.account-save .error, .account-note { margin: 0; }
+.account-note { color: var(--good); font-weight: 650; }
+@media (max-width: 860px) {
+  .account-form { grid-template-columns: 1fr; }
+  .account-role { margin-left: 0; }
+  .account-hero { flex-wrap: wrap; }
+  .account-save { justify-content: stretch; flex-direction: column; align-items: stretch; }
+}
 .ck-tools { display: flex; gap: 8px; }
 .ck-tools .ck-lang { flex: 1; }
