@@ -459,10 +459,14 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .key-line .key-reveal { flex: 1; width: auto; min-width: 0; }
 .key-secret { color: var(--brand); font-family: ui-monospace, monospace; font-size: 13px; }
 .key-copy {
-  width: 30px; height: 30px; display: grid; place-items: center; flex: none;
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none;
   border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--brand); cursor: pointer;
 }
 .key-copy:hover { border-color: var(--brand); background: var(--tint); }
+.key-copy.done, .key-copy.fail { width: auto; padding: 0 8px; }
+.key-copy.done, .key-copy.done:hover { background: var(--cta); border-color: var(--cta); color: #fff; }
+.key-copy.fail, .key-copy.fail:hover { background: var(--card); border-color: var(--bad); color: var(--bad); }
+.key-copy span { font-size: 12px; font-weight: 700; }
 .key-abilities { display: flex; flex-wrap: wrap; gap: 6px; }
 .key-abilities span { background: var(--surface); color: var(--fg); border-radius: 999px; padding: 3px 8px; font-size: 12px; }
 .keys-empty { flex: 1; display: grid; place-items: center; min-height: 420px; }

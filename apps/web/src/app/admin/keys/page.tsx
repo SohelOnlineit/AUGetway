@@ -62,7 +62,7 @@ export default function KeysPage() {
   });
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState("");
+  const [copied, setCopied] = useState<{ id: string; ok: boolean } | null>(null);
   const [draft, setDraft] = useState<{ id: string; label: string; abilities: string[]; webhookUrl: string; expiresAt: string } | null>(null);
   const [removing, setRemoving] = useState<KeyRow | null>(null);
   const [formError, setFormError] = useState("");
@@ -124,13 +124,15 @@ export default function KeysPage() {
   }
 
   async function copyKey(id: string, value: string) {
+    let ok = false;
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(id);
-      window.setTimeout(() => setCopied((current) => (current === id ? "" : current)), 1500);
+      ok = true;
     } catch {
-      setError("Could not copy the key");
+      ok = false;
     }
+    setCopied({ id, ok });
+    window.setTimeout(() => setCopied((current) => (current?.id === id ? null : current)), 2000);
   }
 
   function openEdit(row: KeyRow) {
@@ -281,11 +283,27 @@ export default function KeysPage() {
                       <td>
                         <div className="key-line">
                           <span className="key-secret">{secret}</span>
-                          <button className="key-copy" type="button" aria-label={copied === row.id ? "Copied" : "Copy API key"} onClick={() => copyKey(row.id, secret)}>
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="9" y="9" width="11" height="11" rx="2" />
-                              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                            </svg>
+                          <button
+                            className={copied?.id === row.id ? (copied.ok ? "key-copy done" : "key-copy fail") : "key-copy"}
+                            type="button"
+                            aria-label={copied?.id === row.id ? (copied.ok ? "Copied" : "Could not copy") : "Copy API key"}
+                            onClick={() => copyKey(row.id, secret)}
+                          >
+                            {copied?.id === row.id && copied.ok ? (
+                              <>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                                  <path d="M20 6 9 17l-5-5" />
+                                </svg>
+                                <span>Copied</span>
+                              </>
+                            ) : copied?.id === row.id ? (
+                              <span>Failed</span>
+                            ) : (
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="11" height="11" rx="2" />
+                                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                              </svg>
+                            )}
                           </button>
                         </div>
                       </td>

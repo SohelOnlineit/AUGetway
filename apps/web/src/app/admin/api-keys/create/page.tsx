@@ -32,6 +32,7 @@ export default function CreateKeyPage() {
   const [error, setError] = useState("");
   const [issued, setIssued] = useState("");
   const [notice, setNotice] = useState("");
+  const [copied, setCopied] = useState("");
 
   function setType(keyType: KeyType) {
     setForm((current) => ({
@@ -89,10 +90,13 @@ export default function CreateKeyPage() {
     void submit(another);
   }
 
-  async function copy(value: string) {
+  async function copy(id: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
+      setCopied(id);
+      window.setTimeout(() => setCopied((current) => (current === id ? "" : current)), 2000);
     } catch {
+      setCopied("");
       setError("Could not copy the key");
     }
   }
@@ -117,12 +121,21 @@ export default function CreateKeyPage() {
             <h3>API Key created</h3>
             <p className="muted">Copy this key now. It is shown only once. Send it as <span className="token">x-merchant-key</span>.</p>
             <div className="key-line">
-              <button className="key-reveal" type="button" onClick={() => copy(issued)}>{issued}</button>
-              <button className="key-copy" type="button" aria-label="Copy API key" onClick={() => copy(issued)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
+              <button className="key-reveal" type="button" onClick={() => copy("issued", issued)}>{issued}</button>
+              <button className={copied === "issued" ? "key-copy done" : "key-copy"} type="button" aria-label={copied === "issued" ? "Copied" : "Copy API key"} onClick={() => copy("issued", issued)}>
+                {copied === "issued" ? (
+                  <>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    <span>Copied</span>
+                  </>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                  </svg>
+                )}
               </button>
             </div>
             <div className="key-actions">
@@ -206,7 +219,7 @@ export default function CreateKeyPage() {
             </div>
             {notice ? (
               <p className="key-note">
-                Previous key, copy it now: <button type="button" onClick={() => copy(notice)}>{notice}</button>
+                Previous key, copy it now: <button type="button" onClick={() => copy("notice", notice)}>{copied === "notice" ? "Copied" : notice}</button>
               </p>
             ) : null}
             {error ? <p className="error">{error}</p> : null}
