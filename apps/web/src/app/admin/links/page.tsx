@@ -53,6 +53,7 @@ export default function LinksPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
+  const [focus, setFocus] = useState<"all" | "on" | "off">("all");
 
   function load() {
     api<LinkRow[]>("/desk/links")
@@ -76,6 +77,8 @@ export default function LinksPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = rows.filter((row) => {
+      if (focus === "on" && !row.active) return false;
+      if (focus === "off" && row.active) return false;
       if (!needle) return true;
       return [row.title, row.slug, row.amount, row.currency, row.detail].some((value) => value.toLowerCase().includes(needle));
     });
@@ -85,7 +88,7 @@ export default function LinksPage() {
       if (sort === "amount") return (Number(a.amount) - Number(b.amount)) * factor;
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * factor;
     });
-  }, [rows, query, sort, dir]);
+  }, [rows, query, sort, dir, focus]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -145,23 +148,41 @@ export default function LinksPage() {
   }
 
   const pages = pageButtons(safePage, pageCount);
+  const stats = useMemo(() => {
+    const active = rows.filter((row) => row.active);
+    const value = active.reduce((sum, row) => sum + ((row.currency || "BDT") === "BDT" ? Number(row.amount) || 0 : 0), 0);
+    return { total: rows.length, active: active.length, off: rows.length - active.length, value };
+  }, [rows]);
+
+  function pick(next: "all" | "on" | "off") {
+    setFocus((current) => (current === next && next !== "all" ? "all" : next));
+    setPage(1);
+  }
 
   return (
     <div className="pl-page">
       <header className="pl-head">
         <div>
-          <p className="pl-crumb">Payment Links <span>›</span> List</p>
+          <p className="fin-live"><i /> Live links</p>
           <h2>Payment Links</h2>
+          <p className="pl-crumb">Share a link and collect a payment without opening a new invoice.</p>
         </div>
         <div className="pl-head-actions">
           {picked.length ? (
             <button className="pl-drop" type="button" onClick={removePicked} disabled={busy}>Delete selected ({picked.length})</button>
           ) : null}
-          <Link className="pl-new" href="/admin/payment-links/create">New payment link</Link>
+          <Link className="pl-new" href="/admin/payment-links/create"><PlusIcon /> New payment link</Link>
         </div>
       </header>
       {note ? <p className="pl-note">{note}</p> : null}
       {error ? <p className="error">{error}</p> : null}
+
+      <section className="pl-stats">
+        <StatCard icon="link" label="All" value={stats.total} ready={ready} active={focus === "all"} onClick={() => pick("all")} />
+        <StatCard icon="check" label="Active" value={stats.active} ready={ready} active={focus === "on"} onClick={() => pick("on")} />
+        <StatCard icon="pause" label="Inactive" value={stats.off} ready={ready} active={focus === "off"} onClick={() => pick("off")} />
+        <StatCard icon="wallet" label="Active value" value={stats.value} ready={ready} money />
+      </section>
 
       <section className="pl-card">
         <div className="pl-tools">
@@ -250,8 +271,9 @@ export default function LinksPage() {
           </table>
           {ready && !visible.length ? (
             <div className="pl-empty">
-              <strong>{query ? "No matches" : "No payment links yet"}</strong>
-              <p>{query ? "Nothing in this list matches that search." : "Create a link and share it with a customer."}</p>
+              <span className="fin-ico lg" aria-hidden="true"><LinkMark /></span>
+              <strong>{query || focus !== "all" ? "No matches" : "No payment links yet"}</strong>
+              <p>{query || focus !== "all" ? "Nothing in this list matches that view." : "Create a link and share it with a customer."}</p>
             </div>
           ) : null}
         </div>
@@ -290,6 +312,60 @@ function pageButtons(page: number, count: number) {
     items.push(number);
   });
   return items;
+}
+
+function useCount(target: number, ready: boolean) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!ready) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setValue(target);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / 700);
+      setValue(target * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, ready]);
+  return value;
+}
+
+function StatCard({ icon, label, value, ready, money = false, active = false, onClick }: { icon: string; label: string; value: number; ready: boolean; money?: boolean; active?: boolean; onClick?: () => void }) {
+  const shown = useCount(value, ready);
+  const text = !ready ? "—" : money ? `৳${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : Math.round(shown).toLocaleString("en-US");
+  const body = (
+    <>
+      <span className={`fin-ico ${icon}`} aria-hidden="true"><StatIcon name={icon} /></span>
+      <span>
+        <b>{text}</b>
+        <small>{label}</small>
+      </span>
+    </>
+  );
+  if (!onClick) return <article className="txn-stat">{body}</article>;
+  return <button type="button" className={active ? "txn-stat on" : "txn-stat"} onClick={onClick} aria-pressed={active}>{body}</button>;
+}
+
+function StatIcon({ name }: { name: string }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (name === "check") return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="m8.5 12.2 2.3 2.3 4.7-5" /></svg>;
+  if (name === "pause") return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="M10 9v6M14 9v6" /></svg>;
+  if (name === "wallet") return <svg viewBox="0 0 24 24"><path {...common} d="M4 8.5h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" /><path {...common} d="M4 8.5 6 5h11l3 3.5M16 13.5h3" /></svg>;
+  return <svg viewBox="0 0 24 24"><path {...common} d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path {...common} d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" /></svg>;
+}
+
+function LinkMark() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" /></svg>;
+}
+
+function PlusIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14" /></svg>;
 }
 
 function SearchIcon() {
