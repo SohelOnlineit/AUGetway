@@ -46,6 +46,6 @@ export type CheckoutCard = {
   successUrl?: string | null;
   cancelUrl?: string | null;
   method: MethodCard | null;
-  methods?: { id: string; label: string }[];
+  methods?: { id: string; label: string; accountNumber?: string }[];
   site?: PublicSite;
 };

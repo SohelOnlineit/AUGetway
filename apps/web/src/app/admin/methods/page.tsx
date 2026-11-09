@@ -236,6 +236,7 @@ export default function MethodsPage() {
               <th>Status</th>
               <th><button type="button" onClick={() => sortBy("minAmount")}>Min {sortKey === "minAmount" ? (sortDir === "asc" ? "↑" : "↓") : ""}</button></th>
               <th><button type="button" onClick={() => sortBy("maxAmount")}>Max {sortKey === "maxAmount" ? (sortDir === "asc" ? "↑" : "↓") : ""}</button></th>
+              <th>Account</th>
               <th></th>
             </tr>
           </thead>
@@ -261,10 +262,11 @@ export default function MethodsPage() {
                 </td>
                 <td>{pretty(row.minAmount)}</td>
                 <td>{pretty(row.maxAmount)}</td>
+                <td className="code">{row.accountNumber || "—"}</td>
                 <td><Link className="edit-link" href={`/admin/gateways/${row.id}`}>Edit</Link></td>
               </tr>
             ))}
-            {visible.length === 0 ? <tr><td colSpan={7}>No gateways match.</td></tr> : null}
+            {visible.length === 0 ? <tr><td colSpan={8}>No gateways match.</td></tr> : null}
           </tbody>
         </table>
         <div className="gw-foot">

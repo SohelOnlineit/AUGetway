@@ -494,6 +494,10 @@ export class PayService implements OnModuleInit {
   }
 
   async listCheckouts(ownerId: string) {
+    await this.prisma.checkout.updateMany({
+      where: { ownerId, status: { in: ["open", "waiting"] }, expiresAt: { lt: new Date() } },
+      data: { status: "expired" },
+    });
     const rows = await this.prisma.checkout.findMany({
       where: { ownerId },
       include: { method: true },
@@ -1578,7 +1582,7 @@ export class PayService implements OnModuleInit {
     const methods = includeMethods
       ? await this.prisma.walletMethod.findMany({
           where: { ownerId: row.ownerId, active: true },
-          select: { id: true, label: true },
+          select: { id: true, label: true, accountNumber: true },
           orderBy: { label: "asc" },
         })
       : undefined;

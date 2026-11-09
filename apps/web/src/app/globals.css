@@ -728,6 +728,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .ck-brand { display: flex; align-items: center; gap: 8px; }
 .ck-bag { display: grid; place-items: center; }
 .ck-word { font-size: 28px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
+.ck-account { color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: 0.01em; }
 .ck-site-note, .ck-faq p { margin: 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 .ck-faq { display: flex; flex-direction: column; gap: 6px; }
 .ck-faq strong { font-size: 14px; }
