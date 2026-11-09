@@ -56,9 +56,26 @@ test("a short code does not match a number inside the message", () => {
 });
 
 test("a received payment is uploaded and an outgoing transfer is not", () => {
-  assert.equal(shouldUpload({ body: "You have received payment Tk 260.00", trxId: "", amount: "260.00" }), true);
-  assert.equal(shouldUpload({ body: "Cash out Tk 100.00", trxId: "ABC12345", amount: "100.00" }), false);
-  assert.equal(shouldUpload({ body: "bKash offer", trxId: "", amount: "" }), false);
+  assert.equal(shouldUpload({ address: "bKash", body: "You have received payment Tk 260.00", trxId: "", amount: "260.00" }, DEFAULT_SENDERS), true);
+  assert.equal(shouldUpload({ address: "bKash", body: "Cash out Tk 100.00", trxId: "ABC12345", amount: "100.00" }, DEFAULT_SENDERS), false);
+  assert.equal(shouldUpload({ address: "bKash", body: "bKash offer", trxId: "", amount: "" }, DEFAULT_SENDERS), false);
+});
+
+test("a personal number with a transaction id is rejected", () => {
+  const row = {
+    address: "01711111111",
+    body: "bKash received Tk 260.00. TrxID ABC12345",
+    receivedAt: fresh,
+  };
+  assert.equal(keepMessage(row, rules(), now), false);
+  assert.equal(keepMessage(row, rules({ whitelistOn: false }), now), false);
+  assert.equal(shouldUpload({ ...row, trxId: "ABC12345", amount: "260.00" }, DEFAULT_SENDERS), false);
+});
+
+test("an otp from a wallet sender is rejected", () => {
+  const row = { address: "bKash", body: "Your OTP is 123456 for TrxID ABC12345", receivedAt: fresh };
+  assert.equal(keepMessage(row, rules(), now), false);
+  assert.equal(shouldUpload({ ...row, trxId: "ABC12345", amount: "" }, DEFAULT_SENDERS), false);
 });
 
 test("a two-letter keyword cannot hide every message", () => {

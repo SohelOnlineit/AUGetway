@@ -3,7 +3,7 @@ import { AppState, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaVie
 import { StatusBar } from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, type PaymentSms } from "uniqpay-sms";
-import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
+import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -405,6 +405,12 @@ export default function App() {
 
   async function sendNotice() {
     if (work.current) return;
+    const rules = rulesRef.current;
+    const allowed = rules.senders.some((item) => item.enabled && matchesSender(sender, item.name));
+    if (!allowed || isOtpMessage(body)) {
+      setNote("This sender is not on the whitelist, so the payment was rejected.");
+      return;
+    }
     work.current = true;
     setBusy(true);
     try {
@@ -449,7 +455,7 @@ export default function App() {
       if (!submitNew) return;
       for (const row of next) {
         if (statusRef.current[row.key] === "synced") continue;
-        if (!shouldUpload(row)) continue;
+        if (!shouldUpload(row, rules.senders)) continue;
         if (seenSms.current.has(row.key)) continue;
         const ok = await submitMessage(row.body, row.address, row.key, true);
         const status: SyncState = ok ? "synced" : "failed";

@@ -136,10 +136,15 @@ class UniqpaySmsModule : Module() {
   }
 
   private fun isPayment(address: String, body: String): Boolean {
-    val text = "$address $body".lowercase()
-    val wallet = listOf("bkash", "nagad", "rocket", "upay", "16216", "16316")
-    val aboutMoney = text.contains("trx") || text.contains("txn") || text.contains("received") || text.contains("cash in")
-    return wallet.any { text.contains(it) } && aboutMoney
+    if (Regex("(?i)\\botp\\b").containsMatchIn(body) || Regex("(?i)\\bverification\\s*code\\b").containsMatchIn(body)) return false
+    val from = address.trim().lowercase()
+    val names = listOf("16216", "16269", "16316", "ab bank", "ab bank plc", "bank asia", "bkash", "brac bank", "cellfin", "city bank", "nagad", "rocket", "upay")
+    return names.any { name ->
+      if (name.all { it.isDigit() }) {
+        val digits = from.filter { it.isDigit() }
+        (if (digits.startsWith("880")) digits.drop(3) else digits) == name
+      } else from == name || Regex("(^|[^a-z0-9])${Regex.escape(name)}([^a-z0-9]|$)").containsMatchIn(from)
+    }
   }
 
   private fun parseTrx(body: String): String {

@@ -9,6 +9,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
+import { isOtpMessage, isPaymentSender } from "./payment-sms";
 import { PrismaService } from "./prisma.service";
 
 const DEBIT_HINTS = [
@@ -1183,14 +1184,14 @@ export class PayService implements OnModuleInit {
       take: 30,
     });
     for (const notice of notices) {
-      const matched = await this.matchOwner(row.ownerId, notice.body, notice.id);
+      const matched = await this.matchOwner(row.ownerId, notice.body, notice.id, notice.sender);
       if (matched) break;
     }
     const fresh = await this.publicPay(id);
     const linked = await this.prisma.inboxNotice.findFirst({ where: { checkoutId: row.id } });
     if (fresh.status === "paid" || linked) return fresh;
     if (verifyBy === "transaction_id" && claimedRef) {
-      const hit = notices.find((notice) => !looksLikeDebit(notice.body) && notice.body.toUpperCase().includes(claimedRef));
+      const hit = notices.find((notice) => isPaymentSender(notice.sender) && !isOtpMessage(notice.body) && !looksLikeDebit(notice.body) && notice.body.toUpperCase().includes(claimedRef));
       if (hit) {
         const paidAmount = parsePaidAmount(hit.body);
         const under = Number(row.method?.underTolerance ?? 0);
@@ -1336,7 +1337,7 @@ export class PayService implements OnModuleInit {
           receivedKey,
         },
       });
-      const matched = await this.matchOwner(userId, input.body, saved.id);
+      const matched = await this.matchOwner(userId, input.body, saved.id, input.sender ?? "");
       return { id: saved.id, matched };
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "P2002") || !receivedKey) throw error;
@@ -1534,8 +1535,8 @@ export class PayService implements OnModuleInit {
     return Number((base + randomInt(1, 400) * stepSize).toFixed(2));
   }
 
-  private async matchOwner(ownerId: string, body: string, noticeId?: string) {
-    if (looksLikeDebit(body)) return null;
+  private async matchOwner(ownerId: string, body: string, noticeId?: string, sender = "") {
+    if (!isPaymentSender(sender) || isOtpMessage(body) || looksLikeDebit(body)) return null;
     const waiting = await this.prisma.checkout.findMany({
       where: { ownerId, status: { in: ["waiting", "pending"] }, expiresAt: { gt: new Date() } },
       include: { method: true },

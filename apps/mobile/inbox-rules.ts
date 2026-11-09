@@ -37,22 +37,27 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function matchesSender(address: string, body: string, name: string) {
+export function matchesSender(address: string, name: string) {
   const needle = name.trim().toLowerCase();
   if (needle.length < 2) return false;
-  const from = address.toLowerCase();
-  if (/^\d+$/.test(needle)) return from.replace(/\D/g, "") === needle;
+  const from = address.trim().toLowerCase();
+  if (!from) return false;
+  if (/^\d+$/.test(needle)) {
+    const digits = from.replace(/\D/g, "");
+    return (digits.startsWith("880") ? digits.slice(3) : digits) === needle;
+  }
   if (from === needle) return true;
   const word = new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`, "i");
-  if (word.test(from)) return true;
-  return needle.length >= 4 && word.test(body);
+  return word.test(from);
+}
+
+export function isOtpMessage(body: string) {
+  return /\botp\b/i.test(body) || /\bverification\s*code\b/i.test(body);
 }
 
 function isPayment(address: string, body: string) {
-  const text = `${address} ${body}`.toLowerCase();
-  const wallet = ["bkash", "nagad", "rocket", "upay", "16216", "16316"];
-  const aboutMoney = text.includes("trx") || text.includes("txn") || text.includes("received") || text.includes("cash in");
-  return wallet.some((hint) => text.includes(hint)) && aboutMoney;
+  if (isOtpMessage(body)) return false;
+  return DEFAULT_SENDERS.some((sender) => matchesSender(address, sender.name));
 }
 
 export function keepMessage(
@@ -60,30 +65,30 @@ export function keepMessage(
   rules: InboxRules,
   now: number,
 ) {
+  if (isOtpMessage(row.body)) return false;
   if (rules.cleanDays > 0 && now - row.receivedAt > rules.cleanDays * 24 * 60 * 60 * 1000) return false;
   const text = `${row.address} ${row.body}`.toLowerCase();
   if (rules.keywords.some((word) => word.trim().length >= 3 && text.includes(word.trim().toLowerCase()))) return false;
   if (!rules.whitelistOn) return isPayment(row.address, row.body);
-  return rules.senders.some((sender) => sender.enabled && matchesSender(row.address, row.body, sender.name));
+  return rules.senders.some((sender) => sender.enabled && matchesSender(row.address, sender.name));
 }
 
 const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
 
-export function shouldUpload(row: { body: string; trxId: string; amount: string }) {
+export function shouldUpload(
+  row: { address: string; body: string; trxId: string; amount: string },
+  senders: Sender[],
+) {
+  if (isOtpMessage(row.body)) return false;
+  if (!senders.some((sender) => sender.enabled && matchesSender(row.address, sender.name))) return false;
   const lower = row.body.toLowerCase();
   if (DEBIT.some((hint) => lower.includes(hint))) return false;
   return Boolean(row.trxId || row.amount);
 }
 
-export function senderLabel(address: string, body: string, senders: Sender[]) {
+export function senderLabel(address: string, _body: string, senders: Sender[]) {
   const hit = senders
-    .filter((sender) => matchesSender(address, body, sender.name))
+    .filter((sender) => matchesSender(address, sender.name))
     .sort((left, right) => right.name.length - left.name.length)[0];
-  if (hit) return hit.name;
-  const text = `${address} ${body}`.toLowerCase();
-  if (text.includes("bkash") || text.includes("16216")) return "bKash";
-  if (text.includes("nagad")) return "Nagad";
-  if (text.includes("rocket")) return "Rocket";
-  if (text.includes("upay")) return "Upay";
-  return address || "SMS";
+  return hit?.name || address || "SMS";
 }
