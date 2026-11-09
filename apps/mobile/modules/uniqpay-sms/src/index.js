@@ -42,6 +42,27 @@ function stopKeepAlive() {
   native.stopKeepAlive();
 }
 
+function setSmsSync(spec) {
+  if (!native) return;
+  native.setSmsSync(JSON.stringify(spec || {}));
+}
+
+function syncedKeys() {
+  if (!native) return [];
+  const rows = native.syncedKeys();
+  return Array.isArray(rows) ? rows.filter((key) => typeof key === "string") : [];
+}
+
+function rememberSynced(keys) {
+  if (!native) return;
+  native.rememberSynced((keys || []).filter((key) => typeof key === "string").slice(0, 80));
+}
+
+function clearSynced() {
+  if (!native) return;
+  native.clearSynced();
+}
+
 async function sendOneSms(to, message, slot = 0) {
   if (!native) throw new Error("SMS sending needs the UniqBD Pay Android build.");
   return native.sendSms(to, message, slot === 1 ? 1 : 0);
@@ -55,5 +76,9 @@ module.exports = {
   askBattery,
   startKeepAlive,
   stopKeepAlive,
+  setSmsSync,
+  syncedKeys,
+  rememberSynced,
+  clearSynced,
   sendOneSms,
 };

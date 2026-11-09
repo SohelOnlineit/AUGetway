@@ -139,7 +139,7 @@ class KeepAliveService : Service() {
     try {
       val body = """{"uid":${json(uid)},"label":${json(label)},"model":"Android"}"""
       connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-      if (connection.responseCode == 401) {
+      if (connection.responseCode == 401 || SmsSync.push(applicationContext, base, token, uid) == 401) {
         prefs.edit().clear().putBoolean("userStop", true).apply()
         Watch.cancel(applicationContext)
         stopSelf()

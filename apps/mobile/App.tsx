@@ -3,7 +3,7 @@ import { AppState, Dimensions, Keyboard, Linking, PermissionsAndroid, Platform, 
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import { askBattery, batteryIgnored, listRecentSms, sendOneSms, smsReady, startKeepAlive, stopKeepAlive, type PaymentSms } from "uniqpay-sms";
+import { askBattery, batteryIgnored, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
@@ -210,6 +210,7 @@ function App() {
       if (savedWhitelist === "0") setWhitelistOn(false);
       if (savedCloud === "0") setCloudSync(false);
       if (savedClean === "7" || savedClean === "30") setCleanDays(Number(savedClean));
+      cloudRef.current = savedCloud !== "0";
       rulesRef.current = {
         whitelistOn: savedWhitelist !== "0",
         senders: rulesRef.current.senders,
@@ -217,6 +218,7 @@ function App() {
         cleanDays: savedClean === "7" || savedClean === "30" ? Number(savedClean) : 0,
       };
       setSettingsReady(true);
+      publishRules();
     });
     void refreshDevice();
     const sub = AppState.addEventListener("change", (state) => {
@@ -386,12 +388,16 @@ function App() {
 
   function saveSenders(next: Sender[]) {
     setSenders(next);
+    rulesRef.current = { ...rulesRef.current, senders: next };
     void writeStore("uniqpay_senders", JSON.stringify(next));
+    publishRules();
   }
 
   function saveKeywords(next: string[]) {
     setKeywords(next);
+    rulesRef.current = { ...rulesRef.current, keywords: next };
     void writeStore("uniqpay_keywords", JSON.stringify(next));
+    publishRules();
   }
 
   function addSender() {
@@ -511,11 +517,85 @@ function App() {
     }
   }
 
+  function publishRules() {
+    const rules = rulesRef.current;
+    try {
+      setSmsSync({
+        enabled: cloudRef.current,
+        senders: rules.senders.filter((row) => row.enabled).map((row) => row.name),
+        keywords: rules.keywords,
+        cleanDays: rules.cleanDays,
+      });
+    } catch {
+      // Expo Go has no background sync.
+    }
+  }
+
+  async function uploadPending(rows: InboxItem[]) {
+    const pending = rows.filter((row) => row.status !== "synced" && shouldUpload(row, rulesRef.current.senders) && !seenSms.current.has(row.key));
+    if (!pending.length || !token) return;
+    const saved = new Set<string>();
+    for (let index = 0; index < pending.length; index += 20) {
+      const chunk = pending.slice(index, index + 20);
+      let done: string[] = [];
+      try {
+        const response = await fetch(`${DESK}/handset/notices`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            uid,
+            messages: chunk.map((row) => ({ body: row.body, sender: row.address, receivedKey: row.key })),
+          }),
+        });
+        if (response.status === 401) {
+          void signOut();
+          return;
+        }
+        if (response.ok) {
+          const data = (await response.json()) as { results?: { receivedKey?: string; ok?: boolean }[] };
+          done = (data.results ?? []).filter((row) => row.ok && row.receivedKey).map((row) => row.receivedKey as string);
+        } else if (response.status === 404) {
+          const single = await Promise.all(chunk.map(async (row) => {
+            const one = await fetch(`${DESK}/handset/notice`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ uid, body: row.body, sender: row.address, receivedKey: row.key }),
+            });
+            if (one.status === 401) return "unauthorized";
+            return one.ok ? row.key : "";
+          }));
+          if (single.includes("unauthorized")) {
+            void signOut();
+            return;
+          }
+          done = single.filter((key) => key && key !== "unauthorized");
+        }
+      } catch {
+        done = [];
+      }
+      done.forEach((key) => saved.add(key));
+      chunk.forEach((row) => {
+        const status: SyncState = saved.has(row.key) ? "synced" : "failed";
+        statusRef.current[row.key] = status;
+        if (status === "synced") seenSms.current.add(row.key);
+      });
+    }
+    if (saved.size) {
+      try {
+        rememberSynced([...saved]);
+      } catch {
+        // The next open reads the desk again.
+      }
+    }
+    setItems((current) => current.map((item) => (statusRef.current[item.key] ? { ...item, status: statusRef.current[item.key] } : item)));
+  }
+
   async function readInbox(submitNew: boolean, manual = false) {
     if (work.current) return;
     work.current = true;
     setBusy(true);
     try {
+    if (!manual) setBusy(false);
     if (!smsReady) {
       if (manual) setNote("SMS reading needs the UniqBD Pay Android build, not Expo Go.");
       return;
@@ -528,6 +608,17 @@ function App() {
       }
     }
     try {
+      publishRules();
+      let known: string[] = [];
+      try {
+        known = syncedKeys();
+      } catch {
+        known = [];
+      }
+      known.forEach((key) => {
+        statusRef.current[key] = "synced";
+        seenSms.current.add(key);
+      });
       const rows = await listRecentSms(60);
       const rules = rulesRef.current;
       const now = Date.now();
@@ -542,16 +633,10 @@ function App() {
         return;
       }
       if (!submitNew) return;
-      for (const row of next) {
-        if (statusRef.current[row.key] === "synced") continue;
-        if (!shouldUpload(row, rules.senders)) continue;
-        if (seenSms.current.has(row.key)) continue;
-        const ok = await submitMessage(row.body, row.address, row.key, true);
-        const status: SyncState = ok ? "synced" : "failed";
-        statusRef.current[row.key] = status;
-        if (ok) seenSms.current.add(row.key);
-        setItems((current) => current.map((item) => (item.key === row.key ? { ...item, status } : item)));
-        if (!ok) return;
+      await uploadPending(next);
+      if (manual) {
+        const synced = next.filter((row) => statusRef.current[row.key] === "synced").length;
+        setNote(synced ? `${synced} payment messages are synced.` : "No new payment message to sync.");
       }
     } catch (cause) {
       if (manual) setNote(cause instanceof Error ? cause.message : "Could not read payment SMS");
@@ -675,6 +760,11 @@ function App() {
       stopKeepAlive();
     } catch {
       // Expo Go has no background watch.
+    }
+    try {
+      clearSynced();
+    } catch {
+      // Expo Go keeps no synced list.
     }
     await clearStore("uniqpay_token");
     setToken(null);
@@ -800,7 +890,7 @@ function App() {
                     [7, "Hide messages older than 7 days"],
                     [30, "Hide messages older than 30 days"],
                   ].map(([days, label]) => (
-                    <Pressable key={String(days)} style={[styles.choice, cleanDays === days && styles.choiceOn]} onPress={() => { setCleanDays(Number(days)); void writeStore("uniqpay_clean", String(days)); }}>
+                    <Pressable key={String(days)} style={[styles.choice, cleanDays === days && styles.choiceOn]} onPress={() => { const next = Number(days); setCleanDays(next); rulesRef.current = { ...rulesRef.current, cleanDays: next }; void writeStore("uniqpay_clean", String(days)); publishRules(); }}>
                       <Text style={styles.choiceText}>{label}</Text>
                     </Pressable>
                   ))}
@@ -850,11 +940,11 @@ function App() {
                     </View>
                     <View style={[styles.coreRow, styles.coreLast]}>
                       <Text style={styles.menuText}>Cloud Sync Enabled</Text>
-                      <Switch on={cloudSync} onPress={() => { const next = !cloudSync; setCloudSync(next); void writeStore("uniqpay_cloud", next ? "1" : "0"); }} />
+                      <Switch on={cloudSync} onPress={() => { const next = !cloudSync; setCloudSync(next); cloudRef.current = next; void writeStore("uniqpay_cloud", next ? "1" : "0"); publishRules(); }} />
                     </View>
                   </View>
                   <Text style={styles.sectionLabel}>PHONE</Text>
-                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} The UniqBD Pay notification keeps this phone online while the screen is off, after a restart, and if Android closes the app. Do not remove that notification, and keep battery optimization off.</Text>
+                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} The UniqBD Pay notification keeps this phone online and syncs new payment SMS while the screen is off. Do not remove that notification, and keep battery optimization off.</Text>
                   <Text style={styles.label}>Phone name</Text>
                   <Field scroll={pageScroll} style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
                   <Text style={styles.label}>Send one SMS</Text>

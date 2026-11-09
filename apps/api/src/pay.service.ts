@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -16,6 +17,19 @@ import { PrismaService } from "./prisma.service";
 import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sessionStamp } from "./session";
 
 type MoneyRow = { toString(): string };
+
+function batchError(error: unknown) {
+  if (error instanceof HttpException) {
+    const body = error.getResponse();
+    if (typeof body === "string") return body.slice(0, 180);
+    if (body && typeof body === "object" && "message" in body) {
+      const message = (body as { message?: string | string[] }).message;
+      const text = Array.isArray(message) ? message.join(", ") : message || "";
+      if (text) return text.slice(0, 180);
+    }
+  }
+  return "Could not save the payment message";
+}
 
 function money(value: MoneyRow | number | string) {
   return Number(value).toFixed(2);
@@ -1906,6 +1920,24 @@ export class PayService implements OnModuleInit {
       const existing = await this.prisma.inboxNotice.findFirst({ where: { handsetId: handset.id, receivedKey } });
       return { id: existing?.id ?? "", matched: existing?.checkoutId ?? null, duplicate: true };
     }
+  }
+
+  async noticeBatch(userId: string, input: { uid: string; messages: { body: string; sender?: string; receivedKey?: string }[] }) {
+    const results = [];
+    for (const item of input.messages.slice(0, 20)) {
+      try {
+        const saved = await this.notice(userId, { uid: input.uid, body: item.body, sender: item.sender, receivedKey: item.receivedKey });
+        results.push({
+          receivedKey: item.receivedKey ?? "",
+          ok: true,
+          matched: saved.matched ?? null,
+          duplicate: "duplicate" in saved && saved.duplicate === true,
+        });
+      } catch (error) {
+        results.push({ receivedKey: item.receivedKey ?? "", ok: false, message: batchError(error) });
+      }
+    }
+    return { results };
   }
 
   async merchantCreate(token: string, input: { reference: string; amount: number; currency?: string; successUrl?: string; cancelUrl?: string }) {

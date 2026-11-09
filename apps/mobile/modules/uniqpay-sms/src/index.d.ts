@@ -20,4 +20,12 @@ export function startKeepAlive(base: string, token: string, uid: string, label: 
 
 export function stopKeepAlive(): void;
 
+export function setSmsSync(spec: { enabled: boolean; senders: string[]; keywords: string[]; cleanDays: number }): void;
+
+export function syncedKeys(): string[];
+
+export function rememberSynced(keys: string[]): void;
+
+export function clearSynced(): void;
+
 export function sendOneSms(to: string, message: string, slot?: number): Promise<void>;

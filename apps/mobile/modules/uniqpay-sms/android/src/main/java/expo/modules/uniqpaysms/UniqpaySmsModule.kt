@@ -63,6 +63,22 @@ class UniqpaySmsModule : Module() {
       KeepAliveService.stop(context.applicationContext)
     }
 
+    Function("setSmsSync") { spec: String ->
+      SmsSync.configure(context.applicationContext, spec)
+    }
+
+    Function("syncedKeys") {
+      SmsSync.keys(context.applicationContext)
+    }
+
+    Function("rememberSynced") { keys: List<String> ->
+      SmsSync.remember(context.applicationContext, keys)
+    }
+
+    Function("clearSynced") {
+      SmsSync.clear(context.applicationContext)
+    }
+
     AsyncFunction("sendSms") Coroutine { to: String, message: String, slot: Int ->
       if (!granted(Manifest.permission.SEND_SMS)) {
         throw CodedException("SMS permission is not granted")

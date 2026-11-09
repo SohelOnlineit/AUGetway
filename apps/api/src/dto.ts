@@ -914,3 +914,33 @@ export class NoticeDto {
   @MaxLength(80)
   receivedKey?: string;
 }
+
+export class NoticeItemDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(500)
+  body!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  sender?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  receivedKey?: string;
+}
+
+export class NoticeBatchDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => NoticeItemDto)
+  messages!: NoticeItemDto[];
+}

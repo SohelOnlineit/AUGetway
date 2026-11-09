@@ -21,6 +21,7 @@ import {
   EditCheckoutDto,
   LoginDto,
   MethodDto,
+  NoticeBatchDto,
   NoticeDto,
   ProofDto,
   PulseDto,
@@ -362,6 +363,12 @@ export class PayController {
   @UseGuards(DeskGuard)
   notice(@Req() request: DeskRequest, @Body() body: NoticeDto) {
     return this.pay.notice(request.desk.sub, body);
+  }
+
+  @Post("handset/notices")
+  @UseGuards(DeskGuard)
+  noticeBatch(@Req() request: DeskRequest, @Body() body: NoticeBatchDto) {
+    return this.pay.noticeBatch(request.desk.sub, body);
   }
 
   @Get("handset/jobs")
