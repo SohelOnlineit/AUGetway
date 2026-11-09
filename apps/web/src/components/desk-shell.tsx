@@ -70,11 +70,17 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [accountError, setAccountError] = useState("");
   const [accountNote, setAccountNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     if (!sessionStorage.getItem("uniqpay_token")) {
       router.replace("/login");
       return;
+    }
+    const fresh = new URL(window.location.href);
+    if (fresh.searchParams.has("fresh")) {
+      fresh.searchParams.delete("fresh");
+      window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
     setReady(true);
     api<{ name: string; email: string }>("/auth/me")
@@ -91,6 +97,26 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   function signOut() {
     sessionStorage.removeItem("uniqpay_token");
     router.replace("/login");
+  }
+
+  async function clearCache() {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+    } catch {
+      setClearing(false);
+    }
+    const next = new URL(window.location.href);
+    next.searchParams.set("fresh", String(Date.now()));
+    window.location.replace(next.toString());
   }
 
   function openAccount() {
@@ -177,6 +203,14 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
               </div>
             ) : null}
           </div>
+          <button className={`cache-clear${clearing ? " busy" : ""}`} type="button" aria-label="Clear website cache" title="Clear website cache" disabled={clearing} onClick={() => void clearCache()}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-9-9 9.7 9.7 0 0 0-6.7 2.7L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.7 9.7 0 0 0 6.7-2.7L21 16" />
+              <path d="M16 16h5v5" />
+            </svg>
+          </button>
           <button className="avatar" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account">
             {user ? initials(user.name, user.email) : "·"}
           </button>
