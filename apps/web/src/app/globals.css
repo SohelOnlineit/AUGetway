@@ -1067,9 +1067,22 @@ a.ck-cancel:hover { color: var(--fg); }
 .theme-toggle:hover { color: var(--brand); border-color: var(--brand); }
 .theme-toggle svg { width: 18px; height: 18px; }
 
-.account-page { display: grid; gap: 18px; max-width: 920px; }
+.account-page {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-height: calc(100vh - 120px);
+  align-content: start;
+}
+.account-top {
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
 .account-top h2 { margin: 6px 0 0; font-size: 32px; font-weight: 750; letter-spacing: -0.03em; }
-.account-top .muted { margin: 8px 0 0; max-width: 560px; }
+.account-top .muted { margin: 8px 0 0; max-width: none; }
 .account-hero {
   display: flex;
   align-items: center;
