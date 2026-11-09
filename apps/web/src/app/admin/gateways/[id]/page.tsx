@@ -55,6 +55,14 @@ function plain(value: string | number) {
   return Number.isFinite(amount) ? String(amount) : "";
 }
 
+function slotHelp(kind: string, slots: string) {
+  const count = Math.max(1, Math.min(40, Math.round(Number(slots)) || 1));
+  const decimal = !kind.toLowerCase().includes("integer");
+  const step = decimal ? 0.01 : 1;
+  const sample = [0, 1, 2].map((index) => (100 + index * step).toFixed(2)).join(", ");
+  return `How many spare amounts to offer when customers owe the same total. Each is ${step.toFixed(2)} above the last, so ${count} lets ${count + 1} people pay at once and the last pays ${(count * step).toFixed(2)} over the invoice. Example: ${sample}.`;
+}
+
 function fromDetail(row: GatewayDetail): FormState {
   return {
     internalLabel: row.internalLabel,
@@ -263,19 +271,23 @@ export default function EditGatewayPage() {
               <input required type="number" min={1} max={1440} value={form.payWindow} onChange={(event) => patch({ payWindow: event.target.value })} />
               <p className="gw-help">How long the customer has to pay while the page waits for their deposit. They see a countdown, and a deposit arriving after it is no longer matched to that checkout.</p>
             </label>
-            <label>
-              <span className="gw-label">Unique Amount Slots</span>
-              <input required type="number" min={1} max={40} value={form.uniqueSlots} onChange={(event) => patch({ uniqueSlots: event.target.value })} />
-              <p className="gw-help">How many spare amounts to offer when customers owe the same total. Each is one taka above the last, so 3 lets 4 people pay at once and the last of them pays 3 taka over the invoice.</p>
-            </label>
-            <label>
-              <span className="gw-label">Unique Amount Type</span>
-              <select value={form.uniqueKind} onChange={(event) => patch({ uniqueKind: event.target.value })}>
-                <option value="integer">Integer (e.g. 11)</option>
-                <option value="decimal">Decimal (e.g. 100.04)</option>
-              </select>
-              <p className="gw-help">Integer rounds each checkout up to the next whole number (e.g. 101) for providers that refuse fractional amounts. Decimal adds fractional digits (e.g. 100.04) so the customer pays almost exactly the invoice.</p>
-            </label>
+            {form.verifyBy === "unique_amount" ? (
+              <>
+                <label>
+                  <span className="gw-label">Unique Amount Type<i>*</i></span>
+                  <select value={form.uniqueKind} onChange={(event) => patch({ uniqueKind: event.target.value })}>
+                    <option value="integer">Integer (e.g. 11)</option>
+                    <option value="decimal">Decimal (e.g. 100.04)</option>
+                  </select>
+                  <p className="gw-help">Integer rounds each checkout up to the next whole number, then adds 1.00 for every busy slot. Decimal keeps the paisa and adds 0.01 per slot, so a second customer paying 100.00 is asked for 100.01.</p>
+                </label>
+                <label>
+                  <span className="gw-label">Unique Amount Slots<i>*</i></span>
+                  <input required type="number" min={1} max={40} value={form.uniqueSlots} onChange={(event) => patch({ uniqueSlots: event.target.value })} />
+                  <p className="gw-help">{slotHelp(form.uniqueKind, form.uniqueSlots)}</p>
+                </label>
+              </>
+            ) : null}
             <label>
               <span className="gw-label">Receipt image upload</span>
               <select value={form.acceptProof ? "enable" : "disable"} onChange={(event) => patch({ acceptProof: event.target.value === "enable" })}>

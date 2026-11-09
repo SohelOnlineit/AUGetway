@@ -1584,7 +1584,7 @@ export class PayService implements OnModuleInit {
     const shifted = method.verifyBy === "unique_amount" || method.shiftAmount;
     await this.prisma.$transaction(async (tx) => {
       if (shifted) await this.lockKey(tx, `slot:${method.id}`);
-      const payable = shifted ? await this.allocatePayable(row.id, method, priced) : priced;
+      const payable = shifted ? await this.allocatePayable(tx, row.id, method, priced) : priced;
       if (accounts.length > 1) {
         await tx.walletMethod.update({
           where: { id: method.id },
@@ -2059,33 +2059,36 @@ export class PayService implements OnModuleInit {
   }
 
   private async allocatePayable(
+    tx: { checkout: PrismaService["checkout"] },
     checkoutId: string,
-    method: { id: string; verifyBy: string; uniqueKind: string; uniqueSlots: number; shiftAmount: boolean },
+    method: { id: string; verifyBy: string; uniqueKind: string; uniqueSlots: number },
     amount: number,
   ) {
-    const pending = await this.prisma.checkout.findMany({
+    const pending = await tx.checkout.findMany({
       where: {
         methodId: method.id,
         id: { not: checkoutId },
         status: { in: ["open", "waiting", "pending"] },
         expiresAt: { gt: new Date() },
       },
-      select: { payable: true },
+      select: { amount: true, payable: true },
     });
-    const taken = new Set(pending.map((row) => money(row.payable)));
-    const slots = method.verifyBy === "unique_amount" ? Math.max(1, method.uniqueSlots) : 400;
-    const kind = method.verifyBy === "unique_amount" ? method.uniqueKind : "decimal";
-    const base = kind === "integer" ? Math.ceil(amount - 1e-9) : amount;
-    const stepSize = kind === "integer" ? 1 : 0.01;
-    const room = kind === "integer" || method.verifyBy === "unique_amount" ? slots : 400;
-    for (let step = 0; step <= room; step += 1) {
-      const candidate = (base + step * stepSize).toFixed(2);
+    const taken = new Set<string>();
+    for (const row of pending) {
+      taken.add(money(row.payable));
+      taken.add(money(row.amount));
+    }
+    const unique = method.verifyBy === "unique_amount";
+    const decimal = unique ? !String(method.uniqueKind).toLowerCase().includes("integer") : true;
+    const slots = unique ? Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1)) : 400;
+    const baseCents = decimal ? Math.round(amount * 100) : Math.ceil(amount - 1e-9) * 100;
+    const stepCents = decimal ? 1 : 100;
+    for (let step = 0; step <= slots; step += 1) {
+      const candidate = ((baseCents + step * stepCents) / 100).toFixed(2);
       if (!taken.has(candidate)) return Number(candidate);
     }
-    if (method.verifyBy === "unique_amount") {
-      throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
-    }
-    return Number((base + randomInt(1, 400) * stepSize).toFixed(2));
+    if (unique) throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
+    return (baseCents + randomInt(1, 400) * stepCents) / 100;
   }
 
   private async matchOwner(ownerId: string, body: string, noticeId?: string, sender = "") {

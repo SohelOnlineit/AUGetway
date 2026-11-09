@@ -119,9 +119,12 @@ export default function PayPage() {
   const [picking, setPicking] = useState(true);
   const [copied, setCopied] = useState("");
   const chromeApplied = useRef(false);
+  const generation = useRef(0);
 
   async function load(resetPick = false) {
+    const gen = generation.current;
     const next = await api<CheckoutCard>(`/public/pay/${params.publicId}`);
+    if (gen !== generation.current) return next;
     setCard(next);
     if (resetPick) setPicking(next.status === "open" || !next.method);
     return next;
@@ -165,11 +168,14 @@ export default function PayPage() {
     if (!picked) return;
     setPending(true);
     setError("");
+    const gen = ++generation.current;
     try {
       const next = await api<CheckoutCard>(`/public/pay/${params.publicId}/method`, {
         method: "POST",
         body: JSON.stringify({ methodId: picked }),
       });
+      if (gen !== generation.current) return;
+      generation.current = gen + 1;
       setCard(next);
       setPicking(false);
     } catch (cause) {
