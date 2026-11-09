@@ -2061,28 +2061,42 @@ export class PayService implements OnModuleInit {
   private async allocatePayable(
     tx: { checkout: PrismaService["checkout"] },
     checkoutId: string,
-    method: { id: string; verifyBy: string; uniqueKind: string; uniqueSlots: number },
+    method: {
+      id: string;
+      verifyBy: string;
+      uniqueKind: string;
+      uniqueSlots: number;
+      fixedDiscount: { toString(): string };
+      percentageDiscount: { toString(): string };
+      fixedCharge: { toString(): string };
+      percentageCharge: { toString(): string };
+    },
     amount: number,
   ) {
     const pending = await tx.checkout.findMany({
       where: {
         methodId: method.id,
         id: { not: checkoutId },
-        status: { in: ["open", "waiting", "pending"] },
+        status: { in: ["waiting", "pending"] },
         expiresAt: { gt: new Date() },
       },
       select: { amount: true, payable: true },
     });
-    const taken = new Set<string>();
-    for (const row of pending) {
-      taken.add(money(row.payable));
-      taken.add(money(row.amount));
-    }
     const unique = method.verifyBy === "unique_amount";
     const decimal = unique ? !String(method.uniqueKind).toLowerCase().includes("integer") : true;
     const slots = unique ? Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1)) : 400;
-    const baseCents = decimal ? Math.round(amount * 100) : Math.ceil(amount - 1e-9) * 100;
+    const ladder = (value: number) => (decimal ? Math.round(value * 100) : Math.ceil(value - 1e-9) * 100);
+    const baseCents = ladder(amount);
     const stepCents = decimal ? 1 : 100;
+    const taken = new Set<string>();
+    let same = 0;
+    for (const row of pending) {
+      taken.add(money(row.payable));
+      if (ladder(priceAmount(Number(row.amount), method)) === baseCents) same += 1;
+    }
+    if (unique && same > slots) {
+      throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
+    }
     for (let step = 0; step <= slots; step += 1) {
       const candidate = ((baseCents + step * stepCents) / 100).toFixed(2);
       if (!taken.has(candidate)) return Number(candidate);
