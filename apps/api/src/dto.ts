@@ -90,6 +90,11 @@ export class MethodDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  logoCaption?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(800)
   accountNumber?: string;
 

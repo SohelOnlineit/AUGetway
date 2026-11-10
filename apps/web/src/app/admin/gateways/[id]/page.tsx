@@ -9,6 +9,7 @@ type GatewayDetail = {
   id: string;
   label: string;
   internalLabel: string;
+  logoCaption: string;
   accountNumber: string;
   instructions: string;
   minAmount: string;
@@ -31,6 +32,7 @@ type GatewayDetail = {
 
 type FormState = {
   internalLabel: string;
+  logoCaption: string;
   label: string;
   minAmount: string;
   maxAmount: string;
@@ -65,6 +67,7 @@ function slotHelp() {
 function fromDetail(row: GatewayDetail): FormState {
   return {
     internalLabel: row.internalLabel,
+    logoCaption: row.logoCaption,
     label: row.label,
     minAmount: plain(row.minAmount),
     maxAmount: plain(row.maxAmount),
@@ -136,6 +139,7 @@ export default function EditGatewayPage() {
         body: JSON.stringify({
           label: form.label,
           internalLabel: form.internalLabel,
+          logoCaption: form.logoCaption,
           accountNumber: form.accountNumber,
           instructions: form.instructions,
           minAmount: Number(form.minAmount),
@@ -176,6 +180,11 @@ export default function EditGatewayPage() {
             <span className="gw-label">Label</span>
             <input value={form.internalLabel} onChange={(event) => patch({ internalLabel: event.target.value })} />
             <p className="gw-help">Shown above the account number on checkout. Leave it empty to keep the default line.</p>
+          </label>
+          <label>
+            <span className="gw-label">Logo text</span>
+            <input maxLength={80} value={form.logoCaption} onChange={(event) => patch({ logoCaption: event.target.value })} />
+            <p className="gw-help">Shown under this gateway's logo on the payment options. bKash, Nagad, Rocket and the others each keep their own line.</p>
           </label>
           <label className="wide">
             <span className="gw-label">Payment rules</span>

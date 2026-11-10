@@ -35,6 +35,7 @@ model WalletMethod {
   owner         DeskUser   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   label         String
   internalLabel String     @default("")
+  logoCaption   String     @default("")
   code          String     @default("")
   accountNumber String     @default("")
   accountCursor Int        @default(0)

@@ -454,6 +454,7 @@ export class PayService implements OnModuleInit {
     input: {
       label: string;
       internalLabel?: string;
+      logoCaption?: string;
       code?: string;
       accountNumber?: string;
       instructions?: string;
@@ -484,6 +485,7 @@ export class PayService implements OnModuleInit {
         ownerId,
         label: input.label.trim(),
         internalLabel: input.internalLabel?.trim() ?? "",
+        logoCaption: input.logoCaption?.trim() ?? "",
         code: (input.code || input.label).trim(),
         accountNumber: input.accountNumber?.trim() ?? "",
         instructions: input.instructions?.trim() ?? "",
@@ -517,6 +519,7 @@ export class PayService implements OnModuleInit {
     input: {
       label?: string;
       internalLabel?: string;
+      logoCaption?: string;
       code?: string;
       accountNumber?: string;
       instructions?: string;
@@ -549,6 +552,7 @@ export class PayService implements OnModuleInit {
       data: {
         label: input.label?.trim(),
         internalLabel: input.internalLabel?.trim(),
+        logoCaption: input.logoCaption?.trim(),
         code: input.code?.trim(),
         accountNumber: input.accountNumber?.trim(),
         instructions: input.instructions?.trim(),
@@ -2052,6 +2056,7 @@ export class PayService implements OnModuleInit {
       id: string;
       label: string;
       internalLabel: string;
+      logoCaption: string;
       code: string;
       accountNumber: string;
       instructions: string;
@@ -2081,6 +2086,7 @@ export class PayService implements OnModuleInit {
       id: row.id,
       label: row.label,
       internalLabel: row.internalLabel,
+      logoCaption: row.logoCaption,
       code: row.code || row.label,
       accountNumber: row.accountNumber,
       instructions: row.instructions,
@@ -2401,6 +2407,7 @@ export class PayService implements OnModuleInit {
         id: string;
         label: string;
         internalLabel: string;
+        logoCaption: string;
         accountNumber: string;
         instructions: string;
         qrImage: string;
@@ -2415,7 +2422,7 @@ export class PayService implements OnModuleInit {
     const methods = includeMethods
       ? await this.prisma.walletMethod.findMany({
           where: { ownerId: row.ownerId, active: true },
-          select: { id: true, label: true },
+          select: { id: true, label: true, logoCaption: true },
           orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
         })
       : undefined;
@@ -2439,6 +2446,7 @@ export class PayService implements OnModuleInit {
             id: row.method.id,
             label: row.method.label,
             internalLabel: row.method.internalLabel ?? "",
+            logoCaption: row.method.logoCaption ?? "",
             accountNumber: shownAccount(row.payTo, row.method.accountNumber),
             instructions: row.method.instructions,
             qrImage: row.method.qrImage,

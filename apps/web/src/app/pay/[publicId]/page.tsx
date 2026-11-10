@@ -354,6 +354,7 @@ export default function PayPage() {
                   <button type="button" key={method.id} className={picked === method.id ? "ck-tile on" : "ck-tile"} onClick={() => setPicked(method.id)}>
                     <span className="ck-check">✓</span>
                     <span className="ck-logo-box"><MethodMark label={method.label} /></span>
+                    {method.logoCaption?.trim() ? <span className="ck-logo-caption">{method.logoCaption.trim()}</span> : null}
                     <span className="ck-line" />
                     <span className="ck-name">{method.label}</span>
                   </button>
@@ -374,7 +375,10 @@ export default function PayPage() {
                     {text(lang, "Change method", "পেমেন্ট মাধ্যম পরিবর্তন")}
                   </button>
                 ) : <span />}
-                <span className="ck-active" aria-label={card.method.label}><MethodMark label={card.method.label} /></span>
+                <span className="ck-active-stack">
+                  <span className="ck-active" aria-label={card.method.label}><MethodMark label={card.method.label} /></span>
+                  {card.method.logoCaption?.trim() ? <span className="ck-logo-caption">{card.method.logoCaption.trim()}</span> : null}
+                </span>
                 {cartButton()}
               </div>
               {card.method.qrImage ? <img className="ck-qr" src={card.method.qrImage} alt="" /> : null}

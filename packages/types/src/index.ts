@@ -8,6 +8,7 @@ export type MethodCard = {
   id: string;
   label: string;
   internalLabel?: string;
+  logoCaption?: string;
   accountNumber: string;
   instructions: string;
   qrImage?: string;
@@ -50,6 +51,6 @@ export type CheckoutCard = {
   successUrl?: string | null;
   cancelUrl?: string | null;
   method: MethodCard | null;
-  methods?: { id: string; label: string; accountNumber?: string }[];
+  methods?: { id: string; label: string; accountNumber?: string; logoCaption?: string }[];
   site?: PublicSite;
 };
