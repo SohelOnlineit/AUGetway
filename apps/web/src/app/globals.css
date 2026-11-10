@@ -2044,6 +2044,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-mhead .theme-toggle { grid-area: mode; justify-self: end; width: 34px; height: 34px; }
   .ck-card:has(.ck-mhead) .ck-tools { display: none; }
   .ck-pay-line { display: flex; align-items: center; gap: 10px; }
+  .ck-pay-line .ck-expiry { border-radius: 12px; box-sizing: border-box; min-height: 44px; padding: 0 12px; }
   .ck-pay-line .ck-lang-line { display: flex; flex: 1; width: auto; min-width: 0; }
   .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
   .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
