@@ -254,6 +254,14 @@ export default function PayPage() {
       </div>
     );
   }
+  function langButton(line = false) {
+    return (
+      <button type="button" className={line ? "ck-lang ck-lang-line" : "ck-lang"} onClick={() => setLang(lang === "bn" ? "en" : "bn")}>
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
+        {lang === "bn" ? "English" : "বাংলা"}
+      </button>
+    );
+  }
   function expiryPill(place: "side" | "pay") {
     if (card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired") {
       return <div className={`ck-expiry ck-expiry-${place}`}><i />Expires in <b>{now ? leftClock(card.expiresAt, now) : "—"}</b></div>;
@@ -297,10 +305,7 @@ export default function PayPage() {
             </div>
           </div>
           <div className="ck-tools">
-          <button type="button" className="ck-lang" onClick={() => setLang(lang === "bn" ? "en" : "bn")}>
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
-            {lang === "bn" ? "English" : "বাংলা"}
-          </button>
+          {langButton()}
           <ThemeToggle />
           </div>
         </aside>
@@ -433,7 +438,7 @@ export default function PayPage() {
           </div>
 
           <footer className="ck-foot">
-            {showPicker ? expiryPill("pay") : null}
+            {showPicker ? <div className="ck-pay-line">{expiryPill("pay")}{langButton(true)}</div> : null}
             {showPicker ? (
               <button type="button" className={picked ? "ck-pay on" : "ck-pay"} disabled={!picked || pending} onClick={paySelected}>
                 <PayMark />
