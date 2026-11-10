@@ -1986,3 +1986,46 @@ html[data-theme="light"] .txn-card { background: var(--card); }
 @media (max-width: 520px) {
   .top-search { display: none; }
 }
+@media (max-width: 860px) {
+  .ck-side, .ck-main { padding: 18px 16px 14px; }
+  .ck-side { gap: 16px; }
+  .ck-side-top { gap: 14px; }
+  .ck-word { font-size: 24px; }
+  .ck-amount { padding: 16px; border-radius: 18px; }
+  .ck-amount strong { font-size: 34px; }
+  .ck-main { justify-content: flex-start; gap: 18px; }
+  .ck-picker header { gap: 10px; min-height: 40px; padding-bottom: 12px; }
+  .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }
+  .ck-picker header .ck-cart {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
+    font-size: 0;
+    letter-spacing: 0;
+    border-radius: 12px;
+  }
+  .ck-picker header .ck-cart-mark { width: 40px; height: 40px; background: transparent; }
+  .ck-step { padding: 6px 10px; font-size: 11px; }
+  .ck-picker header + .ck-grid { margin-top: 14px; }
+  .ck-grid { grid-template-columns: 1fr; gap: 10px; }
+  .ck-tile {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    min-height: 74px;
+    padding: 10px 14px;
+    border-radius: 16px;
+  }
+  .ck-logo-box { width: 118px; height: 52px; flex: none; padding: 6px 10px; border-radius: 12px; }
+  .ck-brand-logo { height: 34px; }
+  .ck-line { display: none; }
+  .ck-name { min-height: 0; flex: 1; justify-content: flex-start; text-align: left; font-size: 15px; }
+  .ck-check { top: 50%; right: 14px; transform: translateY(-50%); }
+  .ck-foot { gap: 12px; margin-top: 2px; }
+  .ck-pay, .ck-pay.on { min-height: 52px; border-radius: 16px; }
+  .ck-verify-top { flex-wrap: wrap; justify-content: flex-start; }
+  .ck-back, .ck-active { height: 40px; }
+}
