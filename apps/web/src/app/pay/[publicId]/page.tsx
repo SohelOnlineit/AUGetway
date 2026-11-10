@@ -450,12 +450,6 @@ export default function PayPage() {
             ) : (
               <button type="button" className="ck-cancel" onClick={() => window.history.back()}>{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</button>
             )}
-            {card?.site?.faqContent ? (
-              <div className="ck-faq">
-                <strong>{card.site.faqTitle || text(lang, "FAQ", "প্রশ্নোত্তর")}</strong>
-                <p>{card.site.faqContent}</p>
-              </div>
-            ) : null}
             <div className="ck-secure">
               <span>
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656 3.536 3.536M9.172 9.172 5.636 5.636m3.536 9.192-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
