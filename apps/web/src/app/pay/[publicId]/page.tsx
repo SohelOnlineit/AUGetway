@@ -372,9 +372,7 @@ export default function PayPage() {
                 <span className="ck-active" aria-label={card.method.label}><MethodMark label={card.method.label} /></span>
                 {cartButton()}
               </div>
-              <p className="ck-note">
-                {card.method.instructions || text(lang, `Send exactly ${amount} ${currency}.`, `ঠিক ${amount} ${currency} পাঠান।`)}
-              </p>
+              {card.method.instructions ? <p className="ck-note">{card.method.instructions}</p> : null}
               {card.method.qrImage ? <img className="ck-qr" src={card.method.qrImage} alt="" /> : null}
               {card.method.accountNumber ? (
                 <div className="ck-copy">
