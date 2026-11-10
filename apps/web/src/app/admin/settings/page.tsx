@@ -16,6 +16,7 @@ type Field = {
   label: string;
   kind?: "text" | "area" | "select" | "check" | "file";
   options?: [string, string][];
+  fallback?: string;
   hint?: string;
 };
 
@@ -92,6 +93,7 @@ const cards: { id: string; title: string; description: string; icon: string; fie
       { key: "themeMode", label: "Admin theme mode", kind: "select", options: [["dark", "Dark Mode (Default)"], ["light", "Light Mode"], ["system", "System Auto"]] },
       { key: "checkoutTheme", label: "Checkout page layout", kind: "select", options: [["modern_dark", "Modern Fintech Dark"], ["clean_light", "Clean Minimal Light"]] },
       { key: "methodTabs", label: "Show All options, Mobile banking and Bank transfer", kind: "check", hint: "Off by default. Turn this on to show those three buttons above the payment methods." },
+      { key: "checkoutLang", label: "Checkout default language", kind: "select", fallback: "en", options: [["en", "English"], ["bn", "Bangla"]], hint: "The checkout opens in this language. The customer can still switch it with the language button." },
     ],
   },
   {
@@ -245,7 +247,7 @@ export default function SettingsPage() {
                   <textarea rows={4} value={draft[field.key] ?? ""} onChange={(event) => setDraft({ ...draft, [field.key]: event.target.value })} />
                 ) : null}
                 {field.kind === "select" ? (
-                  <select value={draft[field.key] ?? field.options?.[0]?.[0] ?? ""} onChange={(event) => setDraft({ ...draft, [field.key]: event.target.value })}>
+                  <select value={draft[field.key] || field.fallback || field.options?.[0]?.[0] || ""} onChange={(event) => setDraft({ ...draft, [field.key]: event.target.value })}>
                     {field.options?.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 ) : null}

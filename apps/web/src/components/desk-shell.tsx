@@ -114,6 +114,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           themeAccent: row.prefs.themeAccent ?? "",
           checkoutTheme: "",
           methodTabs: "",
+          checkoutLang: "",
           faqTitle: "",
           faqContent: "",
           metaTitle: row.prefs.metaTitle ?? "",

@@ -123,6 +123,7 @@ export default function PayPage() {
   const [pending, setPending] = useState(false);
   const [now, setNow] = useState(0);
   const [lang, setLang] = useState<Lang>("en");
+  const langChosen = useRef(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [picked, setPicked] = useState("");
   const [picking, setPicking] = useState(true);
@@ -142,6 +143,11 @@ export default function PayPage() {
   useEffect(() => {
     load(true).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Checkout not found"));
   }, [params.publicId]);
+
+  useEffect(() => {
+    if (langChosen.current) return;
+    setLang(card?.site?.checkoutLang === "bn" ? "bn" : "en");
+  }, [card?.site?.checkoutLang]);
 
   useEffect(() => {
     if (!card?.site || chromeApplied.current) return;
@@ -260,7 +266,7 @@ export default function PayPage() {
   }
   function langButton(line = false) {
     return (
-      <button type="button" className={line ? "ck-lang ck-lang-line" : "ck-lang"} onClick={() => setLang(lang === "bn" ? "en" : "bn")}>
+      <button type="button" className={line ? "ck-lang ck-lang-line" : "ck-lang"} onClick={() => { langChosen.current = true; setLang(lang === "bn" ? "en" : "bn"); }}>
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
         {lang === "bn" ? "English" : "বাংলা"}
       </button>

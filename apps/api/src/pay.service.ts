@@ -212,6 +212,7 @@ type SiteCard = {
   themeAccent: string;
   checkoutTheme: string;
   methodTabs: string;
+  checkoutLang: string;
   faqTitle: string;
   faqContent: string;
   metaTitle: string;
@@ -249,6 +250,7 @@ const PREF_KEYS = new Set([
   "themeMode",
   "checkoutTheme",
   "methodTabs",
+  "checkoutLang",
   "faqTitle",
   "faqContent",
   "metaTitle",
@@ -2347,6 +2349,7 @@ export class PayService implements OnModuleInit {
       themeAccent: "",
       checkoutTheme: "",
       methodTabs: "",
+      checkoutLang: "",
       faqTitle: "",
       faqContent: "",
       metaTitle: "",
@@ -2369,6 +2372,7 @@ export class PayService implements OnModuleInit {
       themeAccent: accentColor(row.prefs.themeAccent),
       checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
       methodTabs: row.prefs.methodTabs === "1" ? "1" : "",
+      checkoutLang: row.prefs.checkoutLang === "bn" ? "bn" : "en",
       faqTitle: row.prefs.faqTitle ?? "",
       faqContent: row.prefs.faqContent ?? "",
       metaTitle: row.prefs.metaTitle ?? "",

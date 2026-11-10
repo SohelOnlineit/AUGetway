@@ -26,6 +26,7 @@ export type PublicSite = {
   themeAccent: string;
   checkoutTheme: string;
   methodTabs: string;
+  checkoutLang: string;
   faqTitle: string;
   faqContent: string;
   metaTitle: string;
