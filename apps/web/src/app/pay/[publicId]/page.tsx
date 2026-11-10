@@ -393,7 +393,7 @@ export default function PayPage() {
               {card.method.verifyBy === "unique_amount" ? (
                 <>
                   <p className="ck-wait"><i />{text(lang, "Waiting for your payment...", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
-                  <p className="ck-note">{text(lang, "After you pay, wait 15 seconds. If it is not verified automatically, enter your Transaction ID in the box to finish verification.", "পেমেন্টের পর ১৫ সেকেন্ড অপেক্ষা করুন, অটো ভেরিফিকেশন না হলে ট্রানজেকশন বক্সে আপনার Transaction ID দিয়ে ভেরিফিকেশন সম্পন্ন করুন।")}</p>
+                  <p className="ck-note">{text(lang, "After Making Your Payment, Please Wait 15 Seconds For Automatic Verification. If Your Payment is Not Verified Automatically, Enter Your Transaction ID in The Box To Complete The Verification.", "পেমেন্টের পর ১৫ সেকেন্ড অপেক্ষা করুন, অটো ভেরিফিকেশন না হলে ট্রানজেকশন বক্সে আপনার Transaction ID দিয়ে ভেরিফিকেশন সম্পন্ন করুন।")}</p>
                   <label className="ck-field">
                     <span>{text(lang, "Enter Transaction ID", "ট্রানজেকশন আইডি লিখুন")}</span>
                     <input className="ck-ref" name="providerRef" minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
