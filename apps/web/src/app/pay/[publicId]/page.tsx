@@ -385,18 +385,16 @@ export default function PayPage() {
               {card.method.accountNumber ? (
                 <div className="ck-number">
                   <div className="ck-copy">
-                    {card.method.instructions ? (
-                      <button type="button" className={rulesOn ? "ck-info on" : "ck-info"} aria-expanded={rulesOn} aria-label={text(lang, "Payment rules", "পেমেন্টের নিয়ম")} onClick={() => setRulesOn((open) => !open)}>
-                        i
-                      </button>
-                    ) : null}
+                    <button type="button" className={rulesOn ? "ck-info on" : "ck-info"} aria-expanded={rulesOn} aria-label={text(lang, "Payment rules", "পেমেন্টের নিয়ম")} onClick={() => setRulesOn((open) => !open)}>
+                      i
+                    </button>
                     <div>
                       <small>{card.method.internalLabel?.trim() || text(lang, "Send to this number", "নিচের নাম্বারে বিকাশের পেমেন্ট অপশন থেকে পেমেন্ট করুন।")}</small>
                       <b>{card.method.accountNumber}</b>
                     </div>
                     <CopyButton done={copied === "num"} onClick={() => flashCopy("num", card.method?.accountNumber ?? "")} />
                   </div>
-                  {rulesOn && card.method.instructions ? <p className="ck-rules">{card.method.instructions}</p> : null}
+                  {rulesOn ? <p className="ck-rules">{card.method.instructions?.trim() || text(lang, "No payment rules have been added for this gateway.", "এই গেটওয়ের জন্য এখনো কোনো পেমেন্ট নিয়ম যোগ করা হয়নি।")}</p> : null}
                 </div>
               ) : null}
               <div className="ck-copy">
