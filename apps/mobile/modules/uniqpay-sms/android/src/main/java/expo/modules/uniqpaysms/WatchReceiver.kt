@@ -49,7 +49,7 @@ object Watch {
     return PendingIntent.getBroadcast(context, REQUEST, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
-  fun schedule(context: Context, delayMs: Long = 60_000) {
+  fun schedule(context: Context, delayMs: Long = 15_000) {
     val alarm = context.getSystemService(AlarmManager::class.java) ?: return
     val at = System.currentTimeMillis() + delayMs
     val call = pending(context)

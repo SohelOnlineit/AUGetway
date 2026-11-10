@@ -101,11 +101,13 @@ class KeepAliveService : Service() {
     if (worker?.isAlive == true) return
     running = true
     worker = Thread {
+      var beat = 0
       while (running) {
-        ping()
-        Watch.schedule(applicationContext)
+        if (beat == 0) ping() else if (Outbound.deliver(this) == 401) signOff()
+        beat = (beat + 1) % 3
+        Watch.schedule(applicationContext, 15_000)
         try {
-          Thread.sleep(15_000)
+          Thread.sleep(5_000)
         } catch (_: InterruptedException) {
           break
         }
@@ -124,11 +126,11 @@ class KeepAliveService : Service() {
       signOff()
       return
     }
-    if (code !in 200..299) return
     if (Outbound.deliver(this) == 401) {
       signOff()
       return
     }
+    if (code !in 200..299) return
     val base = prefs.getString("base", null) ?: return
     val token = prefs.getString("token", null) ?: return
     val uid = prefs.getString("uid", null) ?: return
@@ -136,6 +138,7 @@ class KeepAliveService : Service() {
   }
 
   private fun signOff() {
+    running = false
     getSharedPreferences(PREFS, MODE_PRIVATE).edit().clear().putBoolean("userStop", true).apply()
     Watch.cancel(applicationContext)
     stopSelf()

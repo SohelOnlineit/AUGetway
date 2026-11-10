@@ -759,7 +759,7 @@ function App() {
       }
     };
     void deliver();
-    const timer = setInterval(() => void deliver(), 15000);
+    const timer = setInterval(() => void deliver(), 5000);
     return () => {
       stop = true;
       clearInterval(timer);
