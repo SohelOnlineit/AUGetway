@@ -1199,6 +1199,37 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   border-radius: 14px;
 }
 .ck-copy { padding: 12px 14px; }
+.ck-copy > div { flex: 1; min-width: 0; }
+.ck-number { display: flex; flex-direction: column; gap: 8px; }
+.ck-info {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ck-mint);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ck-mint);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+}
+.ck-info.on { background: var(--ck-mint); color: #04221f; }
+.ck-rules {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
 .ck-copy small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; line-height: 1.3; text-transform: uppercase; }
 .ck-copy b { display: block; margin-top: 4px; font-size: 18px; font-weight: 600; line-height: 1.3; }
 .ck-copy-btn {

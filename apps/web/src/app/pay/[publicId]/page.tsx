@@ -128,6 +128,7 @@ export default function PayPage() {
   const [picked, setPicked] = useState("");
   const [picking, setPicking] = useState(true);
   const [copied, setCopied] = useState("");
+  const [rulesOn, setRulesOn] = useState(false);
   const chromeApplied = useRef(false);
   const generation = useRef(0);
 
@@ -148,6 +149,10 @@ export default function PayPage() {
     if (langChosen.current) return;
     setLang(card?.site?.checkoutLang === "bn" ? "bn" : "en");
   }, [card?.site?.checkoutLang]);
+
+  useEffect(() => {
+    setRulesOn(false);
+  }, [card?.method?.id]);
 
   useEffect(() => {
     if (!card?.site || chromeApplied.current) return;
@@ -372,15 +377,22 @@ export default function PayPage() {
                 <span className="ck-active" aria-label={card.method.label}><MethodMark label={card.method.label} /></span>
                 {cartButton()}
               </div>
-              {card.method.instructions ? <p className="ck-note">{card.method.instructions}</p> : null}
               {card.method.qrImage ? <img className="ck-qr" src={card.method.qrImage} alt="" /> : null}
               {card.method.accountNumber ? (
-                <div className="ck-copy">
-                  <div>
-                    <small>{card.method.internalLabel?.trim() || text(lang, "Send to this number", "নিচের নাম্বারে বিকাশের পেমেন্ট অপশন থেকে পেমেন্ট করুন।")}</small>
-                    <b>{card.method.accountNumber}</b>
+                <div className="ck-number">
+                  <div className="ck-copy">
+                    {card.method.instructions ? (
+                      <button type="button" className={rulesOn ? "ck-info on" : "ck-info"} aria-expanded={rulesOn} aria-label={text(lang, "Payment rules", "পেমেন্টের নিয়ম")} onClick={() => setRulesOn((open) => !open)}>
+                        i
+                      </button>
+                    ) : null}
+                    <div>
+                      <small>{card.method.internalLabel?.trim() || text(lang, "Send to this number", "নিচের নাম্বারে বিকাশের পেমেন্ট অপশন থেকে পেমেন্ট করুন।")}</small>
+                      <b>{card.method.accountNumber}</b>
+                    </div>
+                    <CopyButton done={copied === "num"} onClick={() => flashCopy("num", card.method?.accountNumber ?? "")} />
                   </div>
-                  <CopyButton done={copied === "num"} onClick={() => flashCopy("num", card.method?.accountNumber ?? "")} />
+                  {rulesOn && card.method.instructions ? <p className="ck-rules">{card.method.instructions}</p> : null}
                 </div>
               ) : null}
               <div className="ck-copy">

@@ -148,7 +148,7 @@ export class MethodDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(400)
+  @MaxLength(2000)
   instructions?: string;
 
   @IsOptional()

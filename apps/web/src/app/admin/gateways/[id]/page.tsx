@@ -10,6 +10,7 @@ type GatewayDetail = {
   label: string;
   internalLabel: string;
   accountNumber: string;
+  instructions: string;
   minAmount: string;
   maxAmount: string;
   fixedCharge: string;
@@ -39,6 +40,7 @@ type FormState = {
   percentageCharge: string;
   qrImage: string;
   accountNumber: string;
+  instructions: string;
   verifyBy: string;
   payWindow: string;
   uniqueSlots: string;
@@ -72,6 +74,7 @@ function fromDetail(row: GatewayDetail): FormState {
     percentageCharge: plain(row.percentageCharge),
     qrImage: row.qrImage,
     accountNumber: row.accountNumber,
+    instructions: row.instructions,
     verifyBy: row.verifyBy,
     payWindow: String(row.payWindow),
     uniqueSlots: String(row.uniqueSlots),
@@ -134,6 +137,7 @@ export default function EditGatewayPage() {
           label: form.label,
           internalLabel: form.internalLabel,
           accountNumber: form.accountNumber,
+          instructions: form.instructions,
           minAmount: Number(form.minAmount),
           maxAmount: Number(form.maxAmount),
           fixedDiscount: Number(form.fixedDiscount || 0),
@@ -172,6 +176,11 @@ export default function EditGatewayPage() {
             <span className="gw-label">Label</span>
             <input value={form.internalLabel} onChange={(event) => patch({ internalLabel: event.target.value })} />
             <p className="gw-help">Shown above the account number on checkout. Leave it empty to keep the default line.</p>
+          </label>
+          <label className="wide">
+            <span className="gw-label">Payment rules</span>
+            <textarea rows={4} maxLength={2000} value={form.instructions} onChange={(event) => patch({ instructions: event.target.value })} placeholder="How the customer should pay with this gateway" />
+            <p className="gw-help">Shown when the customer taps the info button beside this gateway's number. Each gateway keeps its own rules.</p>
           </label>
           <label>
             <span className="gw-label">Display Name<i>*</i></span>
