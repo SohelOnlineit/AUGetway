@@ -2004,8 +2004,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "back brand step mode"
-      "trx trx trx trx"
-      "title title title title";
+      "trx trx title title";
     gap: 8px 10px;
     align-items: center;
     min-height: 0;
@@ -2034,7 +2033,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-mhead .ck-trx-row { grid-area: trx; min-width: 0; }
   .ck-mhead .theme-toggle { grid-area: mode; justify-self: end; width: 34px; height: 34px; }
   .ck-card:has(.ck-mhead) .ck-tools .theme-toggle { display: none; }
-  .ck-mhead h2 { grid-area: title; margin: 0; font-size: 16px; font-weight: 700; text-align: left; }
+  .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
   .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
   .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }
   .ck-picker header .ck-cart {
