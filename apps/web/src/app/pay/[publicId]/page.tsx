@@ -239,7 +239,7 @@ export default function PayPage() {
   const cartHref = safeHttp(card?.cancelUrl);
   const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
   function cartButton() {
-    const mark = <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>;
+    const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
     if (cartHref) return <a className="ck-cart" href={cartHref}>{mark}{cartLabel}</a>;
     return <button type="button" className="ck-cart" onClick={() => window.history.back()}>{mark}{cartLabel}</button>;
   }

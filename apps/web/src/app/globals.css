@@ -1060,7 +1060,28 @@ a.ck-cancel:hover { color: var(--fg); }
 @media (min-width: 861px) {
   .ck-main-top:has(.ck-verify) > .ck-cart-row { display: none; }
   .ck-verify-top { justify-content: flex-start; flex-wrap: nowrap; gap: 12px; }
-  .ck-verify-top .ck-cart { display: inline-flex; flex: none; }
+  .ck-verify-top .ck-cart {
+    display: inline-flex;
+    flex: none;
+    height: 44px;
+    margin-left: auto;
+    gap: 8px;
+    padding: 4px 14px 4px 4px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .ck-verify-top .ck-cart-mark {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: none;
+    border-radius: 6px;
+    background: var(--line);
+  }
 }
 .ck-back {
   display: inline-flex;
