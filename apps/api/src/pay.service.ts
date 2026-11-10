@@ -2400,6 +2400,7 @@ export class PayService implements OnModuleInit {
       method: {
         id: string;
         label: string;
+        internalLabel: string;
         accountNumber: string;
         instructions: string;
         qrImage: string;
@@ -2437,6 +2438,7 @@ export class PayService implements OnModuleInit {
         ? {
             id: row.method.id,
             label: row.method.label,
+            internalLabel: row.method.internalLabel ?? "",
             accountNumber: shownAccount(row.payTo, row.method.accountNumber),
             instructions: row.method.instructions,
             qrImage: row.method.qrImage,

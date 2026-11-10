@@ -171,7 +171,7 @@ export default function EditGatewayPage() {
           <label>
             <span className="gw-label">Label</span>
             <input value={form.internalLabel} onChange={(event) => patch({ internalLabel: event.target.value })} />
-            <p className="gw-help">Internal label to identify this gateway in the admin panel. Never shown to customers.</p>
+            <p className="gw-help">Shown above the account number on checkout. Leave it empty to keep the default line.</p>
           </label>
           <label>
             <span className="gw-label">Display Name<i>*</i></span>

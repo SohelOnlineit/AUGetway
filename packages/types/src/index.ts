@@ -7,6 +7,7 @@ export type Money = string;
 export type MethodCard = {
   id: string;
   label: string;
+  internalLabel?: string;
   accountNumber: string;
   instructions: string;
   qrImage?: string;
