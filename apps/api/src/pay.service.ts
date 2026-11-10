@@ -195,7 +195,8 @@ function shownAccount(payTo: string, stored: string) {
 function accentColor(value: string | undefined) {
   const text = value?.trim() ?? "";
   if (!text) return "";
-  const hex = text.startsWith("#") ? text : `#${text}`;
+  const hex = (text.startsWith("#") ? text : `#${text}`).toLowerCase();
+  if (hex === "#e11d48") return "";
   return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex) ? hex : "";
 }
 
@@ -303,6 +304,7 @@ export class PayService implements OnModuleInit {
     if (owner) {
       await this.ensureCatalog(owner.id);
       await this.applyReceiptDefault();
+      await this.restoreBrandAccent(owner.id);
     }
   }
 
@@ -1984,6 +1986,21 @@ export class PayService implements OnModuleInit {
         receiptDefaulted: true,
       },
     });
+  }
+
+  private async restoreBrandAccent(ownerId: string) {
+    const row = await this.prisma.brandSetting.findUnique({ where: { ownerId }, select: { prefs: true } });
+    const source = row?.prefs && typeof row.prefs === "object" && !Array.isArray(row.prefs) ? row.prefs as Record<string, unknown> : null;
+    if (!source || typeof source.themeAccent !== "string") return;
+    const hex = source.themeAccent.trim().toLowerCase();
+    const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+    if (normalized !== "#e11d48") return;
+    const prefs: Record<string, string> = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (key === "themeAccent" || typeof value !== "string") continue;
+      prefs[key] = value;
+    }
+    await this.prisma.brandSetting.update({ where: { ownerId }, data: { prefs } });
   }
 
   private async applyReceiptDefault() {
