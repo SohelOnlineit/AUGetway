@@ -2010,7 +2010,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
     min-height: 0;
     margin: 14px 16px 0;
     padding: 12px;
-    border: 1px solid #a89048;
+    border: 1.5px solid #6e5624;
     border-radius: 16px;
     background: linear-gradient(100deg, #24301c 0%, #162018 52%, #0e1718 100%);
     color: #f8fafc;
