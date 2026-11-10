@@ -1247,6 +1247,17 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 }
 .ck-qr { width: min(220px, 100%); align-self: center; background: #fff; border-radius: 16px; padding: 10px; }
 .ck-wait { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; color: var(--fg); font-size: 15px; font-weight: 500; }
+.ck-wait-box {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ck-wait-box .ck-wait,
+.ck-wait-box .ck-note { background: transparent; border: 0; border-radius: 0; }
+.ck-wait-box .ck-note { border-top: 1px solid var(--line); }
 .ck-done h2 { margin: 0 0 8px; }
 .ck-done p { margin: 0 0 16px; color: var(--muted); font-size: 15px; font-weight: 400; }
 @media (max-width: 860px) {
