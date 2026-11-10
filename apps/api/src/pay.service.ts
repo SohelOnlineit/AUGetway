@@ -210,6 +210,7 @@ type SiteCard = {
   brandFavicon: string;
   themeAccent: string;
   checkoutTheme: string;
+  methodTabs: string;
   faqTitle: string;
   faqContent: string;
   metaTitle: string;
@@ -246,6 +247,7 @@ const PREF_KEYS = new Set([
   "themeAccent",
   "themeMode",
   "checkoutTheme",
+  "methodTabs",
   "faqTitle",
   "faqContent",
   "metaTitle",
@@ -2324,6 +2326,7 @@ export class PayService implements OnModuleInit {
       brandFavicon: "",
       themeAccent: "",
       checkoutTheme: "",
+      methodTabs: "",
       faqTitle: "",
       faqContent: "",
       metaTitle: "",
@@ -2345,6 +2348,7 @@ export class PayService implements OnModuleInit {
       brandFavicon: row.prefs.brandFavicon ?? "",
       themeAccent: accentColor(row.prefs.themeAccent),
       checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
+      methodTabs: row.prefs.methodTabs === "1" ? "1" : "",
       faqTitle: row.prefs.faqTitle ?? "",
       faqContent: row.prefs.faqContent ?? "",
       metaTitle: row.prefs.metaTitle ?? "",

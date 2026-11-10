@@ -938,6 +938,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   border-bottom: 1px solid var(--line);
 }
 .ck-picker header h2 { margin: 0; flex: 1; min-width: 0; text-align: center; white-space: nowrap; }
+.ck-picker header + .ck-grid { margin-top: 22px; }
 .ck-picker header .ck-cart {
   flex: none;
   height: 44px;

@@ -91,6 +91,7 @@ const cards: { id: string; title: string; description: string; icon: string; fie
       { key: "themeAccent", label: "Brand primary accent color (HEX)" },
       { key: "themeMode", label: "Admin theme mode", kind: "select", options: [["dark", "Dark Mode (Default)"], ["light", "Light Mode"], ["system", "System Auto"]] },
       { key: "checkoutTheme", label: "Checkout page layout", kind: "select", options: [["modern_dark", "Modern Fintech Dark"], ["clean_light", "Clean Minimal Light"]] },
+      { key: "methodTabs", label: "Show All options, Mobile banking and Bank transfer", kind: "check", hint: "Off by default. Turn this on to show those three buttons above the payment methods." },
     ],
   },
   {

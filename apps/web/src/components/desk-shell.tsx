@@ -113,6 +113,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           brandFavicon: row.prefs.brandFavicon ?? "",
           themeAccent: row.prefs.themeAccent ?? "",
           checkoutTheme: "",
+          methodTabs: "",
           faqTitle: "",
           faqContent: "",
           metaTitle: row.prefs.metaTitle ?? "",

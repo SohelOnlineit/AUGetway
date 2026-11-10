@@ -25,6 +25,7 @@ export type PublicSite = {
   brandFavicon: string;
   themeAccent: string;
   checkoutTheme: string;
+  methodTabs: string;
   faqTitle: string;
   faqContent: string;
   metaTitle: string;

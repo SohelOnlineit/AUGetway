@@ -226,7 +226,8 @@ export default function PayPage() {
     }
   }
 
-  const methods = (card?.methods ?? []).filter((method) => filter === "all" || methodKind(method.label) === filter);
+  const showMethodTabs = card?.site?.methodTabs === "1";
+  const methods = (card?.methods ?? []).filter((method) => !showMethodTabs || filter === "all" || methodKind(method.label) === filter);
   const showPicker = !card || card.status === "open" || (card.status === "waiting" && picking);
   const amount = card ? moneyText(card.payable) : "0.00";
   const subtotal = card ? moneyText(card.amount) : "0.00";
@@ -305,7 +306,7 @@ export default function PayPage() {
                 <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
                 <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
               </header>
-              <div className="ck-tabs">
+              {showMethodTabs ? <div className="ck-tabs">
                 <button type="button" className={filter === "all" ? "on" : ""} onClick={() => setFilter("all")}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h4v4H4zM14 6h4v4h-4zM4 16h4v4H4zM14 16h4v4h-4z" /></svg>
                   {text(lang, "All options", "সবগুলো")}
@@ -318,7 +319,7 @@ export default function PayPage() {
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 10h16M6 10V6l6-3 6 3v4M6 10v8m6-8v8m6-8v8M4 18h16" /></svg>
                   {text(lang, "Bank transfer", "ব্যাংক ট্রান্সফার")}
                 </button>
-              </div>
+              </div> : null}
               <div className="ck-grid">
                 {methods.map((method) => (
                   <button type="button" key={method.id} className={picked === method.id ? "ck-tile on" : "ck-tile"} onClick={() => setPicked(method.id)}>
