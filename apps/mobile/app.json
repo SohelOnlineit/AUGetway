@@ -3,13 +3,13 @@
     "name": "AuGetway",
     "slug": "uniqbd-pay",
     "scheme": "uniqpay",
-    "version": "2.5",
+    "version": "2.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.uniqbd.pay",
-      "versionCode": 25,
+      "versionCode": 26,
       "softwareKeyboardLayoutMode": "resize",
       "usesCleartextTraffic": false,
       "permissions": ["READ_SMS", "SEND_SMS", "READ_PHONE_STATE", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE", "POST_NOTIFICATIONS", "WAKE_LOCK", "CHANGE_WIFI_STATE", "RECEIVE_BOOT_COMPLETED", "SCHEDULE_EXACT_ALARM", "USE_EXACT_ALARM"]
