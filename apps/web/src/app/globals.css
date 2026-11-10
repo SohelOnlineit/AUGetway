@@ -2010,9 +2010,10 @@ html[data-theme="light"] .txn-card { background: var(--card); }
     min-height: 0;
     margin: 14px 16px 0;
     padding: 12px;
-    border: 1px solid var(--line);
+    border: 1px solid #a89048;
     border-radius: 16px;
-    background: var(--bg);
+    background: linear-gradient(100deg, #24301c 0%, #162018 52%, #0e1718 100%);
+    color: #f8fafc;
   }
   .ck-mhead .ck-cart {
     grid-area: back;
@@ -2030,10 +2031,14 @@ html[data-theme="light"] .txn-card { background: var(--card); }
     white-space: nowrap;
   }
   .ck-mhead .ck-cart-mark { width: 16px; height: 16px; background: transparent; }
+  .ck-mhead .ck-cart,
+  .ck-mhead .theme-toggle { color: #f8fafc; border-color: #a89048; background: transparent; }
   .ck-mhead .ck-brand { grid-area: brand; min-width: 0; }
-  .ck-mhead .ck-word { font-size: 20px; }
+  .ck-mhead .ck-word { font-size: 20px; color: #f8fafc; }
   .ck-mhead .ck-step { grid-area: step; padding: 6px 8px; }
-  .ck-mhead .ck-trx-row { grid-area: trx; min-width: 0; }
+  .ck-mhead .ck-trx-row { grid-area: trx; min-width: 0; color: #c4b896; }
+  .ck-mhead .ck-trx-row strong,
+  .ck-mhead h2 { color: #f8fafc; }
   .ck-mhead .theme-toggle { grid-area: mode; justify-self: end; width: 34px; height: 34px; }
   .ck-card:has(.ck-mhead) .ck-tools .theme-toggle { display: none; }
   .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
