@@ -2000,7 +2000,9 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-main { justify-content: flex-start; gap: 18px; }
   .ck-card:has(.ck-mhead) .ck-side-top > .ck-brand,
   .ck-card:has(.ck-mhead) .ck-side-top > .ck-trx,
-  .ck-card:has(.ck-mhead) .ck-picker > header:not(.ck-mhead) { display: none; }
+  .ck-card:has(.ck-mhead) .ck-picker > header:not(.ck-mhead),
+  .ck-card:has(.ck-mhead) .ck-verify-top,
+  .ck-card:has(.ck-mhead) .ck-cart-row { display: none; }
   .ck-mhead {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -2046,7 +2048,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-pay-line { display: flex; align-items: center; gap: 10px; }
   .ck-pay-line .ck-expiry { border-radius: 12px; box-sizing: border-box; min-height: 44px; padding: 0 12px; }
   .ck-pay-line .ck-lang-line { display: flex; flex: 1; width: auto; min-width: 0; }
-  .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
+  .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; text-overflow: ellipsis; }
   .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
   .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }
   .ck-picker header .ck-cart {

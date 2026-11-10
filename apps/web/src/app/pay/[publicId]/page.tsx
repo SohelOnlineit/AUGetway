@@ -217,6 +217,7 @@ export default function PayPage() {
   const showMethodTabs = card?.site?.methodTabs === "1";
   const methods = (card?.methods ?? []).filter((method) => !showMethodTabs || filter === "all" || methodKind(method.label) === filter);
   const showPicker = !card || card.status === "open" || (card.status === "waiting" && picking);
+  const onVerify = Boolean(card && !showPicker && card.method && (card.status === "waiting" || card.status === "pending"));
   const amount = card ? moneyText(card.payable) : "0.00";
   const subtotal = card ? moneyText(card.amount) : "0.00";
   const currency = card?.currency || card?.site?.currency || "BDT";
@@ -228,9 +229,10 @@ export default function PayPage() {
   const cancelHref = returnHref(card?.cancelUrl ?? "", params.publicId);
   const cartHref = cancelHref;
   const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
-  function cartButton(compact = false) {
+  function cartButton(compact = false, onBack?: () => void) {
     const label = compact ? text(lang, "Back", "ফিরে") : cartLabel;
     const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
+    if (onBack) return <button type="button" className="ck-cart" onClick={onBack} aria-label={label}>{mark}{label}</button>;
     if (cartHref) return <a className="ck-cart" href={cartHref} aria-label={cartLabel}>{mark}{label}</a>;
     return <button type="button" className="ck-cart" onClick={() => window.history.back()} aria-label={cartLabel}>{mark}{label}</button>;
   }
@@ -275,14 +277,14 @@ export default function PayPage() {
   return (
     <main className="ck-page">
       <section className="ck-card">
-        {showPicker ? (
+        {showPicker || onVerify ? (
           <header className="ck-mhead">
-            {cartButton(true)}
+            {onVerify && card?.status === "waiting" ? cartButton(true, () => setPicking(true)) : cartButton(true)}
             {brandMark()}
-            <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
+            <span className="ck-step">{onVerify ? text(lang, "Step 2 of 2", "ধাপ ২ / ২") : text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
             {trxRow()}
             <ThemeToggle />
-            <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
+            <h2>{onVerify ? card?.method?.label : text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
           </header>
         ) : null}
         <aside className="ck-side">
@@ -418,7 +420,7 @@ export default function PayPage() {
               ) : null}
               {card.status === "pending" ? <p className="ck-note">{text(lang, "This payment is pending a check.", "পেমেন্টটি যাচাইয়ের অপেক্ষায়।")}</p> : null}
               {card.providerRef ? <p className="ck-note">{text(lang, `Waiting for confirmation of ${card.providerRef}.`, `${card.providerRef} নিশ্চিত হওয়ার অপেক্ষায়।`)}</p> : null}
-              {expiryPill("pay")}
+              <div className="ck-pay-line">{expiryPill("pay")}{langButton(true)}</div>
               <button className="ck-pay on" disabled={pending} type="submit">
                 {text(lang, card.method.verifyBy === "unique_amount" ? "Submit" : "I have paid", card.method.verifyBy === "unique_amount" ? "সাবমিট করুন" : "পেমেন্ট যাচাই করুন")}
               </button>
