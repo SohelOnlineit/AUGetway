@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { paidFitsCheckout, pickUniqueAmount, uniqueAmounts } from "./amount-window.ts";
+import { paidFitsCheckout, paidFitsManual, pickUniqueAmount, uniqueAmounts } from "./amount-window.ts";
 
 test("a unique amount verifies only the exact assigned amount", () => {
   assert.equal(paidFitsCheckout(100.04, 100.04, 100, 0, 0, "unique_amount"), true);
@@ -8,6 +8,14 @@ test("a unique amount verifies only the exact assigned amount", () => {
   assert.equal(paidFitsCheckout(100, 100.04, 100, 0, 0, "unique_amount"), false);
   assert.equal(paidFitsCheckout(100.03, 100.04, 100, 0, 0, "unique_amount"), false);
   assert.equal(paidFitsCheckout(99.99, 100, 100, 0, 0, "unique_amount"), false);
+});
+
+test("a typed transaction id accepts the invoice when the assigned amount is higher", () => {
+  assert.equal(paidFitsManual(100, 100.04, 100, 0, 0), true);
+  assert.equal(paidFitsManual(100.04, 100.04, 100, 0, 0), true);
+  assert.equal(paidFitsManual(150, 100.04, 100, 0, 0), true);
+  assert.equal(paidFitsManual(99.99, 100.04, 100, 0, 0), false);
+  assert.equal(paidFitsManual(99, 100, 100, 0, 0), false);
 });
 
 test("the invoice amount itself still has to be paid in full", () => {

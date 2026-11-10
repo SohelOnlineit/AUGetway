@@ -10,7 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { paidFitsCheckout, pickUniqueAmount } from "./amount-window";
+import { paidFitsCheckout, paidFitsManual, pickUniqueAmount } from "./amount-window";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { PrismaService } from "./prisma.service";
@@ -279,7 +279,7 @@ function senderInNotice(sender: string, body: string) {
   const tail = digits(sender);
   if (!senderNumberOk(tail)) return false;
   if (digits(body).includes(tail)) return true;
-  return body.includes(`***${tail.slice(-3)}`);
+  return body.includes(`***${tail.slice(-3)}`) || body.includes(`***${tail.slice(-4)}`);
 }
 
 function parsePaidAmount(body: string) {
@@ -596,7 +596,7 @@ export class PayService implements OnModuleInit {
   private windowMinutes(payWindow: number) {
     const minutes = Math.round(Number(payWindow));
     if (!Number.isFinite(minutes) || minutes < 1) return 15;
-    return Math.min(1440, minutes);
+    return Math.min(1440, Math.max(5, minutes));
   }
 
   private async openMinutes(ownerId: string) {
@@ -1710,7 +1710,7 @@ export class PayService implements OnModuleInit {
       isPaymentSender(notice.sender)
       && !isOtpMessage(notice.body)
       && !looksLikeDebit(notice.body)
-      && (verifyBy !== "unique_amount" || isCreditMessage(notice.body))
+      && isCreditMessage(notice.body)
       && bodyHasRef(notice.body, providerRef)
       && readTrxId(notice.body) === providerRef
       && senderFitsMethod(notice.sender, notice.body, row.method?.label ?? ""),
@@ -1718,7 +1718,7 @@ export class PayService implements OnModuleInit {
     const fit = hits.find((notice) => {
       const paid = parsePaidAmount(notice.body);
       if (paid === null) return false;
-      return paidFitsCheckout(paid, expected, base, under, over, verifyBy);
+      return paidFitsManual(paid, expected, verifyBy === "unique_amount" ? base : expected, under, over);
     });
     if (!fit) {
       if (hits.length > 0) {
@@ -2182,7 +2182,7 @@ export class PayService implements OnModuleInit {
   }
 
   private async matchOwner(ownerId: string, body: string, noticeId?: string, sender = "") {
-    if (!isPaymentSender(sender) || isOtpMessage(body) || looksLikeDebit(body)) return null;
+    if (!isPaymentSender(sender) || isOtpMessage(body) || looksLikeDebit(body) || !isCreditMessage(body)) return null;
     const paidAmount = parsePaidAmount(body);
     const noticedAt = noticeId
       ? (await this.prisma.inboxNotice.findUnique({ where: { id: noticeId }, select: { createdAt: true } }))?.createdAt.getTime() ?? 0
@@ -2215,8 +2215,9 @@ export class PayService implements OnModuleInit {
       const under = Number(named.method?.underTolerance ?? 0);
       const over = Number(named.method?.overTolerance ?? 0);
       const verifyBy = named.method?.verifyBy ?? "transaction_id";
-      if (verifyBy === "unique_amount" && !isCreditMessage(body)) return null;
-      const ok = paidAmount !== null && paidFitsCheckout(paidAmount, payable, base, under, over, verifyBy);
+      const ok = paidAmount !== null && (verifyBy === "unique_amount"
+        ? amountFits(paidAmount, payable, under, over)
+        : paidFitsCheckout(paidAmount, payable, base, under, over, verifyBy));
       if (!ok) return null;
     }
     const fits = named ? [named] : waiting.filter((row) => {
@@ -2229,10 +2230,12 @@ export class PayService implements OnModuleInit {
       const stored = (row.providerRef ?? "").toUpperCase();
       if (stored && smsRef && stored !== smsRef) return false;
       if (verifyBy === "sender_number") {
-        return senderInNotice(row.payerAccount ?? "", body) && paidAmount !== null && amountFits(paidAmount, payable, under, over);
+        if (!senderInNotice(row.payerAccount ?? "", body) || paidAmount === null) return false;
+        const paidCents = Math.round(paidAmount * 100);
+        return paidCents === Math.round(payable * 100) || paidCents === Math.round(Number(row.amount) * 100);
       }
       if (verifyBy === "unique_amount") {
-        if (!isCreditMessage(body) || paidAmount === null) return false;
+        if (paidAmount === null) return false;
         if (stored && smsRef && stored !== smsRef) return false;
         if (noticedAt && row.createdAt.getTime() > noticedAt + 30_000) return false;
         return paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);

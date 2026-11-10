@@ -100,7 +100,7 @@ export function readPaidAmount(body: string) {
 
 export function isCreditMessage(body: string) {
   const lower = body.toLowerCase();
-  return ["received", "cash in", "deposit", "credited"].some((hint) => lower.includes(hint));
+  return ["received", "cash in", "deposit", "credited", "credit to"].some((hint) => lower.includes(hint));
 }
 
 export function isDebitMessage(body: string) {
