@@ -236,14 +236,7 @@ export default function PayPage() {
   function brandMark() {
     return (
       <div className="ck-brand" aria-label={card?.site?.brandName || "UniQbd"}>
-        {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : (
-          <span className="ck-bag" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
-              <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
-            </svg>
-          </span>
-        )}
+        {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : null}
         {customBrand(card?.site) ? <span className="ck-word">{card?.site?.brandName}</span> : <span className="ck-word">Uni<span>Q</span>bd</span>}
       </div>
     );
