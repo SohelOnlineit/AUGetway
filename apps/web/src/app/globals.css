@@ -2067,9 +2067,17 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-mhead h2 { color: #f8fafc; }
   .ck-mhead .theme-toggle { grid-area: mode; justify-self: end; width: 34px; height: 34px; }
   .ck-card:has(.ck-mhead) .ck-tools { display: none; }
-  .ck-pay-line { display: flex; align-items: center; gap: 10px; }
-  .ck-pay-line .ck-expiry { border-radius: 12px; box-sizing: border-box; min-height: 44px; padding: 0 12px; }
-  .ck-pay-line .ck-lang-line { display: flex; flex: 1; width: auto; min-width: 0; }
+  .ck-pay-line { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; gap: 10px; }
+  .ck-pay-line .ck-expiry,
+  .ck-pay-line .ck-lang-line {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    box-sizing: border-box;
+    justify-content: center;
+  }
+  .ck-pay-line .ck-expiry { border-radius: 12px; padding: 0 8px; }
+  .ck-pay-line .ck-lang-line { display: flex; }
   .ck-mhead h2 { grid-area: title; margin: 0; justify-self: end; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; text-overflow: ellipsis; }
   .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
   .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }
