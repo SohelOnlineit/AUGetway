@@ -20,6 +20,7 @@ const main = [
 
 const smsGateway = [
   ["Android Gateway Nodes", "/admin/sms-gateway", "phone"],
+  ["Send SMS", "/admin/sms-gateway/send", "send"],
   ["Sms Logs", "/admin/sms-logs", "chat"],
 ] as const;
 
@@ -38,6 +39,7 @@ function Icon({ name }: { name: string }) {
   if (name === "link") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path {...common} d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" /></svg>;
   if (name === "chat") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M6 17.5 3.5 20V6.5A2 2 0 0 1 5.5 4.5h13a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z" /></svg>;
   if (name === "phone") return <svg width="18" height="18" viewBox="0 0 24 24"><rect {...common} x="7" y="3" width="10" height="18" rx="2" /><path {...common} d="M11 18h2" /></svg>;
+  if (name === "send") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m4 12 16-7-6 16-2.2-6.2L4 12z" /></svg>;
   if (name === "swap") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M7 7h11l-3-3M17 17H6l3 3" /></svg>;
   if (name === "chart") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M5 19V10M12 19V5M19 19v-7" /></svg>;
   if (name === "sliders") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M4 8h16M4 16h16M8 8v4M16 12v4" /></svg>;
