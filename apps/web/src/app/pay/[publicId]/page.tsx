@@ -387,7 +387,7 @@ export default function PayPage() {
               ) : null}
               <div className="ck-copy">
                 <div>
-                  <small>{text(lang, "Send exactly", "পাঠানোর সঠিক পরিমাণ")}</small>
+                  <small>{text(lang, "Send exactly", "টাকা পাঠানোর সঠিক পরিমাণ।")}</small>
                   <b>{priced(amount)}</b>
                 </div>
                 <CopyButton done={copied === "amt"} onClick={() => flashCopy("amt", amount)} />
