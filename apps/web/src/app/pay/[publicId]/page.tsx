@@ -233,6 +233,33 @@ export default function PayPage() {
     if (cartHref) return <a className="ck-cart" href={cartHref}>{mark}{cartLabel}</a>;
     return <button type="button" className="ck-cart" onClick={() => window.history.back()}>{mark}{cartLabel}</button>;
   }
+  function brandMark() {
+    return (
+      <div className="ck-brand" aria-label={card?.site?.brandName || "UniQbd"}>
+        {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : (
+          <span className="ck-bag" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
+              <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </span>
+        )}
+        {customBrand(card?.site) ? <span className="ck-word">{card?.site?.brandName}</span> : <span className="ck-word">Uni<span>Q</span>bd</span>}
+      </div>
+    );
+  }
+  function trxRow() {
+    return (
+      <div className="ck-trx-row">
+        <span>Trx ID:</span>
+        <strong>{reference ? shortId(reference) : "…"}</strong>
+        <button type="button" className="ck-icon-btn" aria-label="Copy transaction id" onClick={() => reference && flashCopy("trx", reference)}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+        </button>
+        {copied === "trx" ? <em>{text(lang, "Copied", "কপি")}</em> : null}
+      </div>
+    );
+  }
   function expiryPill(place: "side" | "pay") {
     if (card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired") {
       return <div className={`ck-expiry ck-expiry-${place}`}><i />Expires in <b>{now ? leftClock(card.expiresAt, now) : "—"}</b></div>;
@@ -246,29 +273,21 @@ export default function PayPage() {
   return (
     <main className="ck-page">
       <section className="ck-card">
+        {showPicker ? (
+          <header className="ck-mhead">
+            {cartButton()}
+            {brandMark()}
+            <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
+            {trxRow()}
+            <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
+          </header>
+        ) : null}
         <aside className="ck-side">
           <div className="ck-side-top">
-            <div className="ck-brand" aria-label={card?.site?.brandName || "UniQbd"}>
-              {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : (
-                <span className="ck-bag" aria-hidden="true">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <path d="M6.5 8.5h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3L6.5 8.5Z" stroke="#00F5A0" strokeWidth="1.7" />
-                    <path d="M9 8.4V6.8A3 3 0 0 1 12 3.8a3 3 0 0 1 3 3v1.6" stroke="#00F5A0" strokeWidth="1.7" strokeLinecap="round" />
-                  </svg>
-                </span>
-              )}
-              {customBrand(card?.site) ? <span className="ck-word">{card?.site?.brandName}</span> : <span className="ck-word">Uni<span>Q</span>bd</span>}
-            </div>
+            {brandMark()}
 
             <div className="ck-trx">
-              <div className="ck-trx-row">
-                <span>Trx ID:</span>
-                <strong>{reference ? shortId(reference) : "…"}</strong>
-                <button type="button" className="ck-icon-btn" aria-label="Copy transaction id" onClick={() => reference && flashCopy("trx", reference)}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                </button>
-                {copied === "trx" ? <em>{text(lang, "Copied", "কপি")}</em> : null}
-              </div>
+              {trxRow()}
               {expiryPill("side")}
             </div>
 

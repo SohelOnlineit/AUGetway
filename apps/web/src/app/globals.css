@@ -940,6 +940,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 }
 .ck-picker header h2 { margin: 0; flex: 1; min-width: 0; text-align: center; white-space: nowrap; }
 .ck-picker header + .ck-grid { margin-top: 22px; }
+.ck-mhead { display: none; }
 .ck-picker header .ck-cart {
   flex: none;
   height: 44px;
@@ -1995,7 +1996,44 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-amount { padding: 16px; border-radius: 18px; }
   .ck-amount strong { font-size: 34px; }
   .ck-main { justify-content: flex-start; gap: 18px; }
-  .ck-picker header { gap: 10px; min-height: 40px; padding-bottom: 12px; }
+  .ck-card:has(.ck-mhead) .ck-side-top > .ck-brand,
+  .ck-card:has(.ck-mhead) .ck-side-top > .ck-trx,
+  .ck-card:has(.ck-mhead) .ck-picker > header:not(.ck-mhead) { display: none; }
+  .ck-mhead {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "back brand step"
+      "trx trx trx"
+      "title title title";
+    gap: 8px 10px;
+    align-items: center;
+    min-height: 0;
+    margin: 14px 16px 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg);
+  }
+  .ck-mhead .ck-cart {
+    grid-area: back;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
+    font-size: 0;
+    letter-spacing: 0;
+    border-radius: 12px;
+  }
+  .ck-mhead .ck-cart-mark { width: 40px; height: 40px; background: transparent; }
+  .ck-mhead .ck-brand { grid-area: brand; min-width: 0; }
+  .ck-mhead .ck-word { font-size: 20px; }
+  .ck-mhead .ck-step { grid-area: step; }
+  .ck-mhead .ck-trx-row { grid-area: trx; min-width: 0; }
+  .ck-mhead h2 { grid-area: title; margin: 0; font-size: 16px; font-weight: 700; text-align: left; }
+  .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
   .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }
   .ck-picker header .ck-cart {
     width: 40px;
