@@ -1844,8 +1844,10 @@ export class PayService implements OnModuleInit {
     const handset = await this.prisma.handset.findFirst({ where: { id: input.handsetId, ownerId } });
     if (!handset) throw new NotFoundException("Device not found");
     await this.expireOutbound({ handsetId: handset.id });
-    const waiting = await this.prisma.outboundSms.count({ where: { handsetId: handset.id, status: { in: ["queued", "sending"] } } });
-    if (waiting >= 1) throw new BadRequestException("This phone is already sending a message. Wait until it finishes.");
+    const queued = await this.prisma.outboundSms.count({
+      where: { handsetId: handset.id, status: "queued" },
+    });
+    if (queued >= 30) throw new BadRequestException("This phone already has 30 messages waiting.");
     const job = await this.prisma.outboundSms.create({
       data: { handsetId: handset.id, toNumber: to, body, simSlot: handset.simSlot === 1 ? 1 : 0 },
     });
@@ -1879,7 +1881,7 @@ export class PayService implements OnModuleInit {
     const waiting = await this.prisma.outboundSms.findMany({
       where: { handsetId: handset.id, status: "queued" },
       orderBy: { createdAt: "asc" },
-      take: 1,
+      take: 5,
     });
     const jobs = [];
     for (const job of waiting) {
