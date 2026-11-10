@@ -2162,7 +2162,7 @@ export class PayService implements OnModuleInit {
       select: { amount: true, payable: true, methodId: true, status: true },
     });
     const unique = method.verifyBy === "unique_amount";
-    const slots = unique ? Math.max(1, Math.min(40, Math.round(Number(method.uniqueSlots)) || 1)) : 400;
+    const slots = unique ? 499 : 400;
     const taken = new Set<string>();
     let same = 0;
     for (const row of pending) {
@@ -2175,7 +2175,7 @@ export class PayService implements OnModuleInit {
     if (unique && same > slots) {
       throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
     }
-    const picked = pickUniqueAmount(amount, unique ? method.uniqueKind : "decimal", slots, taken);
+    const picked = pickUniqueAmount(amount, "decimal", slots, taken);
     if (picked) return Number(picked);
     if (unique) throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
     return (Math.round(amount * 100) + randomInt(1, 400)) / 100;

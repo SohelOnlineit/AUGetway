@@ -16,15 +16,15 @@ test("the invoice amount itself still has to be paid in full", () => {
   assert.equal(paidFitsCheckout(150, 100, 100, 0, 0, "transaction_id"), true);
 });
 
-test("integer slots step by one taka and decimal slots step by one poisha", () => {
-  assert.deepEqual(uniqueAmounts(100, "integer", 3), ["100.00", "101.00", "102.00", "103.00"]);
-  assert.deepEqual(uniqueAmounts(100.4, "integer", 2), ["101.00", "102.00", "103.00"]);
+test("the first checkout keeps the price and each next one adds one poisha", () => {
+  assert.deepEqual(uniqueAmounts(100, "integer", 3), ["100.00", "100.01", "100.02", "100.03"]);
+  assert.deepEqual(uniqueAmounts(100.4, "integer", 2), ["100.40", "100.41", "100.42"]);
   assert.deepEqual(uniqueAmounts(100, "decimal", 3), ["100.00", "100.01", "100.02", "100.03"]);
 });
 
 test("the next checkout takes the first amount that is not already reserved", () => {
-  const taken = new Set(["100.00", "101.00"]);
-  assert.equal(pickUniqueAmount(100, "integer", 3, taken), "102.00");
+  const taken = new Set(["100.00", "100.01"]);
+  assert.equal(pickUniqueAmount(100, "integer", 3, taken), "100.02");
   assert.equal(pickUniqueAmount(100, "decimal", 1, new Set(["100.00"])), "100.01");
   assert.equal(pickUniqueAmount(100, "decimal", 1, new Set(["100.00", "100.01"])), "");
 });

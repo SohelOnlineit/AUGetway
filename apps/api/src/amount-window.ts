@@ -12,14 +12,11 @@ export function paidFitsCheckout(paid: number, expected: number, _base: number, 
   return paidCents >= floor && paidCents <= cap;
 }
 
-export function uniqueAmounts(base: number, kind: string, slots: number) {
-  const decimal = kind === "decimal";
-  const baseCents = cents(base);
-  const start = decimal ? baseCents : baseCents % 100 === 0 ? baseCents : Math.ceil(baseCents / 100) * 100;
-  const step = decimal ? 1 : 100;
-  const room = Math.max(1, Math.min(40, Math.round(slots) || 1));
+export function uniqueAmounts(base: number, _kind: string, slots: number) {
+  const start = cents(base);
+  const room = Math.max(1, Math.min(499, Math.round(slots) || 1));
   const amounts: string[] = [];
-  for (let index = 0; index <= room; index += 1) amounts.push(((start + index * step) / 100).toFixed(2));
+  for (let index = 0; index <= room; index += 1) amounts.push(((start + index) / 100).toFixed(2));
   return amounts;
 }
 
