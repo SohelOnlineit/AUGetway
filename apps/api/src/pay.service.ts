@@ -635,9 +635,7 @@ export class PayService implements OnModuleInit {
       },
       include: { method: true },
     });
-    await this.reserveOpenSlot(row);
-    const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id }, include: { method: true } });
-    return this.checkoutCard(fresh ?? row, true);
+    return this.checkoutCard(row, true);
   }
 
   async setStatus(ownerId: string, id: string, status: "paid" | "failed", providerRef?: string) {
