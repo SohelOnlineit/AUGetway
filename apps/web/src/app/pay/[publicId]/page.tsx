@@ -30,19 +30,7 @@ function returnHref(url: string, invoiceId: string) {
     return "";
   }
   if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) return "";
-  const join = parsed.search ? "&" : "?";
-  return `${parsed.toString()}${join}invoice_id=${encodeURIComponent(invoiceId)}`;
-}
-
-function safeHttp(url: string | null | undefined) {
-  if (!url) return "";
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return "";
-  }
-  if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) return "";
+  parsed.searchParams.set("invoice_id", invoiceId);
   return parsed.toString();
 }
 
@@ -237,12 +225,22 @@ export default function PayPage() {
   const priced = (value: string) => (symbol ? `${symbol} ${value}` : `${value} ${currency}`);
   const supportHref = card?.site?.supportPhone ? `tel:${card.site.supportPhone}` : card?.site?.supportEmail ? `mailto:${card.site.supportEmail}` : "";
   const supportLabel = card?.site?.supportPhone || card?.site?.supportEmail || text(lang, "Support", "সহায়তা");
-  const cartHref = safeHttp(card?.cancelUrl);
+  const cancelHref = returnHref(card?.cancelUrl ?? "", params.publicId);
+  const cartHref = cancelHref;
   const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
   function cartButton() {
     const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
     if (cartHref) return <a className="ck-cart" href={cartHref}>{mark}{cartLabel}</a>;
     return <button type="button" className="ck-cart" onClick={() => window.history.back()}>{mark}{cartLabel}</button>;
+  }
+  function expiryPill(place: "side" | "pay") {
+    if (card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired") {
+      return <div className={`ck-expiry ck-expiry-${place}`}><i />Expires in <b>{now ? leftClock(card.expiresAt, now) : "—"}</b></div>;
+    }
+    if (place === "side" && card?.status === "paid") {
+      return <div className="ck-expiry ck-expiry-side"><i />{text(lang, "Payment verified", "পেমেন্ট সফল হয়েছে")}</div>;
+    }
+    return null;
   }
 
   return (
@@ -271,10 +269,7 @@ export default function PayPage() {
                 </button>
                 {copied === "trx" ? <em>{text(lang, "Copied", "কপি")}</em> : null}
               </div>
-              {card && card.status !== "paid" && card.status !== "failed" && card.status !== "expired" ? (
-                <div className="ck-expiry"><i />Expires in <b>{now ? leftClock(card.expiresAt, now) : "—"}</b></div>
-              ) : null}
-              {card?.status === "paid" ? <div className="ck-expiry"><i />{text(lang, "Payment verified", "পেমেন্ট সফল হয়েছে")}</div> : null}
+              {expiryPill("side")}
             </div>
 
             <div className="ck-amount">
@@ -404,6 +399,7 @@ export default function PayPage() {
               ) : null}
               {card.status === "pending" ? <p className="ck-note">{text(lang, "This payment is pending a check.", "পেমেন্টটি যাচাইয়ের অপেক্ষায়।")}</p> : null}
               {card.providerRef ? <p className="ck-note">{text(lang, `Waiting for confirmation of ${card.providerRef}.`, `${card.providerRef} নিশ্চিত হওয়ার অপেক্ষায়।`)}</p> : null}
+              {expiryPill("pay")}
               <button className="ck-pay on" disabled={pending} type="submit">
                 {text(lang, card.method.verifyBy === "unique_amount" ? "Submit" : "I have paid", card.method.verifyBy === "unique_amount" ? "সাবমিট করুন" : "পেমেন্ট যাচাই করুন")}
               </button>
@@ -423,17 +419,18 @@ export default function PayPage() {
           </div>
 
           <footer className="ck-foot">
+            {showPicker ? expiryPill("pay") : null}
             {showPicker ? (
               <button type="button" className={picked ? "ck-pay on" : "ck-pay"} disabled={!picked || pending} onClick={paySelected}>
                 <PayMark />
                 <span>{text(lang, `Pay ${priced(amount)}`, `পেমেন্ট করুন ${priced(amount)}`)}</span>
               </button>
             ) : null}
-            {card?.cancelUrl ? (
-              <a className="ck-cancel" href={card.cancelUrl}>{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</a>
-            ) : showPicker ? (
-              <span className="ck-cancel">{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</span>
-            ) : null}
+            {cancelHref ? (
+              <a className="ck-cancel" href={cancelHref}>{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</a>
+            ) : (
+              <button type="button" className="ck-cancel" onClick={() => window.history.back()}>{text(lang, "Cancel and return to merchant", "বাতিল করে মার্চেন্টে ফিরে যান")}</button>
+            )}
             {card?.site?.faqContent ? (
               <div className="ck-faq">
                 <strong>{card.site.faqTitle || text(lang, "FAQ", "প্রশ্নোত্তর")}</strong>
