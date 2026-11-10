@@ -297,12 +297,13 @@ export default function PayPage() {
 
         <section className="ck-main">
           <div className="ck-main-top">
-          <div className="ck-cart-row">{cartButton()}</div>
+          {showPicker ? null : <div className="ck-cart-row">{cartButton()}</div>}
           {showPicker ? (
             <div className="ck-picker">
               <header>
+                {cartButton()}
                 <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
-                <span>{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
+                <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
               </header>
               <div className="ck-tabs">
                 <button type="button" className={filter === "all" ? "on" : ""} onClick={() => setFilter("all")}>
