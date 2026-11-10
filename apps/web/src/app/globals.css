@@ -2004,7 +2004,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "back brand step"
-      "trx trx trx"
+      "trx trx mode"
       "title title title";
     gap: 8px 10px;
     align-items: center;
@@ -2032,6 +2032,8 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-mhead .ck-word { font-size: 20px; }
   .ck-mhead .ck-step { grid-area: step; }
   .ck-mhead .ck-trx-row { grid-area: trx; min-width: 0; }
+  .ck-mhead .theme-toggle { grid-area: mode; justify-self: end; width: 34px; height: 34px; }
+  .ck-card:has(.ck-mhead) .ck-tools .theme-toggle { display: none; }
   .ck-mhead h2 { grid-area: title; margin: 0; font-size: 16px; font-weight: 700; text-align: left; }
   .ck-picker header:not(.ck-mhead) { gap: 10px; min-height: 40px; padding-bottom: 12px; }
   .ck-picker header h2 { font-size: 18px; font-weight: 700; text-align: left; }

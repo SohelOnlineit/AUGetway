@@ -279,6 +279,7 @@ export default function PayPage() {
             {brandMark()}
             <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
             {trxRow()}
+            <ThemeToggle />
             <h2>{text(lang, "Payment options", "পেমেন্ট মাধ্যমসমূহ")}</h2>
           </header>
         ) : null}
