@@ -2016,17 +2016,20 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   }
   .ck-mhead .ck-cart {
     grid-area: back;
-    width: 40px;
-    height: 40px;
-    padding: 0;
+    width: auto;
+    height: 34px;
+    padding: 0 10px 0 8px;
     justify-content: center;
-    gap: 0;
-    overflow: hidden;
-    font-size: 0;
+    gap: 2px;
+    overflow: visible;
+    font-size: 13px;
+    font-weight: 600;
     letter-spacing: 0;
-    border-radius: 12px;
+    text-transform: none;
+    border-radius: 10px;
+    white-space: nowrap;
   }
-  .ck-mhead .ck-cart-mark { width: 40px; height: 40px; background: transparent; }
+  .ck-mhead .ck-cart-mark { width: 16px; height: 16px; background: transparent; }
   .ck-mhead .ck-brand { grid-area: brand; min-width: 0; }
   .ck-mhead .ck-word { font-size: 20px; }
   .ck-mhead .ck-step { grid-area: step; padding: 6px 8px; }

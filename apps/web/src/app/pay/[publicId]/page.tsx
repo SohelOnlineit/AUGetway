@@ -228,10 +228,11 @@ export default function PayPage() {
   const cancelHref = returnHref(card?.cancelUrl ?? "", params.publicId);
   const cartHref = cancelHref;
   const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
-  function cartButton() {
+  function cartButton(compact = false) {
+    const label = compact ? text(lang, "Back", "ফিরে") : cartLabel;
     const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
-    if (cartHref) return <a className="ck-cart" href={cartHref}>{mark}{cartLabel}</a>;
-    return <button type="button" className="ck-cart" onClick={() => window.history.back()}>{mark}{cartLabel}</button>;
+    if (cartHref) return <a className="ck-cart" href={cartHref} aria-label={cartLabel}>{mark}{label}</a>;
+    return <button type="button" className="ck-cart" onClick={() => window.history.back()} aria-label={cartLabel}>{mark}{label}</button>;
   }
   function brandMark() {
     return (
@@ -268,7 +269,7 @@ export default function PayPage() {
       <section className="ck-card">
         {showPicker ? (
           <header className="ck-mhead">
-            {cartButton()}
+            {cartButton(true)}
             {brandMark()}
             <span className="ck-step">{text(lang, "Step 1 of 2", "ধাপ ১ / ২")}</span>
             {trxRow()}
