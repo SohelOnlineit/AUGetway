@@ -379,7 +379,7 @@ export default function PayPage() {
               {card.method.accountNumber ? (
                 <div className="ck-copy">
                   <div>
-                    <small>{text(lang, "Send to this number", "এই নম্বরে টাকা পাঠান")}</small>
+                    <small>{text(lang, "Send to this number", "নিচের নাম্বারে বিকাশের পেমেন্ট অপশন থেকে পেমেন্ট করুন।")}</small>
                     <b>{card.method.accountNumber}</b>
                   </div>
                   <CopyButton done={copied === "num"} onClick={() => flashCopy("num", card.method?.accountNumber ?? "")} />
