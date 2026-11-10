@@ -830,6 +830,18 @@ export class HandsetDto {
   simSlot?: number;
 }
 
+export class PublicSmsDto {
+  @IsString()
+  @MinLength(10)
+  @MaxLength(20)
+  to!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(320)
+  message!: string;
+}
+
 export class QueueSmsDto {
   @IsString()
   @MinLength(4)

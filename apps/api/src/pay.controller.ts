@@ -25,6 +25,7 @@ import {
   NoticeDto,
   ProofDto,
   PulseDto,
+  PublicSmsDto,
   QueueSmsDto,
   SettingsDto,
   StartLinkDto,
@@ -381,6 +382,23 @@ export class PayController {
   @UseGuards(DeskGuard)
   jobResult(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: JobResultDto) {
     return this.pay.finishJob(request.desk.sub, id, body);
+  }
+
+  @Get("sms/status")
+  smsStatus(
+    @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
+    @Headers("x-merchant-key") merchantKey: string | undefined,
+  ) {
+    return this.pay.smsStatus(gatewayKey || merchantKey || "");
+  }
+
+  @Post("sms/send")
+  sendPublicSms(
+    @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
+    @Headers("x-merchant-key") merchantKey: string | undefined,
+    @Body() body: PublicSmsDto,
+  ) {
+    return this.pay.sendPublicSms(gatewayKey || merchantKey || "", body);
   }
 
   @Post("checkout-v2")

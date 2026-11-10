@@ -1816,6 +1816,26 @@ export class PayService implements OnModuleInit {
     });
   }
 
+  async smsStatus(token: string) {
+    const key = await this.keyFromToken(token);
+    this.requireAbility(key, "sms:send");
+    const phones = await this.prisma.handset.count({ where: { ownerId: key.ownerId } });
+    if (!phones) throw new BadRequestException("No phone is registered on this desk");
+    return { ok: true as const, phones };
+  }
+
+  async sendPublicSms(token: string, input: { to: string; message: string }) {
+    const key = await this.keyFromToken(token);
+    this.requireAbility(key, "sms:send");
+    const handset = await this.prisma.handset.findFirst({
+      where: { ownerId: key.ownerId },
+      orderBy: { lastSeenAt: "desc" },
+    });
+    if (!handset) throw new BadRequestException("No phone is registered on this desk");
+    const job = await this.queueSms(key.ownerId, { handsetId: handset.id, to: input.to, body: input.message });
+    return { ok: true as const, id: job.id, status: job.status };
+  }
+
   async queueSms(ownerId: string, input: { handsetId: string; to: string; body: string }) {
     const to = bdMobile(input.to);
     if (!to) throw new BadRequestException("Use a Bangladesh mobile number, like 01XXXXXXXXX");
