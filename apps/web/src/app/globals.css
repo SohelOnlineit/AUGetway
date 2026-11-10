@@ -816,7 +816,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .ck-side {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 24px;
   padding: 32px 28px;
   border-right: 1px solid var(--line);
@@ -1975,7 +1975,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .fin-card strong { font-size: 18px; margin: 4px 0 8px; }
   .fin-card:hover { transform: none; }
   .people-stats { grid-template-columns: 1fr 1fr; }
-  .ck-page { padding: 0; align-items: stretch; }
+  .ck-page { padding: 0; align-items: flex-start; }
   .ck-card { width: 100%; min-height: 0; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
   .ck-side, .ck-main { padding: 14px 8px; }
   .ck-amount { padding: 12px 10px; }
