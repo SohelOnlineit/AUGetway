@@ -55,11 +55,14 @@ function plain(value: string | number) {
   return Number.isFinite(amount) ? String(amount) : "";
 }
 
-function slotHelp(slots: string) {
+function slotHelp(slots: string, kind: string) {
   const count = Math.max(1, Math.min(40, Math.round(Number(slots)) || 1));
-  const step = 0.01;
+  const decimal = kind === "decimal";
+  const step = decimal ? 0.01 : 1;
   const sample = [0, 1, 2].map((index) => (100 + index * step).toFixed(2)).join(", ");
-  return `How many spare amounts to offer when customers owe the same total. Each is 1 poisha (0.01) above the last, so ${count} lets ${count + 1} people pay at once and the last pays ${(count * step).toFixed(2)} over the invoice. Example: ${sample}.`;
+  const extra = (count * step).toFixed(2);
+  const unit = decimal ? "0.01" : "1.00";
+  return `How many spare amounts to offer when customers owe the same total. Each is ${unit} above the last, so ${count} lets ${count + 1} people pay at once and the last pays ${extra} over the invoice. Example: ${sample}.`;
 }
 
 function fromDetail(row: GatewayDetail): FormState {
@@ -278,12 +281,12 @@ export default function EditGatewayPage() {
                     <option value="integer">Integer (e.g. 11)</option>
                     <option value="decimal">Decimal (e.g. 100.04)</option>
                   </select>
-                  <p className="gw-help">Each next customer pays 1 poisha (0.01) more, not 1 taka. A second customer paying 100.00 is asked for 100.01, then 100.02. If they pay 1 to 4 poisha less than that and enter the Transaction ID, it still verifies, as long as the payment is not below the invoice.</p>
+                  <p className="gw-help">{form.uniqueKind === "decimal" ? "Decimal adds fractional digits (e.g. 100.04) so the customer pays almost exactly the invoice. The checkout verifies itself when an SMS arrives for that exact amount." : "Integer rounds each checkout up to the next whole number (e.g. 101) for providers that refuse fractional amounts. The checkout verifies itself when an SMS arrives for that exact amount."}</p>
                 </label>
                 <label>
                   <span className="gw-label">Unique Amount Slots<i>*</i></span>
                   <input required type="number" min={1} max={40} value={form.uniqueSlots} onChange={(event) => patch({ uniqueSlots: event.target.value })} />
-                  <p className="gw-help">{slotHelp(form.uniqueSlots)}</p>
+                  <p className="gw-help">{slotHelp(form.uniqueSlots, form.uniqueKind)}</p>
                 </label>
               </>
             ) : null}

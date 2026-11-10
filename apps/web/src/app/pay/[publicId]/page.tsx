@@ -383,8 +383,8 @@ export default function PayPage() {
                   <p className="ck-wait"><i />{text(lang, "Waiting for your payment...", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
                   <p className="ck-note">{text(lang, "Please wait. Your payment will be verified automatically, or enter your Transaction ID below:", "অনুগ্রহ করে অপেক্ষা করুন। আপনার পেমেন্টটি অটোমেটিক ভেরিফাই হয়ে যাবে, অথবা নিচে ট্রানজেকশন আইডি দিন:")}</p>
                   <label className="ck-field">
-                    <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
-                    <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
+                    <span>{text(lang, "Enter Transaction ID", "ট্রানজেকশন আইডি লিখুন")}</span>
+                    <input className="ck-ref" name="providerRef" minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
                   </label>
                 </>
               ) : null}
