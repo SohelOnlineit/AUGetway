@@ -1968,7 +1968,9 @@ export class PayService implements OnModuleInit {
       publicId: string;
       ownerId: string;
       amount: unknown;
-      payable: unknown;
+      payable: { toString(): string };
+      reference: string;
+      shopOrder: string;
       billId: string | null;
       method: { label: string; verifyBy: string; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
     },
@@ -1979,12 +1981,7 @@ export class PayService implements OnModuleInit {
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const service = verifyBy === "transaction_id" ? walletService(row.method?.label ?? "") : "";
     if (service === "bkash" || service === "nagad" || service === "rocket" || service === "upay") {
-      return this.queueBalanceCheck(
-        { ...row, reference: "reference" in row && typeof row.reference === "string" ? row.reference : "", shopOrder: "shopOrder" in row && typeof row.shopOrder === "string" ? row.shopOrder : "" },
-        providerRef,
-        payerAccount,
-        service,
-      );
+      return this.queueBalanceCheck(row, providerRef, payerAccount, service);
     }
     const notices = await this.prisma.inboxNotice.findMany({
       where: { handset: { ownerId: row.ownerId }, checkoutId: null },
