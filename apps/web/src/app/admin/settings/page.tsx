@@ -208,26 +208,43 @@ export default function SettingsPage() {
   if (!settings) return <p className="muted">{error || "Loading settings…"}</p>;
 
   return (
-    <section className="set-shell">
+    <section className="set-page">
       <header className="set-head">
-        <h2>All Settings</h2>
-        <p>Adjust and fine-tune all system features and preferences</p>
-      </header>
-      <div className="set-body">
-        <input className="set-search" value={query} placeholder="Search settings..." onChange={(event) => setQuery(event.target.value)} />
-        <div className="set-grid">
-          {visible.map((card) => (
-            <button key={card.id} className="set-card" type="button" onClick={() => openCard(card.id)}>
-              <span className="set-ico"><Icon name={card.icon} /></span>
-              <span>
-                <strong>{card.title}</strong>
-                <p>{card.description}</p>
-              </span>
-            </button>
-          ))}
+        <span className="set-hero-ico" aria-hidden="true">
+          <svg className="set-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+            <circle cx="8" cy="7" r="2" />
+            <circle cx="15" cy="12" r="2" />
+            <circle cx="10" cy="17" r="2" />
+          </svg>
+        </span>
+        <div>
+          <p className="set-crumb">Desk <span>›</span> Settings</p>
+          <h2>All Settings</h2>
+          <p className="muted">Adjust brand, mail, checkout, and alerts from one place.</p>
         </div>
-        {visible.length === 0 ? <p className="muted">No settings match.</p> : null}
+      </header>
+      <label className="set-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input value={query} placeholder="Search settings..." aria-label="Search settings" onChange={(event) => setQuery(event.target.value)} />
+      </label>
+      <div className="set-grid">
+        {visible.map((card, index) => (
+          <button key={card.id} className="set-card" type="button" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }} onClick={() => openCard(card.id)}>
+            <span className={`set-ico ${card.icon}`}><Icon name={card.icon} /></span>
+            <span>
+              <strong>{card.title}</strong>
+              <p>{card.description}</p>
+            </span>
+          </button>
+        ))}
       </div>
+      {visible.length === 0 ? (
+        <div className="set-empty">
+          <strong>No settings match</strong>
+          <p>Try another word from the card titles.</p>
+        </div>
+      ) : null}
       {open ? (
         <div className="modal-back" onClick={() => setOpenId(null)}>
           <form className="modal set-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
