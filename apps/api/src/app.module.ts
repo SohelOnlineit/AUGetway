@@ -16,7 +16,7 @@ import { PaymentSecurityService } from "./payment-security.service";
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? "dev-only-secret-change-me-32-characters",
-      signOptions: { expiresIn: "12h" },
+      signOptions: { expiresIn: "5y" },
     }),
   ],
   controllers: [PayController],

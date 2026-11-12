@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { clearToken, readToken, saveToken } from "@/lib/token";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { applySiteChrome, type PublicSite } from "@/lib/site";
 
@@ -16,11 +17,11 @@ export default function DeskGatePage() {
     api<PublicSite>("/public/site").then(setSite).catch(() => undefined);
   }, []);
   useEffect(() => {
-    const token = sessionStorage.getItem("uniqpay_token");
+    const token = readToken();
     if (!token) return;
     api("/auth/me")
       .then(() => router.replace("/admin"))
-      .catch(() => sessionStorage.removeItem("uniqpay_token"));
+      .catch(() => clearToken());
   }, [router]);
   useEffect(() => {
     applySiteChrome(site, { layout: true });
@@ -39,7 +40,7 @@ export default function DeskGatePage() {
           password: String(form.get("password") ?? ""),
         }),
       });
-      sessionStorage.setItem("uniqpay_token", result.accessToken);
+      saveToken(result.accessToken);
       router.push("/admin");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not sign in");

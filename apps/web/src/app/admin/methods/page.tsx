@@ -45,8 +45,6 @@ const templates: Array<[string, string, number]> = [
   ["Rocket Personal", "Rocket Personal", 25000],
   ["Upay Personal", "Upay Personal", 25000],
   ["BanglaQR", "BanglaQR", 50000],
-  ["bKash (EPS)", "bKash (EPS)", 50000],
-  ["bKash API (Checkout)", "bKash API (Checkout)", 50000],
   ["Brac Bank", "Brac Bank", 500000],
   ["City Bank", "City Bank", 500000],
   ["Eastern Bank", "Eastern Bank", 500000],
@@ -109,6 +107,16 @@ function payload(draft: Draft) {
 
 function GripIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" /></svg>;
+}
+
+function markKind(label: string) {
+  const value = label.toLowerCase();
+  if (value.includes("bkash") || value.includes("bikash")) return "bkash";
+  if (value.includes("nagad")) return "nagad";
+  if (value.includes("rocket")) return "rocket";
+  if (value.includes("upay") || value.includes("upai")) return "upay";
+  if (value.includes("qr")) return "banglaqr";
+  return "bank";
 }
 
 function pretty(value: string) {
@@ -229,29 +237,47 @@ export default function MethodsPage() {
     }
   }
 
+  const onCount = rows.filter((row) => row.active).length;
+  const withAccount = rows.filter((row) => row.accountNumber.trim()).length;
+
   return (
-    <div className="stack">
+    <div className="ogw-page">
       {error ? <p className="error">{error}</p> : null}
-      <section className="card gw-card">
-        <div className="gw-head">
-          <div>
-            <h2>Gateways</h2>
-            <p className="gw-order">Drag a row up or down. The top gateway is offered first at checkout.</p>
-          </div>
-          <button className="btn" onClick={() => { setPicking(true); setDraft(null); }}>New gateway</button>
+      <header className="ogw-head">
+        <div>
+          <p className="ogw-kicker">Payment Gateways</p>
+          <h2>Manual Gateway</h2>
+          <p>Drag a row up or down. The top gateway is offered first at checkout.</p>
         </div>
-        <div className="gw-tools">
-          {picked.length > 0 ? <button className="btn-line" onClick={removeSelected}>Delete {picked.length}</button> : null}
-          <input
-            value={query}
-            placeholder="Search"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-          />
+        <div className="mgw-actions">
+          <Link className="ogw-back" href="/admin/gateways">Payment Gateways</Link>
+          <button className="mgw-new" type="button" onClick={() => { setPicking(true); setDraft(null); }}>New gateway</button>
         </div>
-        <table className="gw-table">
+      </header>
+      <div className="ogw-stats">
+        <article><b>{rows.length}</b><small>Gateways</small></article>
+        <article><b>{onCount}</b><small>Turned on</small></article>
+        <article><b>{withAccount}</b><small>With account</small></article>
+        <article><b>{rows.length - withAccount}</b><small>Need a number</small></article>
+      </div>
+      <section className="ogw-card">
+        <div className="ogw-tools">
+          {picked.length > 0 ? <button className="ogw-delete" type="button" onClick={removeSelected}>Delete {picked.length}</button> : null}
+          <label className="ogw-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input
+              value={query}
+              placeholder="Search gateways"
+              aria-label="Search gateways"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+        </div>
+        <div className="ogw-scroll">
+        <table className="ogw-table">
           <thead>
             <tr>
               <th aria-label="Reorder" />
@@ -264,15 +290,16 @@ export default function MethodsPage() {
               </th>
               <th><button type="button" onClick={() => sortBy("label")}>Gateway {sortKey === "label" ? (sortDir === "asc" ? "↑" : "↓") : ""}</button></th>
               <th>Code</th>
-              <th>Status</th>
               <th><button type="button" onClick={() => sortBy("minAmount")}>Min {sortKey === "minAmount" ? (sortDir === "asc" ? "↑" : "↓") : ""}</button></th>
               <th><button type="button" onClick={() => sortBy("maxAmount")}>Max {sortKey === "maxAmount" ? (sortDir === "asc" ? "↑" : "↓") : ""}</button></th>
               <th>Account</th>
-              <th></th>
+              <th>Status</th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
+            {visible.map((row) => {
+              return (
               <tr
                 key={row.id}
                 className={overId === row.id && dragId !== row.id ? "gw-over" : dragId === row.id ? "gw-dragging" : ""}
@@ -294,7 +321,7 @@ export default function MethodsPage() {
                     className="gw-grip"
                     type="button"
                     draggable={!query.trim()}
-                    aria-label={`Drag ${row.internalLabel?.trim() || row.label}`}
+                    aria-label={`Drag ${row.label}`}
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", row.id);
@@ -313,28 +340,35 @@ export default function MethodsPage() {
                   />
                 </td>
                 <td>
-                  <strong>{row.internalLabel?.trim() || row.label}</strong>
-                  {row.internalLabel?.trim() && row.internalLabel.trim() !== row.label ? <div className="code">{row.label}</div> : null}
+                  <div className="ogw-name">
+                    <span className={`ogw-mark ogw-mark--${markKind(row.label)}`} aria-hidden>{row.label.slice(0, 1)}</span>
+                    <div>
+                      <strong>{row.label}</strong>
+                      <em>Manual number</em>
+                    </div>
+                  </div>
                 </td>
-                <td className="code">{row.code}</td>
+                <td className="ogw-account">{row.code}</td>
+                <td className="ogw-limits">{pretty(row.minAmount)}</td>
+                <td className="ogw-limits">{pretty(row.maxAmount)}</td>
+                <td className="ogw-account">{row.accountNumber || "—"}</td>
                 <td>
                   <button className={row.active ? "switch on" : "switch"} type="button" aria-label={row.active ? "Turn off" : "Turn on"} onClick={() => toggle(row)}>
                     <span />
                   </button>
                 </td>
-                <td>{pretty(row.minAmount)}</td>
-                <td>{pretty(row.maxAmount)}</td>
-                <td className="code">{row.accountNumber || "—"}</td>
-                <td><Link className="edit-link" href={`/admin/gateways/${row.id}`}>Edit</Link></td>
+                <td><Link className="ogw-edit" href={`/admin/gateways/${row.id}`}>Edit</Link></td>
               </tr>
-            ))}
+              );
+            })}
             {visible.length === 0 ? <tr><td colSpan={9}>No gateways match.</td></tr> : null}
           </tbody>
         </table>
-        <div className="gw-foot">
-          <span>Showing {filtered.length === 0 ? 0 : start + 1} to {Math.min(start + perPage, filtered.length)} of {filtered.length} results</span>
+        </div>
+        <div className="ogw-foot">
+          <span>Showing {filtered.length === 0 ? 0 : start + 1} to {Math.min(start + perPage, filtered.length)} of {filtered.length}</span>
           <label>Per page <select value={perPage} onChange={(event) => { setPerPage(Number(event.target.value)); setPage(1); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
-          <div className="gw-pages">
+          <div className="ogw-pages">
             <button type="button" onClick={() => setPage(Math.max(1, safePage - 1))}>‹</button>
             {Array.from({ length: pages }, (_, index) => index + 1).map((number) => (
               <button key={number} type="button" className={number === safePage ? "on" : ""} onClick={() => setPage(number)}>{number}</button>
@@ -346,7 +380,7 @@ export default function MethodsPage() {
 
       {picking ? (
         <div className="modal-back" onClick={() => setPicking(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal ogw-modal" onClick={(event) => event.stopPropagation()}>
             <h2>New gateway</h2>
             <div className="templates">
               {templates.map(([label, code, max]) => (
@@ -363,7 +397,7 @@ export default function MethodsPage() {
 
       {draft ? (
         <div className="modal-back" onClick={() => setDraft(null)}>
-          <form className="modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
+          <form className="modal ogw-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
             <h2>{draft.id ? "Edit gateway" : "New gateway"}</h2>
             <div className="form-grid">
               <label className="field"><span>Display name</span><input value={draft.label} required onChange={(event) => setDraft({ ...draft, label: event.target.value })} /></label>

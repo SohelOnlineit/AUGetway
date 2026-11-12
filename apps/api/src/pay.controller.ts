@@ -21,6 +21,7 @@ import {
   EditCheckoutDto,
   LoginDto,
   MethodDto,
+  OfficialGatewayDto,
   NoticeBatchDto,
   NoticeDto,
   ProofDto,
@@ -124,6 +125,30 @@ export class PayController {
   @UseGuards(DeskGuard)
   reorderMethods(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
     return this.pay.reorderMethods(request.desk.sub, body.ids);
+  }
+
+  @Get("desk/official-gateways")
+  @UseGuards(DeskGuard)
+  officialGateways(@Req() request: DeskRequest) {
+    return this.pay.listOfficialGateways(request.desk.sub);
+  }
+
+  @Post("desk/official-gateways")
+  @UseGuards(DeskGuard)
+  addOfficialGateway(@Req() request: DeskRequest, @Body() body: OfficialGatewayDto) {
+    return this.pay.createOfficialGateway(request.desk.sub, body);
+  }
+
+  @Patch("desk/official-gateways/:id")
+  @UseGuards(DeskGuard)
+  editOfficialGateway(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: OfficialGatewayDto) {
+    return this.pay.updateOfficialGateway(request.desk.sub, id, body);
+  }
+
+  @Delete("desk/official-gateways/:id")
+  @UseGuards(DeskGuard)
+  removeOfficialGateway(@Req() request: DeskRequest, @Param("id") id: string) {
+    return this.pay.removeOfficialGateway(request.desk.sub, id);
   }
 
   @Get("desk/checkouts")

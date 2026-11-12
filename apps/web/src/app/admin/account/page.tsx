@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { saveToken } from "@/lib/token";
 
 type Account = { name: string; email: string; role: string };
 
@@ -73,7 +74,7 @@ export default function AccountPage() {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, email: next, name: nextName, ...(newPassword ? { newPassword } : {}) }),
       });
-      sessionStorage.setItem("uniqpay_token", result.accessToken);
+      saveToken(result.accessToken);
       setUser(result.user);
       setName(result.user.name);
       setEmail(result.user.email);

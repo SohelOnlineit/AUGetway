@@ -59,6 +59,22 @@ function plain(value: string | number) {
   return Number.isFinite(amount) ? String(amount) : "";
 }
 
+function markKind(label: string) {
+  const value = label.toLowerCase();
+  if (value.includes("bkash") || value.includes("bikash")) return "bkash";
+  if (value.includes("nagad")) return "nagad";
+  if (value.includes("rocket")) return "rocket";
+  if (value.includes("upay") || value.includes("upai")) return "upay";
+  if (value.includes("qr")) return "banglaqr";
+  return "bank";
+}
+
+function moneyText(value: string) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return amount.toLocaleString("en-US", { maximumFractionDigits: amount % 1 === 0 ? 0 : 2 });
+}
+
 function slotHelp() {
   const sample = [0, 1, 2].map((index) => (100 + index * 0.01).toFixed(2)).join(", ");
   return `The first checkout shows the invoice amount. Each later checkout of that same amount adds 0.01, up to 500 at once. Example: ${sample}.`;
@@ -160,7 +176,7 @@ export default function EditGatewayPage() {
           overTolerance: Number(form.overTolerance || 0),
         }),
       });
-      router.push("/admin/gateways");
+      router.push("/admin/gateways/manual");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save");
     } finally {
@@ -170,11 +186,33 @@ export default function EditGatewayPage() {
 
   if (!form) return error ? <p className="error">{error}</p> : null;
 
+  const accounts = form.accountNumber.split(/[\s,;]+/).filter(Boolean).length;
+  const verify = form.verifyBy === "sender_number" ? "Sender number" : form.verifyBy === "unique_amount" ? "Unique amount" : "Transaction ID";
+
   return (
     <form className="gw-edit" onSubmit={save}>
+      <header className="ogw-head">
+        <div className="gif-title">
+          <span className={`ogw-mark ogw-mark--${markKind(form.label)}`} aria-hidden>{(form.label || "G").slice(0, 1)}</span>
+          <div>
+            <p className="ogw-kicker">Manual Gateway</p>
+            <h2>Gateway Information</h2>
+            <p>{form.label || "Name, limits and how this gateway is matched."}</p>
+          </div>
+        </div>
+        <Link className="ogw-back" href="/admin/gateways/manual">Manual Gateway</Link>
+      </header>
+      <div className="ogw-stats">
+        <article><b>{moneyText(form.minAmount)}</b><small>Minimum</small></article>
+        <article><b>{moneyText(form.maxAmount)}</b><small>Maximum</small></article>
+        <article><b>{accounts}</b><small>{accounts === 1 ? "Account" : "Accounts"}</small></article>
+        <article><b className="gif-stat">{verify}</b><small>Matching</small></article>
+      </div>
       <section className="gw-section">
-        <h3>Gateway Information</h3>
-        <p className="sub">Basic gateway configuration and settings</p>
+        <div className="gif-section-head">
+          <h3>Gateway Information</h3>
+          <p className="sub">Basic gateway configuration and settings</p>
+        </div>
         <div className="gw-grid">
           <label>
             <span className="gw-label">Label</span>
@@ -246,8 +284,10 @@ export default function EditGatewayPage() {
       </section>
 
       <section className="gw-section">
-        <h3>Configuration</h3>
-        <p className="sub">Gateway-specific configuration parameters</p>
+        <div className="gif-section-head">
+          <h3>Configuration</h3>
+          <p className="sub">Gateway-specific configuration parameters</p>
+        </div>
         <div className="gw-box">
         <div className="gw-tabs">
           <button className={tab === "account" ? "on" : ""} type="button" onClick={() => setTab("account")}>
@@ -345,9 +385,9 @@ export default function EditGatewayPage() {
       </section>
 
       {error ? <p className="error">{error}</p> : null}
-      <div className="row">
-        <button className="btn" disabled={pending} type="submit">Save changes</button>
-        <Link className="btn btn-quiet" href="/admin/gateways">Cancel</Link>
+      <div className="gif-actions">
+        <Link className="ogw-back" href="/admin/gateways/manual">Cancel</Link>
+        <button className="mgw-new" disabled={pending} type="submit">{pending ? "Saving…" : "Save changes"}</button>
       </div>
     </form>
   );

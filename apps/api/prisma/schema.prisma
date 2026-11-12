@@ -20,6 +20,7 @@ model DeskUser {
   receiptDefaulted Boolean    @default(false)
   createdAt    DateTime       @default(now())
   methods      WalletMethod[]
+  officialGateways OfficialGateway[]
   checkouts    Checkout[]
   bills        Bill[]
   links        PayLink[]
@@ -64,6 +65,21 @@ model WalletMethod {
   checkouts     Checkout[]
 }
 
+model OfficialGateway {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  provider  String
+  label     String
+  mode      String   @default("sandbox")
+  active    Boolean  @default(false)
+  secrets   String   @default("") @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
 model Checkout {
   id           String        @id @default(cuid())
   publicId     String        @unique
@@ -72,6 +88,7 @@ model Checkout {
   methodId     String?
   method       WalletMethod? @relation(fields: [methodId], references: [id])
   reference    String
+  shopOrder    String        @default("")
   amount       Decimal       @db.Decimal(12, 2)
   payable      Decimal       @db.Decimal(12, 2)
   currency     String        @default("BDT")

@@ -949,6 +949,79 @@ export class NoticeItemDto {
   receivedKey?: string;
 }
 
+export class OfficialGatewayDto {
+  @IsIn(["bkash", "nagad", "rocket", "upay", "banglaqr", "bank"])
+  provider!: "bkash" | "nagad" | "rocket" | "upay" | "banglaqr" | "bank";
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  label!: string;
+
+  @IsOptional()
+  @IsIn(["sandbox", "live"])
+  mode?: "sandbox" | "live";
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  password?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  appKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  appSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  merchantId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  merchantNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  publicKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  privateKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  minAmount?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  maxAmount?: string;
+}
+
 export class NoticeBatchDto {
   @IsString()
   @MinLength(4)

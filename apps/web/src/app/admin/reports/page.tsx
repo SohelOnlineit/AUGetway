@@ -143,16 +143,18 @@ export default function ReportsPage() {
 
   return (
     <div className="fin">
-      <header className="fin-head">
+      <header className="ogw-head fin-head">
         <div>
-          <p className="fin-live"><i /> Live totals</p>
+          <p className="ogw-kicker">Reports</p>
           <h2>Financial Reports</h2>
           <p>Paid volume, completed payments, and conversion for each period.</p>
         </div>
         <div className="fin-filters">
           {filters.map((filter) => (
             <button key={filter.key} className={range === filter.key ? "on" : ""} type="button" onClick={() => choose(filter.key)}>
-              <Mark name={filter.key === "today" ? "sun" : filter.key === "this_week" ? "week" : filter.key === "this_month" ? "calendar" : "chart"} />
+              <span className={`fin-glyph fin-glyph--${filter.key === "today" ? "sun" : filter.key === "this_week" ? "week" : filter.key === "this_month" ? "calendar" : "chart"}`}>
+                <Mark name={filter.key === "today" ? "sun" : filter.key === "this_week" ? "week" : filter.key === "this_month" ? "calendar" : "chart"} />
+              </span>
               {filter.label}
             </button>
           ))}
@@ -196,7 +198,7 @@ export default function ReportsPage() {
           const share = Math.round((Number(row?.amount ?? 0) / peak) * 100);
           return (
             <div className="fin-rise" key={key} style={{ animationDelay: `${index * 0.05}s` }}>
-              <article className={focus === key ? "fin-card on" : "fin-card"}>
+              <article className={focus === key ? `fin-card on ${icon}` : `fin-card ${icon}`}>
                 <button type="button" onClick={() => openCard(key)} aria-pressed={focus === key}>
                   <span className={`fin-ico ${icon}`} aria-hidden="true"><Mark name={icon} /></span>
                   <span>

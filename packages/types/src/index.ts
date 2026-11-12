@@ -38,6 +38,7 @@ export type PublicSite = {
 export type CheckoutCard = {
   publicId: string;
   reference: string;
+  shopOrder?: string;
   amount: Money;
   payable: Money;
   currency: string;

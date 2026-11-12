@@ -153,23 +153,34 @@ export default function KeysPage() {
     }
   }
 
+  const activeCount = rows.filter((row) => row.active).length;
+  const paymentCount = rows.filter((row) => row.keyType !== "sms").length;
+
   return (
-    <div className="keys-page">
-      <section className="keys-card">
-        <header className="keys-head">
-          <div>
-            <p className="keys-crumb">Api Keys <span>›</span> List</p>
-            <h2>Api Keys</h2>
-          </div>
-          <Link className="btn" href="/admin/api-keys/create">New API Key</Link>
-        </header>
-        <div className="keys-tools">
-          <label className="keys-search">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <div className="ogw-page">
+      {error ? <p className="error">{error}</p> : null}
+      <header className="ogw-head">
+        <div>
+          <p className="ogw-kicker">Developers</p>
+          <h2>Api Keys</h2>
+          <p>Checkout keys for the shop. A new secret is shown once, in this browser tab.</p>
+        </div>
+        <Link className="mgw-new" href="/admin/api-keys/create">New API key</Link>
+      </header>
+      <div className="ogw-stats">
+        <article><b>{ready ? rows.length : "—"}</b><small>Keys</small></article>
+        <article><b>{ready ? activeCount : "—"}</b><small>Active</small></article>
+        <article><b>{ready ? paymentCount : "—"}</b><small>Payment</small></article>
+        <article><b>{ready ? rows.length - paymentCount : "—"}</b><small>SMS</small></article>
+      </div>
+      <section className="ogw-card">
+        <div className="ogw-tools">
+          <label className="ogw-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
+              <path d="m20 20-3.5-3.5" />
             </svg>
-            <input value={query} placeholder="Search" onChange={(event) => setQuery(event.target.value)} />
+            <input value={query} placeholder="Search keys" aria-label="Search keys" onChange={(event) => setQuery(event.target.value)} />
           </label>
           <div className="keys-cols-wrap">
             <button className="keys-cols" type="button" aria-label="Columns" onClick={() => setColumnsOpen((open) => !open)}>
@@ -197,7 +208,8 @@ export default function KeysPage() {
             ) : null}
           </div>
         </div>
-        <table className="keys-table">
+        <div className="ogw-scroll">
+        <table className="ogw-table keys-table">
           <thead>
             <tr>
               {visible.map((column) => (
@@ -213,17 +225,23 @@ export default function KeysPage() {
               <th>Actions</th>
             </tr>
           </thead>
-          {filtered.length > 0 ? (
-            <tbody>
-              {filtered.map((row) => {
+          <tbody>
+            {filtered.map((row) => {
                 const secret = seen[row.id] ?? `${row.prefix}…`;
                 const abilities = Array.isArray(row.abilities) ? row.abilities : [];
                 return (
                   <tr key={row.id}>
-                    {shown.name ? <td className="name">{row.label}</td> : null}
+                    {shown.name ? (
+                      <td>
+                        <div className="ogw-name">
+                          <span className="ogw-mark" aria-hidden>{(row.label || "K").slice(0, 1)}</span>
+                          <strong>{row.label}</strong>
+                        </div>
+                      </td>
+                    ) : null}
                     {shown.type ? (
                       <td>
-                        <span className="key-type">{typeLabel(row.keyType)}</span>
+                        <span className={row.keyType === "sms" ? "ogw-pill" : "ogw-pill ogw-pill--live"}>{typeLabel(row.keyType)}</span>
                       </td>
                     ) : null}
                     {shown.key ? (
@@ -258,7 +276,7 @@ export default function KeysPage() {
                     {shown.abilities ? (
                       <td className="key-abilities">{abilities.map((ability) => <span key={ability}>{ability}</span>)}</td>
                     ) : null}
-                    {shown.expires ? <td className="muted">{expiryLabel(row.expiresAt)}</td> : null}
+                    {shown.expires ? <td className="ogw-account">{expiryLabel(row.expiresAt)}</td> : null}
                     {shown.active ? (
                       <td>
                         <button className={`switch ${row.active ? "on" : ""}`} type="button" aria-label={row.active ? "Turn off" : "Turn on"} onClick={() => toggleActive(row)}>
@@ -267,40 +285,25 @@ export default function KeysPage() {
                       </td>
                     ) : null}
                     <td>
-                      <div className="dev-actions">
-                        <Link className="dev-edit" href={`/admin/api-keys/${row.id}/edit`}>
-                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                          Edit
-                        </Link>
-                        <button type="button" className="dev-delete" onClick={() => { setFormError(""); setRemoving(row); }}>
-                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
-                          Delete
-                        </button>
+                      <div className="key-row-actions">
+                        <Link className="ogw-edit" href={`/admin/api-keys/${row.id}/edit`}>Edit</Link>
+                        <button type="button" className="key-remove" onClick={() => { setFormError(""); setRemoving(row); }}>Delete</button>
                       </div>
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
-          ) : null}
+            })}
+            {ready && filtered.length === 0 ? <tr><td colSpan={visible.length + 1}>No API keys match.</td></tr> : null}
+          </tbody>
         </table>
-        {ready && filtered.length === 0 ? (
-          <div className="keys-empty">
-            <div>
-              <span className="mark">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M8 8l8 8M16 8l-8 8" />
-                </svg>
-              </span>
-              <strong>No api keys</strong>
-            </div>
-          </div>
-        ) : null}
+        </div>
+        <div className="ogw-foot">
+          <span>{ready ? `Showing ${filtered.length} of ${rows.length}` : "Loading keys"}</span>
+        </div>
       </section>
-      {error ? <p className="error">{error}</p> : null}
       {removing ? (
         <div className="modal-back" onClick={() => { if (!busy) setRemoving(null); }}>
-          <form className="modal dev-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void removeKey(); }}>
+          <form className="modal dev-modal ogw-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void removeKey(); }}>
             <header className="dev-modal-head">
               <div>
                 <p className="keys-crumb">Api Keys <span>›</span> Delete</p>

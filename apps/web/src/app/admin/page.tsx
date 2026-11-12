@@ -29,6 +29,16 @@ function money(value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function gatewayName(label: string) {
+  const name = label.trim().split(/\s+/)[0] ?? "";
+  return name || label.trim();
+}
+
+function orderLabel(row: CheckoutCard) {
+  const order = (row.shopOrder || "").replace(/^#/, "").trim();
+  return order ? `#${order}` : row.reference || row.publicId;
+}
+
 function useCount(target: number, ready: boolean) {
   const [value, setValue] = useState(0);
   useEffect(() => {
@@ -138,13 +148,13 @@ export default function OverviewPage() {
 
   return (
     <div className="dash">
-      <header className="dash-top">
+      <header className="ogw-head">
         <div>
-          <p className="dash-live"><i /> Live desk</p>
+          <p className="ogw-kicker">Desk</p>
           <h2>Dashboard</h2>
           <p>{todayLabel}</p>
         </div>
-        <Link className="btn" href="/admin/reports">Financial reports</Link>
+        <Link className="mgw-new" href="/admin/reports">Financial reports</Link>
       </header>
       {error ? <p className="error">{error}</p> : null}
 
@@ -196,10 +206,10 @@ export default function OverviewPage() {
               {payments.map((row) => (
                 <li key={row.publicId}>
                   <div>
-                    <strong>{row.reference || row.publicId}</strong>
-                    <small>{row.method?.label || "No gateway yet"}</small>
+                    <strong>{orderLabel(row)}</strong>
+                    <small>{row.method?.label ? gatewayName(row.method.label) : "No gateway yet"}</small>
                   </div>
-                  <span className={`pill ${row.status}`}>{row.status}</span>
+                  <span className={row.status === "paid" ? "ogw-pill ogw-pill--ok" : row.status === "pending" || row.status === "waiting" ? "ogw-pill ogw-pill--wait" : "ogw-pill"}>{row.status}</span>
                   <b><span className="taka">৳</span>{Number(row.payable).toFixed(2)}</b>
                 </li>
               ))}

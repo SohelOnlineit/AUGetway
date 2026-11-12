@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { clearToken, readToken, saveToken } from "@/lib/token";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { applySiteChrome, customBrand, type PublicSite } from "@/lib/site";
 
 const main = [
   ["Dashboard", "/admin", "home"],
   ["Customers", "/admin/customers", "customers"],
-  ["Gateways", "/admin/gateways", "card"],
+  ["Payment Gateways", "/admin/gateways", "card"],
   ["Invoices", "/admin/invoices", "file"],
   ["Payment Links", "/admin/payment-links", "link"],
   ["Transactions", "/admin/transactions", "swap"],
@@ -22,6 +23,7 @@ const smsGateway = [
   ["Android Gateway Nodes", "/admin/sms-gateway", "phone"],
   ["Send SMS", "/admin/sms-gateway/send", "send"],
   ["Sms Logs", "/admin/sms-logs", "chat"],
+  ["Security Monitoring", "/admin/security", "shield"],
 ] as const;
 
 const developers = [
@@ -38,6 +40,7 @@ function Icon({ name }: { name: string }) {
   if (name === "file") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M7 3.5h7l5 5V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" /><path {...common} d="M14 3.5V9h5" /></svg>;
   if (name === "link") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path {...common} d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" /></svg>;
   if (name === "chat") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M6 17.5 3.5 20V6.5A2 2 0 0 1 5.5 4.5h13a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z" /></svg>;
+  if (name === "shield") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M12 3.5 19 6.2v5.3c0 4.2-2.8 7.2-7 8.9-4.2-1.7-7-4.7-7-8.9V6.2z" /><path {...common} d="m9 12 2 2 4-4.2" /></svg>;
   if (name === "phone") return <svg width="18" height="18" viewBox="0 0 24 24"><rect {...common} x="7" y="3" width="10" height="18" rx="2" /><path {...common} d="M11 18h2" /></svg>;
   if (name === "send") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m4 12 16-7-6 16-2.2-6.2L4 12z" /></svg>;
   if (name === "swap") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M7 7h11l-3-3M17 17H6l3 3" /></svg>;
@@ -50,6 +53,17 @@ function Icon({ name }: { name: string }) {
 }
 
 const pages = [...main, ...smsGateway, ...developers, ["Account", "/admin/account", "admins"] as const];
+
+function isActive(pathname: string, href: string) {
+  if (href === "/admin") return pathname === "/admin";
+  if (href === "/admin/customers") return pathname === "/admin/customers" || pathname === "/admin/admins";
+  if (href === "/admin/gateways") return pathname.startsWith("/admin/gateways") || pathname.startsWith("/admin/official-gateways");
+  if (href === "/admin/invoices") return pathname.startsWith("/admin/invoices");
+  if (href === "/admin/payment-links") return pathname.startsWith("/admin/payment-links");
+  if (href === "/admin/api-keys") return pathname.startsWith("/admin/api-keys");
+  if (href === "/admin/sms-gateway") return pathname === "/admin/sms-gateway";
+  return pathname === href;
+}
 
 function initials(name: string, email: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -74,7 +88,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [adminMode, setAdminMode] = useState("");
 
   useEffect(() => {
-    if (!sessionStorage.getItem("uniqpay_token")) {
+    if (!readToken()) {
       router.replace("/au-getway");
       return;
     }
@@ -90,7 +104,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         setReady(true);
       })
       .catch(() => {
-        sessionStorage.removeItem("uniqpay_token");
+        clearToken();
         router.replace("/au-getway");
       });
     function onAccount(event: Event) {
@@ -149,14 +163,14 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     : [];
 
   function signOut() {
-    sessionStorage.removeItem("uniqpay_token");
+    clearToken();
     router.replace("/au-getway");
   }
 
   function clearCache() {
     if (clearing) return;
     setClearing(true);
-    const token = sessionStorage.getItem("uniqpay_token");
+    const token = readToken();
     if ("caches" in window) {
       void caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))).catch(() => undefined);
     }
@@ -165,7 +179,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
         .catch(() => undefined);
     }
-    if (token) sessionStorage.setItem("uniqpay_token", token);
+    if (token) saveToken(token);
     sessionStorage.setItem("uniqpay_cache_note", "1");
     const next = new URL(window.location.href);
     next.searchParams.set("fresh", String(Date.now()));
@@ -255,30 +269,34 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       <aside className="rail">
         <nav className="rail-box">
         {main.map(([label, href, icon]) => (
-          <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href || (href === "/admin/customers" && pathname === "/admin/admins") || (href === "/admin/invoices" && pathname.startsWith("/admin/invoices/")) || (href === "/admin/payment-links" && pathname.startsWith("/admin/payment-links/")) ? "active" : ""}>
+          <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-tone nav-tone--${icon} active` : `nav-tone nav-tone--${icon}`}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
           </Link>
         ))}
-        <button className="group" type="button" onClick={() => setOpenSms((open) => !open)}>
+        <button className="group" type="button" aria-expanded={openSms} onClick={() => setOpenSms((open) => !open)}>
           <span>SMS Gateway</span>
-          <span className="chev">{openSms ? "⌃" : "⌄"}</span>
+          <span className={openSms ? "chev open" : "chev"} aria-hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+          </span>
         </button>
         {openSms
           ? smsGateway.map(([label, href, icon]) => (
-              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href ? "active" : ""}>
+              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-sub nav-tone nav-tone--${icon} active` : `nav-sub nav-tone nav-tone--${icon}`}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>
               </Link>
             ))
           : null}
-        <button className="group" type="button" onClick={() => setOpenDev((open) => !open)}>
+        <button className="group" type="button" aria-expanded={openDev} onClick={() => setOpenDev((open) => !open)}>
           <span>Developers</span>
-          <span className="chev">{openDev ? "⌃" : "⌄"}</span>
+          <span className={openDev ? "chev open" : "chev"} aria-hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+          </span>
         </button>
         {openDev
           ? developers.map(([label, href, icon]) => (
-              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={pathname === href ? "active" : ""}>
+              <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-sub nav-tone nav-tone--${icon} active` : `nav-sub nav-tone nav-tone--${icon}`}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>
               </Link>

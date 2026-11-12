@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { CheckoutCard } from "@uniqpay/types";
 
@@ -14,6 +14,11 @@ function tone(status: string) {
     return { label: status === "expired" ? "EXPIRED" : "FAILED", kind: "bad" as const };
   }
   return { label: "PENDING", kind: "wait" as const };
+}
+
+function gatewayName(label: string) {
+  const name = label.trim().split(/\s+/)[0] ?? "";
+  return name || label.trim();
 }
 
 function gatewayKind(label: string) {
@@ -60,6 +65,8 @@ function canApprove(status: string) {
   return status === "open" || status === "waiting" || status === "pending";
 }
 
+const BATCH = 12;
+
 export default function TransactionsPage() {
   const [rows, setRows] = useState<CheckoutCard[]>([]);
   const [ready, setReady] = useState(false);
@@ -71,13 +78,13 @@ export default function TransactionsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<SortKey>("created");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [shown, setShown] = useState(BATCH);
   const [picked, setPicked] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [current, setCurrent] = useState<CheckoutCard | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
+  const sentinel = useRef<HTMLDivElement>(null);
 
   function load() {
     api<CheckoutCard[]>("/desk/checkouts")
@@ -101,7 +108,7 @@ export default function TransactionsPage() {
   const gateways = useMemo(() => {
     const names = new Set<string>();
     rows.forEach((row) => {
-      if (row.method?.label) names.add(row.method.label);
+      if (row.method?.label) names.add(gatewayName(row.method.label));
     });
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [rows]);
@@ -113,16 +120,18 @@ export default function TransactionsPage() {
       if (statusFilter === "pending" && badge.kind !== "wait") return false;
       if (statusFilter === "success" && badge.kind !== "ok") return false;
       if (statusFilter === "failed" && badge.kind !== "bad") return false;
-      if (gatewayFilter !== "all" && row.method?.label !== gatewayFilter) return false;
+      if (gatewayFilter !== "all" && gatewayName(row.method?.label ?? "") !== gatewayFilter) return false;
       if (!needle) return true;
-      return [row.reference, row.publicId, row.payerAccount ?? "", row.providerRef ?? "", row.method?.label ?? "", row.payable, badge.label]
-        .some((value) => value.toLowerCase().includes(needle));
+      const orderNumber = (row.shopOrder ?? "").replace(/^#/, "");
+      const folded = needle.replace(/^#/, "");
+      return [orderNumber, row.reference, row.publicId, row.payerAccount ?? "", row.providerRef ?? "", row.method?.label ? gatewayName(row.method.label) : "", row.payable, badge.label]
+        .some((value) => value.toLowerCase().includes(folded));
     });
     const factor = dir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
       const text = (left: string, right: string) => left.localeCompare(right) * factor;
       if (sort === "reference") return text(a.reference, b.reference);
-      if (sort === "gateway") return text(a.method?.label ?? "", b.method?.label ?? "");
+      if (sort === "gateway") return text(gatewayName(a.method?.label ?? ""), gatewayName(b.method?.label ?? ""));
       if (sort === "amount") return (Number(a.payable) - Number(b.payable)) * factor;
       if (sort === "status") return text(tone(a.status).label, tone(b.status).label);
       if (sort === "sender") return text(a.payerAccount ?? "", b.payerAccount ?? "");
@@ -131,13 +140,25 @@ export default function TransactionsPage() {
     });
   }, [rows, query, statusFilter, gatewayFilter, sort, dir]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const start = (safePage - 1) * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
+  const visible = filtered.slice(0, shown);
   const filterCount = (statusFilter === "all" ? 0 : 1) + (gatewayFilter === "all" ? 0 : 1);
   const pageIds = visible.map((row) => row.publicId);
   const allPicked = pageIds.length > 0 && pageIds.every((id) => picked.includes(id));
+
+  useEffect(() => {
+    setShown(BATCH);
+  }, [query, statusFilter, gatewayFilter, sort, dir]);
+
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !ready || shown >= filtered.length) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries[0]?.isIntersecting) return;
+      setShown((count) => Math.min(filtered.length, count + BATCH));
+    }, { rootMargin: "320px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ready, shown, filtered.length]);
 
   function toggleSort(key: SortKey) {
     if (sort === key) setDir((currentDir) => (currentDir === "asc" ? "desc" : "asc"));
@@ -180,7 +201,7 @@ export default function TransactionsPage() {
       });
       setDialog(null);
       setNote("Transaction created");
-      setPage(1);
+      setShown(BATCH);
       load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create");
@@ -298,7 +319,6 @@ export default function TransactionsPage() {
   }
 
   const amountLocked = current ? current.status !== "open" || current.amount !== current.payable : false;
-  const pages = pageButtons(safePage, pageCount);
   const stats = useMemo(() => {
     let pending = 0;
     let success = 0;
@@ -317,7 +337,6 @@ export default function TransactionsPage() {
 
   function pickStatus(next: StatusFilter) {
     setStatusFilter((current) => (current === next ? "all" : next));
-    setPage(1);
     setFiltersOpen(false);
   }
 
@@ -327,7 +346,7 @@ export default function TransactionsPage() {
         <div>
           <p className="fin-live"><i /> Live ledger</p>
           <h2>Transactions</h2>
-          <p className="txn-crumb">Search, approve, and follow every checkout from this desk.</p>
+          <p className="txn-crumb">Find an AmarPin order and open its payment.</p>
         </div>
         <div className="txn-head-actions">
           {picked.length ? (
@@ -335,11 +354,11 @@ export default function TransactionsPage() {
               Delete selected ({picked.length})
             </button>
           ) : null}
-          <button className="txn-new" type="button" onClick={() => { setError(""); setDialog("create"); }}>
-            <PlusIcon /> New Transaction
+          <button className="txn-ghost" type="button" onClick={() => { setError(""); setDialog("wipe"); }}>
+            <TrashIcon /> Delete all
           </button>
-          <button className="txn-wipe" type="button" onClick={() => { setError(""); setDialog("wipe"); }}>
-            <TrashIcon /> Delete All
+          <button className="txn-new" type="button" onClick={() => { setError(""); setDialog("create"); }}>
+            <PlusIcon /> New transaction
           </button>
         </div>
       </header>
@@ -347,18 +366,18 @@ export default function TransactionsPage() {
       {error && !dialog ? <p className="error">{error}</p> : null}
 
       <section className="txn-stats">
-        <StatCard icon="list" label="All" value={stats.total} ready={ready} active={statusFilter === "all"} onClick={() => pickStatus("all")} />
-        <StatCard icon="clock" label="Pending" value={stats.pending} ready={ready} active={statusFilter === "pending"} onClick={() => pickStatus("pending")} />
-        <StatCard icon="check" label="Success" value={stats.success} ready={ready} active={statusFilter === "success"} onClick={() => pickStatus("success")} />
-        <StatCard icon="cross" label="Failed" value={stats.failed} ready={ready} active={statusFilter === "failed"} onClick={() => pickStatus("failed")} />
-        <StatCard icon="wallet" label="Paid volume" value={stats.volume} ready={ready} money />
+        <StatCard tone="all" icon="list" label="All" value={stats.total} ready={ready} active={statusFilter === "all"} onClick={() => pickStatus("all")} />
+        <StatCard tone="wait" icon="clock" label="Pending" value={stats.pending} ready={ready} active={statusFilter === "pending"} onClick={() => pickStatus("pending")} />
+        <StatCard tone="ok" icon="check" label="Success" value={stats.success} ready={ready} active={statusFilter === "success"} onClick={() => pickStatus("success")} />
+        <StatCard tone="bad" icon="cross" label="Failed" value={stats.failed} ready={ready} active={statusFilter === "failed"} onClick={() => pickStatus("failed")} />
+        <StatCard tone="money" icon="wallet" label="Paid volume" value={stats.volume} ready={ready} money />
       </section>
 
       <section className="txn-card">
         <div className="txn-tools">
           <label className="txn-search">
             <SearchIcon />
-            <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search" aria-label="Search transactions" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AmarPin order number, invoice, TrxID" aria-label="Search transactions" />
           </label>
           <div className="txn-filter-wrap">
             <button className="txn-filter" type="button" aria-label="Filter" onClick={() => setFiltersOpen((open) => !open)}>
@@ -369,7 +388,7 @@ export default function TransactionsPage() {
               <div className="txn-filter-pop">
                 <label>
                   <span>Status</span>
-                  <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as StatusFilter); setPage(1); }}>
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
                     <option value="all">All</option>
                     <option value="pending">PENDING</option>
                     <option value="success">SUCCESS</option>
@@ -378,7 +397,7 @@ export default function TransactionsPage() {
                 </label>
                 <label>
                   <span>Gateway</span>
-                  <select value={gatewayFilter} onChange={(event) => { setGatewayFilter(event.target.value); setPage(1); }}>
+                  <select value={gatewayFilter} onChange={(event) => setGatewayFilter(event.target.value)}>
                     <option value="all">All</option>
                     {gateways.map((name) => <option key={name} value={name}>{name}</option>)}
                   </select>
@@ -393,9 +412,9 @@ export default function TransactionsPage() {
             <thead>
               <tr>
                 <th className="txn-check">
-                  <input type="checkbox" checked={allPicked} onChange={togglePage} aria-label="Select this page" />
+                  <input type="checkbox" checked={allPicked} onChange={togglePage} aria-label="Select loaded payments" />
                 </th>
-                <SortHead label="Reference / Invoice" active={sort === "reference"} dir={dir} onClick={() => toggleSort("reference")} />
+                <SortHead label="Order / Invoice" active={sort === "reference"} dir={dir} onClick={() => toggleSort("reference")} />
                 <SortHead label="Gateway" active={sort === "gateway"} dir={dir} onClick={() => toggleSort("gateway")} />
                 <SortHead label="Amount" active={sort === "amount"} dir={dir} onClick={() => toggleSort("amount")} />
                 <SortHead label="Status" active={sort === "status"} dir={dir} onClick={() => toggleSort("status")} />
@@ -412,49 +431,53 @@ export default function TransactionsPage() {
                 return (
                   <tr key={row.publicId} style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
                     <td className="txn-check">
-                      <input type="checkbox" checked={picked.includes(row.publicId)} onChange={() => toggleRow(row.publicId)} aria-label={`Select ${row.reference}`} />
+                      <input type="checkbox" checked={picked.includes(row.publicId)} onChange={() => toggleRow(row.publicId)} aria-label={`Select ${row.shopOrder || row.reference}`} />
                     </td>
-                    <td>
-                      <button className="txn-ref" type="button" onClick={() => copyText(row.publicId, row.reference)}>
-                        {copied === row.publicId ? "Copied" : row.reference}
-                      </button>
-                      <p>Pay ID: {row.publicId}</p>
+                    <td className="txn-lead" data-label="Order">
+                      <div className="txn-order">
+                        <button className="txn-ref" type="button" onClick={() => copyText(row.publicId, row.shopOrder || row.reference)}>
+                          {copied === row.publicId ? "Copied" : (row.shopOrder ? `#${row.shopOrder.replace(/^#/, "")}` : row.reference)}
+                        </button>
+                        <p>Pay ID {row.publicId}</p>
+                      </div>
                     </td>
-                    <td>
+                    <td data-label="Gateway">
                       {row.method?.label ? (
                         <span className={`txn-gw ${gatewayKind(row.method.label)}`}>
-                          <BoltIcon /> {row.method.label}
+                          <BoltIcon /> {gatewayName(row.method.label)}
                         </span>
                       ) : "—"}
                     </td>
-                    <td>
+                    <td data-label="Amount">
                       <strong className="txn-amt">{mark} {row.payable}</strong>
                       {row.amount !== row.payable ? <p>Base {mark} {row.amount}</p> : null}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span className={`txn-status ${badge.kind}`}>
                         {badge.kind === "ok" ? <CheckIcon /> : badge.kind === "wait" ? <ClockIcon /> : <CrossIcon />}
                         {badge.label}
                       </span>
                     </td>
-                    <td className="txn-mono">{row.payerAccount || "—"}</td>
-                    <td className={row.providerRef ? "txn-trx" : "txn-mono"}>{row.providerRef || "—"}</td>
-                    <td>
+                    <td className="txn-mono" data-label="Sender">{row.payerAccount || "—"}</td>
+                    <td className={row.providerRef ? "txn-trx" : "txn-mono"} data-label="TrxID">{row.providerRef || "—"}</td>
+                    <td data-label="Date">
                       <strong className="txn-when">{row.createdAt ? stamp(row.createdAt) : "—"}</strong>
                       {row.createdAt ? <p>{ago(row.createdAt)}</p> : null}
                     </td>
                     <td className="txn-actions">
-                      {canApprove(row.status) ? (
-                        <button type="button" className="txn-go" onClick={() => { setCurrent(row); setError(""); setDialog("approve"); }}>
-                          <CheckIcon /> Approve
+                      <div className="txn-row-actions">
+                        {canApprove(row.status) ? (
+                          <button type="button" className="txn-go" onClick={() => { setCurrent(row); setError(""); setDialog("approve"); }}>
+                            <CheckIcon /> Approve
+                          </button>
+                        ) : null}
+                        <button type="button" className="txn-go" onClick={() => { setCurrent(row); setError(""); setDialog("edit"); }}>
+                          <PencilIcon /> Edit
                         </button>
-                      ) : null}
-                      <button type="button" className="txn-go" onClick={() => { setCurrent(row); setError(""); setDialog("edit"); }}>
-                        <PencilIcon /> Edit
-                      </button>
-                      <button type="button" className="txn-drop" aria-label={`Delete ${row.reference}`} onClick={() => { setCurrent(row); setError(""); setDialog("delete"); }}>
-                        <TrashIcon />
-                      </button>
+                        <button type="button" className="txn-drop" aria-label={`Delete ${row.reference}`} onClick={() => { setCurrent(row); setError(""); setDialog("delete"); }}>
+                          <TrashIcon />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -468,26 +491,10 @@ export default function TransactionsPage() {
               <p>{query || filterCount ? "Nothing in this list matches that search." : "Create a transaction and the payment link will show up here."}</p>
             </div>
           ) : null}
+          {ready && visible.length < filtered.length ? (
+            <div ref={sentinel} className="txn-more">Loading more payments…</div>
+          ) : null}
         </div>
-
-        <footer className="txn-foot">
-          <span>Showing {filtered.length ? start + 1 : 0} to {Math.min(start + pageSize, filtered.length)} of {filtered.length} results</span>
-          <label>
-            Per page
-            <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} aria-label="Rows per page">
-              {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
-            </select>
-          </label>
-          <div className="txn-pages">
-            <button type="button" aria-label="Previous page" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>‹</button>
-            {pages.map((item, index) => (
-              item === "…" ? <span key={`gap-${index}`}>…</span> : (
-                <button key={item} type="button" className={item === safePage ? "on" : ""} onClick={() => setPage(item)}>{item}</button>
-              )
-            ))}
-            <button type="button" aria-label="Next page" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>›</button>
-          </div>
-        </footer>
       </section>
 
       {dialog === "create" ? (
@@ -581,18 +588,6 @@ export default function TransactionsPage() {
   );
 }
 
-function pageButtons(page: number, count: number) {
-  if (count <= 7) return Array.from({ length: count }, (_, index) => index + 1);
-  const keep = new Set([1, 2, 3, count - 1, count, page - 1, page, page + 1]);
-  const numbers = [...keep].filter((number) => number >= 1 && number <= count).sort((a, b) => a - b);
-  const items: Array<number | "…"> = [];
-  numbers.forEach((number, index) => {
-    if (index > 0 && number - numbers[index - 1] > 1) items.push("…");
-    items.push(number);
-  });
-  return items;
-}
-
 function SortHead({ label, active, dir, onClick }: { label: string; active: boolean; dir: "asc" | "desc"; onClick: () => void }) {
   return (
     <th>
@@ -626,9 +621,10 @@ function useCount(target: number, ready: boolean) {
   return value;
 }
 
-function StatCard({ icon, label, value, ready, money = false, active = false, onClick }: { icon: string; label: string; value: number; ready: boolean; money?: boolean; active?: boolean; onClick?: () => void }) {
+function StatCard({ icon, label, value, ready, money = false, active = false, tone = "all", onClick }: { icon: string; label: string; value: number; ready: boolean; money?: boolean; active?: boolean; tone?: string; onClick?: () => void }) {
   const shown = useCount(value, ready);
   const text = !ready ? "—" : money ? `৳${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : Math.round(shown).toLocaleString("en-US");
+  const className = `txn-stat tone-${tone}${active ? " on" : ""}`;
   const body = (
     <>
       <span className={`fin-ico ${icon}`} aria-hidden="true"><StatIcon name={icon} /></span>
@@ -638,8 +634,8 @@ function StatCard({ icon, label, value, ready, money = false, active = false, on
       </span>
     </>
   );
-  if (!onClick) return <article className="txn-stat">{body}</article>;
-  return <button type="button" className={active ? "txn-stat on" : "txn-stat"} onClick={onClick} aria-pressed={active}>{body}</button>;
+  if (!onClick) return <article className={className}>{body}</article>;
+  return <button type="button" className={className} onClick={onClick} aria-pressed={active}>{body}</button>;
 }
 
 function StatIcon({ name }: { name: string }) {

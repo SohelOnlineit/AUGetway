@@ -20,6 +20,129 @@ import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sess
 
 type MoneyRow = { toString(): string };
 
+function shopOrderText(metadata: Record<string, unknown> | undefined, orderId: string) {
+  const raw = metadata?.orderNumber ?? metadata?.order_number;
+  if (typeof raw !== "string") return "";
+  const value = raw.trim().replace(/^#/, "").slice(0, 40);
+  if (!value || value === orderId) return "";
+  if (!/^[\w.-]+$/.test(value)) return "";
+  return value;
+}
+
+type OfficialProvider = "bkash" | "nagad" | "rocket" | "upay" | "banglaqr" | "bank";
+
+type OfficialSecrets = {
+  username: string;
+  password: string;
+  appKey: string;
+  appSecret: string;
+  merchantId: string;
+  merchantNumber: string;
+  publicKey: string;
+  privateKey: string;
+  code: string;
+  minAmount: string;
+  maxAmount: string;
+  sortOrder: string;
+};
+
+const officialCatalog: Array<[string, string, OfficialProvider, number]> = [
+  ["bKash", "bKash", "bkash", 25000],
+  ["Nagad", "Nagad", "nagad", 25000],
+  ["Rocket", "Rocket", "rocket", 25000],
+  ["Upay", "Upay", "upay", 25000],
+  ["BanglaQR", "BanglaQR", "banglaqr", 50000],
+];
+
+const officialRenames: Array<[string, string]> = [
+  ["bKash Merchant", "bKash"],
+  ["Nagad Personal", "Nagad"],
+  ["Rocket Personal", "Rocket"],
+  ["Upay Personal", "Upay"],
+];
+
+type OfficialGatewayInput = {
+  provider: string;
+  label: string;
+  mode?: string;
+  active?: boolean;
+  username?: string;
+  password?: string;
+  appKey?: string;
+  appSecret?: string;
+  merchantId?: string;
+  merchantNumber?: string;
+  publicKey?: string;
+  privateKey?: string;
+  code?: string;
+  minAmount?: string;
+  maxAmount?: string;
+};
+
+function officialProvider(value: string): OfficialProvider {
+  if (value === "bkash" || value === "nagad" || value === "rocket" || value === "upay" || value === "banglaqr" || value === "bank") return value;
+  throw new BadRequestException("Choose an official gateway");
+}
+
+function readOfficialSecrets(raw: string): OfficialSecrets {
+  const empty: OfficialSecrets = {
+    username: "",
+    password: "",
+    appKey: "",
+    appSecret: "",
+    merchantId: "",
+    merchantNumber: "",
+    publicKey: "",
+    privateKey: "",
+    code: "",
+    minAmount: "1",
+    maxAmount: "25000",
+    sortOrder: "0",
+  };
+  try {
+    const parsed = JSON.parse(raw || "{}") as Partial<OfficialSecrets>;
+    for (const key of Object.keys(empty) as Array<keyof OfficialSecrets>) {
+      const value = parsed[key];
+      if (typeof value === "string") empty[key] = value;
+    }
+  } catch {
+    return empty;
+  }
+  return empty;
+}
+
+function cleanOfficialSecrets(input: OfficialGatewayInput, previous: OfficialSecrets): OfficialSecrets {
+  const next = { ...previous };
+  if (input.username !== undefined) next.username = input.username.trim();
+  if (input.merchantId !== undefined) next.merchantId = input.merchantId.trim();
+  if (input.merchantNumber !== undefined) next.merchantNumber = input.merchantNumber.trim();
+  if (input.code !== undefined) next.code = input.code.trim();
+  if (input.minAmount !== undefined && input.minAmount.trim()) next.minAmount = input.minAmount.trim();
+  if (input.maxAmount !== undefined && input.maxAmount.trim()) next.maxAmount = input.maxAmount.trim();
+  for (const key of ["password", "appKey", "appSecret", "publicKey", "privateKey"] as const) {
+    const value = input[key]?.trim();
+    if (value) next[key] = value;
+  }
+  return next;
+}
+
+function requireOfficialSecrets(provider: OfficialProvider, secrets: OfficialSecrets) {
+  const needed = provider === "bkash"
+    ? (["username", "password", "appKey", "appSecret"] as const)
+    : provider === "nagad"
+      ? (["merchantId", "merchantNumber", "publicKey", "privateKey"] as const)
+      : provider === "rocket"
+        ? (["merchantId", "password"] as const)
+        : provider === "upay"
+          ? (["merchantId", "appKey", "appSecret"] as const)
+          : provider === "banglaqr"
+            ? (["merchantId", "appKey", "appSecret"] as const)
+            : ([] as const);
+  if (needed.some((key) => !secrets[key])) {
+    throw new BadRequestException("Add every API credential before turning this official gateway on");
+  }
+}
+
 function exceptionText(error: BadRequestException): string {
   const body = error.getResponse();
   if (typeof body === "string") return body;
@@ -323,7 +446,7 @@ export class PayService implements OnModuleInit {
     }
   }
 
-  async login(email: string, password: string, client?: string) {
+  async login(email: string, password: string, _client?: string) {
     const normalized = email.trim().toLowerCase();
     assertLoginOpen(normalized);
     const user = await this.prisma.deskUser.findUnique({ where: { email: normalized } });
@@ -333,7 +456,7 @@ export class PayService implements OnModuleInit {
       throw new UnauthorizedException("Email or password is wrong");
     }
     clearLoginFailure(normalized);
-    return this.session(user, client === "handset" ? "5y" : "12h");
+    return this.session(user, "5y");
   }
 
   async me(userId: string) {
@@ -597,6 +720,95 @@ export class PayService implements OnModuleInit {
     return { ok: true };
   }
 
+  async listOfficialGateways(ownerId: string) {
+    await this.prisma.officialGateway.deleteMany({
+      where: {
+        ownerId,
+        label: { in: ["bKash (EPS)", "bKash API (Checkout)", "Brac Bank", "City Bank", "Eastern Bank", "Islami Bank", "Dutch-Bangla Bank", "Dhaka Bank"] },
+      },
+    });
+    const named = await this.prisma.officialGateway.findMany({
+      where: { ownerId, label: { in: officialRenames.map((item) => item[0]) } },
+    });
+    for (const row of named) {
+      const next = officialRenames.find((item) => item[0] === row.label);
+      if (!next) continue;
+      const secrets = readOfficialSecrets(row.secrets);
+      secrets.code = next[1];
+      await this.prisma.officialGateway.update({
+        where: { id: row.id },
+        data: { label: next[1], secrets: JSON.stringify(secrets) },
+      });
+    }
+    const existing = await this.prisma.officialGateway.count({ where: { ownerId } });
+    if (existing === 0) {
+      for (const [index, item] of officialCatalog.entries()) {
+        const secrets = readOfficialSecrets("");
+        secrets.code = item[1];
+        secrets.maxAmount = String(item[3]);
+        secrets.sortOrder = String(index + 1);
+        await this.prisma.officialGateway.create({
+          data: {
+            ownerId,
+            provider: item[2],
+            label: item[0],
+            mode: "live",
+            active: false,
+            secrets: JSON.stringify(secrets),
+          },
+        });
+      }
+    }
+    const rows = await this.keptOfficialGateways(ownerId);
+    return rows
+      .map((row) => this.officialView(row))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
+  }
+
+  async createOfficialGateway(ownerId: string, input: OfficialGatewayInput) {
+    const count = await this.prisma.officialGateway.count({ where: { ownerId } });
+    if (count >= 30) throw new BadRequestException("Official gateway limit reached");
+    const provider = officialProvider(input.provider);
+    const secrets = cleanOfficialSecrets(input, readOfficialSecrets(""));
+    if (!secrets.code) secrets.code = input.label.trim();
+    if (input.active === true) requireOfficialSecrets(provider, secrets);
+    const row = await this.prisma.officialGateway.create({
+      data: {
+        ownerId,
+        provider,
+        label: input.label.trim(),
+        mode: input.mode === "live" ? "live" : "sandbox",
+        active: input.active === true,
+        secrets: JSON.stringify(secrets),
+      },
+    });
+    return this.officialView(row);
+  }
+
+  async updateOfficialGateway(ownerId: string, id: string, input: OfficialGatewayInput) {
+    const current = await this.ownOfficialGateway(ownerId, id);
+    const provider = officialProvider(input.provider);
+    const secrets = cleanOfficialSecrets(input, readOfficialSecrets(current.secrets));
+    if (input.active === true) requireOfficialSecrets(provider, secrets);
+    const row = await this.prisma.officialGateway.update({
+      where: { id },
+      data: {
+        provider,
+        label: input.label.trim(),
+        mode: input.mode === "live" ? "live" : "sandbox",
+        active: input.active === true,
+        secrets: JSON.stringify(secrets),
+      },
+    });
+    return this.officialView(row);
+  }
+
+  async removeOfficialGateway(ownerId: string, id: string) {
+    const found = await this.prisma.officialGateway.deleteMany({ where: { id, ownerId } });
+    if (!found.count) throw new NotFoundException("Official gateway not found");
+    return { ok: true };
+  }
+
   async listCheckouts(ownerId: string) {
     await this.prisma.checkout.updateMany({
       where: { ownerId, status: { in: ["open", "waiting"] }, expiresAt: { lt: new Date() } },
@@ -767,6 +979,7 @@ export class PayService implements OnModuleInit {
         publicId: publicId(),
         ownerId: key.ownerId,
         reference: orderId,
+        shopOrder: shopOrderText(input.metadata, orderId),
         amount: input.amount,
         payable: input.amount,
         currency: "BDT",
@@ -1508,6 +1721,7 @@ export class PayService implements OnModuleInit {
       body: row.body,
       handset: row.handset.label,
       checkout: row.checkout?.publicId ?? null,
+      orderNumber: row.checkout?.shopOrder ?? "",
       createdAt: row.createdAt.toISOString(),
     }));
   }
@@ -2072,8 +2286,6 @@ export class PayService implements OnModuleInit {
       ["Rocket Personal", "Rocket Personal", true, 25000],
       ["Upay Personal", "Upay Personal", false, 25000],
       ["BanglaQR", "BanglaQR", false, 50000],
-      ["bKash (EPS)", "bKash (EPS)", false, 50000],
-      ["bKash API (Checkout)", "bKash API (Checkout)", false, 50000],
       ["Brac Bank", "Brac Bank", false, 500000],
       ["City Bank", "City Bank", false, 500000],
       ["Eastern Bank", "Eastern Bank", false, 500000],
@@ -2171,7 +2383,7 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "12h" | "5y" = "12h") {
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "5y" = "5y") {
     const accessToken = this.jwt.sign({
       sub: user.deskId ?? user.id,
       email: user.email,
@@ -2182,6 +2394,50 @@ export class PayService implements OnModuleInit {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, role: user.deskId ? "admin" : "owner" },
     };
+  }
+
+  private officialView(row: { id: string; provider: string; label: string; mode: string; active: boolean; secrets: string; createdAt: Date }) {
+    const secrets = readOfficialSecrets(row.secrets);
+    return {
+      id: row.id,
+      provider: row.provider,
+      label: row.label,
+      mode: row.mode === "live" ? "live" : "sandbox",
+      active: row.active,
+      createdAt: row.createdAt.toISOString(),
+      username: secrets.username,
+      merchantId: secrets.merchantId,
+      merchantNumber: secrets.merchantNumber,
+      code: secrets.code || row.label,
+      minAmount: secrets.minAmount || "1",
+      maxAmount: secrets.maxAmount || "25000",
+      sortOrder: Number(secrets.sortOrder) || 0,
+      hasPassword: Boolean(secrets.password),
+      hasAppKey: Boolean(secrets.appKey),
+      hasAppSecret: Boolean(secrets.appSecret),
+      hasPublicKey: Boolean(secrets.publicKey),
+      hasPrivateKey: Boolean(secrets.privateKey),
+    };
+  }
+
+  private async keptOfficialGateways(ownerId: string) {
+    const rows = await this.prisma.officialGateway.findMany({ where: { ownerId }, take: 60 });
+    const seen = new Set<string>();
+    const extras: string[] = [];
+    for (const row of [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
+      if (seen.has(row.label)) extras.push(row.id);
+      else seen.add(row.label);
+    }
+    if (extras.length) {
+      await this.prisma.officialGateway.deleteMany({ where: { ownerId, id: { in: extras } } });
+    }
+    return rows.filter((row) => !extras.includes(row.id));
+  }
+
+  private async ownOfficialGateway(ownerId: string, id: string) {
+    const row = await this.prisma.officialGateway.findFirst({ where: { id, ownerId } });
+    if (!row) throw new NotFoundException("Official gateway not found");
+    return row;
   }
 
   private async ownMethod(ownerId: string, id: string) {
@@ -2436,6 +2692,7 @@ export class PayService implements OnModuleInit {
     row: {
       publicId: string;
       reference: string;
+      shopOrder?: string;
       amount: MoneyRow;
       payable: MoneyRow;
       currency: string;
@@ -2475,6 +2732,7 @@ export class PayService implements OnModuleInit {
     return {
       publicId: row.publicId,
       reference: row.reference,
+      shopOrder: row.shopOrder ?? "",
       amount: money(row.amount),
       payable: money(row.payable),
       currency: row.currency,
