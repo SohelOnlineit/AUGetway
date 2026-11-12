@@ -16,6 +16,7 @@ export default function SendSmsPage() {
   const [sendError, setSendError] = useState("");
   const [jobsError, setJobsError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [focus, setFocus] = useState<"all" | "queued" | "sent" | "failed">("all");
 
   function loadJobs() {
     api<Job[]>("/desk/sms")
@@ -62,17 +63,48 @@ export default function SendSmsPage() {
     }
   }
 
+  const counts = {
+    queued: jobs.filter((job) => jobKind(job.status) === "queued").length,
+    sent: jobs.filter((job) => jobKind(job.status) === "sent").length,
+    failed: jobs.filter((job) => jobKind(job.status) === "failed").length,
+  };
+  const visible = jobs.filter((job) => focus === "all" || jobKind(job.status) === focus);
+
   return (
-    <div className="dev-page">
-      <section className="dev-card">
-        <header className="dev-head">
-          <div>
-            <p className="keys-crumb">SMS Gateway <span>›</span> Send</p>
-            <h2>Send SMS</h2>
-            <p className="muted">Pick the phone that should send this message. Order SMS uses the phone marked Sends SMS on the Devices page. Keep the AU-Getway notification on.</p>
-          </div>
-        </header>
-        <form className="dev-modal-body dev-send" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>
+    <div className="sms-page">
+      <header className="sms-hero">
+        <span className="sms-hero-ico" aria-hidden="true">
+          <svg className="sms-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+            <path d="M4 12 20 4l-6 16-2-6z" />
+          </svg>
+          <i />
+        </span>
+        <div>
+          <p className="keys-crumb">Desk <span>›</span> SMS Gateway</p>
+          <h2>Send SMS</h2>
+          <p className="muted">Pick the phone that should send this message. Order SMS uses the phone marked Sends SMS on the Devices page. Keep the AU-Getway notification on.</p>
+        </div>
+      </header>
+      <div className="sms-stats">
+        <button type="button" className={focus === "all" ? "sms-stat on" : "sms-stat"} onClick={() => setFocus("all")}>
+          <span className="sms-ico plane" aria-hidden="true"><PlaneIcon /></span>
+          <span><strong>{jobs.length}</strong><small>Messages</small></span>
+        </button>
+        <button type="button" className={focus === "queued" ? "sms-stat on" : "sms-stat"} onClick={() => setFocus("queued")}>
+          <span className="sms-ico wait" aria-hidden="true"><ClockIcon /></span>
+          <span><strong>{counts.queued}</strong><small>Queued</small></span>
+        </button>
+        <button type="button" className={focus === "sent" ? "sms-stat on" : "sms-stat"} onClick={() => setFocus("sent")}>
+          <span className="sms-ico sent" aria-hidden="true"><CheckIcon /></span>
+          <span><strong>{counts.sent}</strong><small>Sent</small></span>
+        </button>
+        <button type="button" className={focus === "failed" ? "sms-stat on" : "sms-stat"} onClick={() => setFocus("failed")}>
+          <span className="sms-ico fail" aria-hidden="true"><CrossIcon /></span>
+          <span><strong>{counts.failed}</strong><small>Failed</small></span>
+        </button>
+      </div>
+      <section className="sms-card">
+        <form className="sms-form" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>
           <label>
             <span>Phone</span>
             <select value={sendDevice} onChange={(event) => setSendDevice(event.target.value)} required>
@@ -88,16 +120,18 @@ export default function SendSmsPage() {
           </label>
           <label>
             <span>Message</span>
-            <input value={sendBody} onChange={(event) => setSendBody(event.target.value)} maxLength={320} required />
+            <textarea value={sendBody} onChange={(event) => setSendBody(event.target.value)} maxLength={320} rows={4} required />
           </label>
-          {sendNote ? <p className="account-note">{sendNote}</p> : null}
+          {sendNote ? <p className="sms-note">{sendNote}</p> : null}
           {sendError ? <p className="error">{sendError}</p> : null}
           {jobsError ? <p className="error">{jobsError}</p> : null}
-          <div className="dev-modal-actions">
-            <button className="btn" type="submit" disabled={busy}>Queue SMS</button>
-          </div>
+          <button className="sms-go" type="submit" disabled={busy}>
+            <PlaneIcon /> {busy ? "Queuing…" : "Queue SMS"}
+          </button>
         </form>
-        {jobs.length > 0 ? (
+      </section>
+      <section className="sms-card">
+        {visible.length > 0 ? (
           <table className="keys-table">
             <thead>
               <tr>
@@ -110,20 +144,54 @@ export default function SendSmsPage() {
               </tr>
             </thead>
             <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td className="muted">{new Date(job.createdAt).toLocaleString()}</td>
-                  <td>{job.handset}</td>
-                  <td>{job.to}</td>
-                  <td>{job.simSlot === 1 ? "SIM 2" : "SIM 1"}</td>
-                  <td>{job.status}{job.error ? ` · ${job.error}` : ""}</td>
-                  <td className="sms-body">{job.body}</td>
-                </tr>
-              ))}
+              {visible.map((job) => {
+                const kind = jobKind(job.status);
+                return (
+                  <tr key={job.id}>
+                    <td className="muted">{new Date(job.createdAt).toLocaleString()}</td>
+                    <td>
+                      <span className="sms-row">
+                        <span className={`sms-mini ${kind}`} aria-hidden="true"><PlaneIcon /></span>
+                        {job.handset}
+                      </span>
+                    </td>
+                    <td>{job.to}</td>
+                    <td>{job.simSlot === 1 ? "SIM 2" : "SIM 1"}</td>
+                    <td><span className={`sms-pill ${kind}`}>{job.status}{job.error ? ` · ${job.error}` : ""}</span></td>
+                    <td className="sms-body">{job.body}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        ) : null}
+        ) : (
+          <div className="sms-empty">
+            <span className="sms-hero-ico" aria-hidden="true"><PlaneIcon /></span>
+            <strong>{focus === "all" ? "No messages yet" : "No matches"}</strong>
+            <p>{focus === "all" ? "Queue a message and it will show up here." : "Nothing in this list matches that view."}</p>
+          </div>
+        )}
       </section>
     </div>
   );
+}
+
+function jobKind(status: string) {
+  const value = status.toLowerCase();
+  if (value.includes("fail")) return "failed";
+  if (value.includes("sent") || value.includes("deliver")) return "sent";
+  return "queued";
+}
+
+function PlaneIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M4 12 20 4l-6 16-2-6z" /></svg>;
+}
+function ClockIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8" /><path d="M12 8v4.5l3 2" /></svg>;
+}
+function CheckIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8" /><path d="m8.5 12.2 2.3 2.3 4.7-5" /></svg>;
+}
+function CrossIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8" /><path d="M9 9l6 6M15 9l-6 6" /></svg>;
 }
