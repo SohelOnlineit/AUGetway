@@ -14,6 +14,16 @@ type Handset = {
   sendsSms?: boolean;
 };
 
+function PhoneIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M11 18h2" /></svg>;
+}
+function SignalIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 18v-3M9 18v-6M14 18V8M19 18V4" /></svg>;
+}
+function SendIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M4 12 20 4l-6 16-2-6z" /></svg>;
+}
+
 function seenAgo(value: string | null) {
   if (!value) return "Never";
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -33,6 +43,7 @@ function isOnline(value: string | null) {
 export default function SmsGatewayPage() {
   const [rows, setRows] = useState<Handset[]>([]);
   const [query, setQuery] = useState("");
+  const [focus, setFocus] = useState<"all" | "on" | "off" | "sms">("all");
   const [sort, setSort] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -57,13 +68,18 @@ export default function SmsGatewayPage() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const list = rows.filter((row) => !needle || `${row.label} ${row.model ?? ""} ${row.uid}`.toLowerCase().includes(needle));
+    const list = rows.filter((row) => {
+      if (focus === "on" && !row.lastSeenAt) return false;
+      if (focus === "off" && row.lastSeenAt) return false;
+      if (focus === "sms" && !row.sendsSms) return false;
+      return !needle || `${row.label} ${row.model ?? ""} ${row.uid}`.toLowerCase().includes(needle);
+    });
     return [...list].sort((a, b) => {
       const left = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
       const right = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
       return sort === "desc" ? right - left : left - right;
     });
-  }, [rows, query, sort]);
+  }, [rows, query, sort, focus]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(page, pages);
@@ -130,20 +146,55 @@ export default function SmsGatewayPage() {
     }
   }
 
+  const seen = rows.filter((row) => row.lastSeenAt).length;
+  const sending = rows.filter((row) => row.sendsSms).length;
+
+  function show(next: "all" | "on" | "off" | "sms") {
+    setFocus(next);
+    setPage(1);
+  }
+
   return (
     <div className="dev-page">
+      <header className="dev-hero">
+        <span className="dev-hero-ico" aria-hidden="true">
+          <svg className="dev-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="7" y="3" width="10" height="18" rx="2" />
+            <path d="M11 18h2" />
+          </svg>
+          <i />
+        </span>
+        <div>
+          <p className="keys-crumb">Desk <span>›</span> Devices</p>
+          <h2>Devices</h2>
+          <p className="muted">Website SMS goes out from the phone you mark. When the app is on more than one phone, choose one.</p>
+        </div>
+      </header>
+      <div className="dev-stats">
+        <button type="button" className={focus === "all" ? "dev-stat on" : "dev-stat"} onClick={() => show("all")}>
+          <span className="dev-stat-ico phone" aria-hidden="true"><PhoneIcon /></span>
+          <span><strong>{rows.length}</strong><small>Devices</small></span>
+        </button>
+        <button type="button" className={focus === "on" ? "dev-stat on" : "dev-stat"} onClick={() => show("on")}>
+          <span className="dev-stat-ico live" aria-hidden="true"><SignalIcon /></span>
+          <span><strong>{seen}</strong><small>Online</small></span>
+        </button>
+        <button type="button" className={focus === "off" ? "dev-stat on" : "dev-stat"} onClick={() => show("off")}>
+          <span className="dev-stat-ico off" aria-hidden="true"><PhoneIcon /></span>
+          <span><strong>{rows.length - seen}</strong><small>Offline</small></span>
+        </button>
+        <button type="button" className={focus === "sms" ? "dev-stat on" : "dev-stat"} onClick={() => show("sms")}>
+          <span className="dev-stat-ico sms" aria-hidden="true"><SendIcon /></span>
+          <span><strong>{sending}</strong><small>Sends SMS</small></span>
+        </button>
+      </div>
       <section className="dev-card">
-        <header className="dev-head">
-          <div>
-            <p className="keys-crumb">Devices <span>›</span> List</p>
-            <h2>Devices</h2>
-            <p className="muted">Website SMS goes out from the phone you mark. When the app is on more than one phone, choose one.</p>
-          </div>
+        <div className="dev-tools">
           <label className="keys-search">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-            <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search" aria-label="Search" />
+            <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search devices" aria-label="Search" />
           </label>
-        </header>
+        </div>
         {error ? <p className="error dev-error">{error}</p> : null}
         <div className="dev-body">
           <table className="keys-table dev-table">
@@ -172,7 +223,7 @@ export default function SmsGatewayPage() {
                     <tr key={row.id}>
                       <td>
                         <div className="dev-node">
-                          <span className="dev-avatar" aria-hidden="true">
+                          <span className={row.sendsSms ? "dev-avatar sms" : "dev-avatar"} aria-hidden="true">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M11 18h2" /></svg>
                           </span>
                           <div>
@@ -209,10 +260,11 @@ export default function SmsGatewayPage() {
           {visible.length === 0 ? (
             <div className="keys-empty">
               <div>
-                <span className="mark">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 8l8 8M16 8l-8 8" /></svg>
+                <span className="dev-hero-ico" aria-hidden="true">
+                  <svg className="dev-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M11 18h2" /></svg>
                 </span>
-                <strong>{query.trim() ? "No devices match" : "No devices"}</strong>
+                <strong>{query.trim() || focus !== "all" ? "No devices match" : "No devices yet"}</strong>
+                <p>{query.trim() || focus !== "all" ? "Nothing in this list matches that view." : "Open the AU-Getway app on a phone and it will show up here."}</p>
               </div>
             </div>
           ) : null}
