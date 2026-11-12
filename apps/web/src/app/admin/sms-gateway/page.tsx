@@ -11,6 +11,7 @@ type Handset = {
   battery: number | null;
   simSlot: number;
   lastSeenAt: string | null;
+  sendsSms?: boolean;
 };
 
 function seenAgo(value: string | null) {
@@ -40,6 +41,7 @@ export default function SmsGatewayPage() {
   const [editing, setEditing] = useState<Handset | null>(null);
   const [label, setLabel] = useState("");
   const [simSlot, setSimSlot] = useState(0);
+  const [sendsSms, setSendsSms] = useState(false);
   const [removing, setRemoving] = useState<Handset | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,7 +74,25 @@ export default function SmsGatewayPage() {
     setEditing(row);
     setLabel(row.label);
     setSimSlot(row.simSlot === 1 ? 1 : 0);
+    setSendsSms(Boolean(row.sendsSms));
     setFormError("");
+  }
+
+  async function chooseSender(row: Handset) {
+    if (busy || row.sendsSms) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/desk/handsets/${row.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ label: row.label, simSlot: row.simSlot === 1 ? 1 : 0, sendsSms: true }),
+      });
+      load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not choose this phone");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveEdit() {
@@ -85,7 +105,7 @@ export default function SmsGatewayPage() {
     setBusy(true);
     setFormError("");
     try {
-      await api(`/desk/handsets/${editing.id}`, { method: "PATCH", body: JSON.stringify({ label: name, simSlot: simSlot === 1 ? 1 : 0 }) });
+      await api(`/desk/handsets/${editing.id}`, { method: "PATCH", body: JSON.stringify({ label: name, simSlot: simSlot === 1 ? 1 : 0, sendsSms }) });
       setEditing(null);
       load();
     } catch (reason) {
@@ -117,6 +137,7 @@ export default function SmsGatewayPage() {
           <div>
             <p className="keys-crumb">Devices <span>›</span> List</p>
             <h2>Devices</h2>
+            <p className="muted">Website SMS goes out from the phone you mark. When the app is on more than one phone, choose one.</p>
           </div>
           <label className="keys-search">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
@@ -157,6 +178,9 @@ export default function SmsGatewayPage() {
                           <div>
                             <div className="name">{row.label}</div>
                             <div className="node-meta">{row.model || row.uid}</div>
+                            <button type="button" className={row.sendsSms ? "dev-sim" : "dev-sendpick"} disabled={busy} onClick={() => void chooseSender(row)}>
+                              {row.sendsSms ? "Sends SMS" : "Send SMS from this phone"}
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -244,6 +268,10 @@ export default function SmsGatewayPage() {
                   <option value={1}>SIM 2 (Secondary)</option>
                 </select>
                 <small>The phone sends queued SMS from this SIM. Change it here, and the next message uses the new SIM.</small>
+              </label>
+              <label className="set-check">
+                <input type="checkbox" checked={sendsSms} onChange={(event) => setSendsSms(event.target.checked)} />
+                <span>Send website SMS from this phone</span>
               </label>
               {formError ? <p className="error">{formError}</p> : null}
             </div>

@@ -449,6 +449,14 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .dev-batt.low { background: #3a1d22; color: #f0a3a8; }
 .dev-batt.na { background: var(--surface); color: var(--muted); }
 .dev-sim { background: var(--tint); color: var(--brand); }
+.dev-node .dev-sim, .dev-sendpick { margin-top: 6px; }
+button.dev-sim, button.dev-sendpick { font: inherit; }
+button.dev-sim { border: 0; cursor: default; }
+.dev-sendpick {
+  display: inline-flex; border: 1px solid var(--brand); background: transparent; color: var(--brand);
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.dev-sendpick:disabled { cursor: default; opacity: 0.7; }
 .dev-sim.alt { background: #3a3118; color: #e2b15a; }
 .dev-actions { display: flex; justify-content: flex-end; gap: 4px; white-space: nowrap; }
 .dev-edit, .dev-delete { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 8px; border-radius: 8px; font-weight: 650; cursor: pointer; text-decoration: none; }

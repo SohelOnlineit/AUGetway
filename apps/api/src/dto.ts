@@ -833,6 +833,10 @@ export class HandsetDto {
   @Min(0)
   @Max(1)
   simSlot?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  sendsSms?: boolean;
 }
 
 export class PublicSmsDto {

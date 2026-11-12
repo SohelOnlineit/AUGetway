@@ -388,6 +388,7 @@ const PREF_KEYS = new Set([
   "checkoutLang",
   "faqTitle",
   "faqContent",
+  "smsHandsetId",
   "metaTitle",
   "metaDescription",
   "metaKeywords",
@@ -1655,15 +1656,19 @@ export class PayService implements OnModuleInit {
     return { ok: true };
   }
 
-  listHandsets(ownerId: string) {
-    return this.prisma.handset.findMany({
-      where: { ownerId },
-      orderBy: { lastSeenAt: "desc" },
-      select: { id: true, uid: true, label: true, model: true, battery: true, simSlot: true, lastSeenAt: true },
-    });
+  async listHandsets(ownerId: string) {
+    const [rows, senderId] = await Promise.all([
+      this.prisma.handset.findMany({
+        where: { ownerId },
+        orderBy: { lastSeenAt: "desc" },
+        select: { id: true, uid: true, label: true, model: true, battery: true, simSlot: true, lastSeenAt: true },
+      }),
+      this.smsSenderId(ownerId),
+    ]);
+    return rows.map((row) => ({ ...row, sendsSms: row.id === senderId }));
   }
 
-  async saveHandset(ownerId: string, id: string, input: { label: string; simSlot?: number }) {
+  async saveHandset(ownerId: string, id: string, input: { label: string; simSlot?: number; sendsSms?: boolean }) {
     const label = input.label.trim();
     if (label.length < 2 || label.length > 80) throw new BadRequestException("Device name must be 2 to 80 characters");
     if (input.simSlot !== undefined && input.simSlot !== 0 && input.simSlot !== 1) throw new BadRequestException("Choose SIM 1 or SIM 2");
@@ -1678,13 +1683,33 @@ export class PayService implements OnModuleInit {
         data: { simSlot: input.simSlot },
       });
     }
+    if (input.sendsSms === true) await this.writeSmsSender(ownerId, id);
+    else if (input.sendsSms === false && (await this.smsSenderId(ownerId)) === id) await this.writeSmsSender(ownerId, "");
     return { ok: true };
   }
 
   async removeHandset(ownerId: string, id: string) {
     const removed = await this.prisma.handset.deleteMany({ where: { id, ownerId } });
     if (removed.count === 0) throw new NotFoundException("Device not found");
+    if ((await this.smsSenderId(ownerId)) === id) await this.writeSmsSender(ownerId, "");
     return { ok: true };
+  }
+
+  private async smsSenderId(ownerId: string) {
+    const row = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
+    return cleanPrefs(row?.prefs).smsHandsetId ?? "";
+  }
+
+  private async writeSmsSender(ownerId: string, handsetId: string) {
+    const current = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
+    const prefs = cleanPrefs(current?.prefs);
+    if (handsetId) prefs.smsHandsetId = handsetId;
+    else delete prefs.smsHandsetId;
+    if (!current) {
+      await this.prisma.brandSetting.create({ data: { ownerId, brandName: "AU-Getway", prefs } });
+      return;
+    }
+    await this.prisma.brandSetting.update({ where: { ownerId }, data: { prefs } });
   }
 
   listCustomers(ownerId: string) {
@@ -2066,7 +2091,11 @@ export class PayService implements OnModuleInit {
   async sendPublicSms(token: string, input: { to: string; message: string }) {
     const key = await this.keyFromToken(token);
     this.requireAbility(key, "sms:send");
-    const handset = await this.prisma.handset.findFirst({
+    const senderId = await this.smsSenderId(key.ownerId);
+    const chosen = senderId
+      ? await this.prisma.handset.findFirst({ where: { id: senderId, ownerId: key.ownerId } })
+      : null;
+    const handset = chosen ?? await this.prisma.handset.findFirst({
       where: { ownerId: key.ownerId },
       orderBy: { lastSeenAt: "desc" },
     });
