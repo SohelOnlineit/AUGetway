@@ -364,6 +364,17 @@ function smsStillDecides(method: { label?: string; verifyBy?: string } | null | 
   return walletService(method?.label ?? "") === "";
 }
 
+function smsBalanceCents(body: string) {
+  const match = body.match(/balance\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (!match) return null;
+  const raw = match[1].replace(/,/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
+  const [whole, frac = ""] = raw.split(".");
+  const cents = Number(whole) * 100 + Number((frac + "00").slice(0, 2));
+  if (!Number.isSafeInteger(cents) || cents < 0 || cents > 100_000_000) return null;
+  return cents;
+}
+
 function takaCents(value: { toString(): string }) {
   const raw = value.toString().trim();
   if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
@@ -1850,6 +1861,22 @@ export class PayService implements OnModuleInit {
         return this.checkoutCard(saved, true);
       }
     }
+    if ((row.status === "waiting" || row.status === "pending") && row.method?.verifyBy === "unique_amount" && walletService(row.method.label)) {
+      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { status: true } });
+      if (queued?.status === "pending") {
+        const notices = await this.prisma.inboxNotice.findMany({
+          where: { handset: { ownerId: row.ownerId }, checkoutId: null },
+          orderBy: { createdAt: "desc" },
+          take: 40,
+        });
+        for (const notice of notices) {
+          const matched = await this.matchOwner(row.ownerId, notice.body, notice.id, notice.sender);
+          if (matched === row.publicId) break;
+        }
+        const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id }, include: { method: true } });
+        if (fresh) return this.checkoutCard(fresh, fresh.status === "open" || fresh.status === "waiting");
+      }
+    }
     return this.checkoutCard(row, row.status === "open" || row.status === "waiting");
   }
 
@@ -1986,8 +2013,9 @@ export class PayService implements OnModuleInit {
       return this.queueBalanceCheck(row, providerRef, payerAccount, service);
     }
     if (service && verifyBy === "unique_amount") {
-      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { id: true } });
-      if (queued) return this.attachUniqueTrx(row, providerRef, payerAccount, service);
+      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { status: true } });
+      if (queued?.status === "verified") return this.publicPay(row.publicId);
+      if (queued) await this.attachUniqueTrx(row, providerRef, payerAccount, service);
     }
     const notices = await this.prisma.inboxNotice.findMany({
       where: { handset: { ownerId: row.ownerId }, checkoutId: null },
@@ -2052,6 +2080,18 @@ export class PayService implements OnModuleInit {
     if (paidNow) {
       const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id } });
       if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
+      if (service && verifyBy === "unique_amount") {
+        await this.recordUniquePaid({
+          ownerId: row.ownerId,
+          checkoutId: row.id,
+          service,
+          body: fit.body,
+          trxId: providerRef,
+          payable: row.payable,
+          smsKey: fit.id,
+          sender: fit.sender,
+        });
+      }
     }
     return this.publicPay(row.publicId);
   }
@@ -2907,10 +2947,6 @@ export class PayService implements OnModuleInit {
     });
     const target = ranked[0];
     if (!target) return null;
-    if (target.method?.verifyBy === "unique_amount" && walletService(target.method.label ?? "")) {
-      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: target.id }, select: { id: true } });
-      if (queued) return null;
-    }
     if (!named && ranked[1] && paidAmount !== null) {
       const first = Math.abs(paidAmount - Number(ranked[0].payable));
       const second = Math.abs(paidAmount - Number(ranked[1].payable));
@@ -2952,7 +2988,71 @@ export class PayService implements OnModuleInit {
     });
     if (outcome === "miss") return null;
     if (outcome === "paid") this.notifyGateway({ ...target, status: "paid" });
+    const service = walletService(target.method?.label ?? "");
+    if (service && target.method?.verifyBy === "unique_amount") {
+      await this.recordUniquePaid({
+        ownerId,
+        checkoutId: target.id,
+        service,
+        body,
+        trxId: smsRef,
+        payable: target.payable,
+        smsKey: noticeId || smsRef,
+        sender,
+      });
+    }
     return target.publicId;
+  }
+
+  private async recordUniquePaid(input: {
+    ownerId: string;
+    checkoutId: string;
+    service: "bkash" | "nagad" | "rocket" | "upay";
+    body: string;
+    trxId: string;
+    payable: { toString(): string };
+    smsKey: string;
+    sender: string;
+  }) {
+    const amountCents = takaCents(input.payable) ?? 0;
+    const fromSms = smsBalanceCents(input.body);
+    const current = await this.prisma.walletLedger.findUnique({
+      where: { ownerId_service: { ownerId: input.ownerId, service: input.service } },
+    });
+    const added = current ? current.balanceCents + amountCents : null;
+    const next = fromSms ?? added;
+    const balanceCents = next !== null && next >= 0 && next <= 100_000_000 ? next : current?.balanceCents ?? null;
+    const trxId = input.trxId.trim().toUpperCase();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.verifyOrder.updateMany({
+        where: { checkoutId: input.checkoutId, status: "pending" },
+        data: {
+          status: "verified",
+          ...(trxId ? { trxId } : {}),
+          smsKey: input.smsKey.slice(0, 80),
+          note: input.sender.slice(0, 180),
+          decidedAt: new Date(),
+        },
+      });
+      if (balanceCents === null) return;
+      await tx.walletLedger.upsert({
+        where: { ownerId_service: { ownerId: input.ownerId, service: input.service } },
+        create: { ownerId: input.ownerId, service: input.service, balanceCents },
+        update: { balanceCents },
+      });
+      await tx.ledgerEvent.create({
+        data: {
+          ownerId: input.ownerId,
+          service: input.service,
+          kind: "verified",
+          balanceCents,
+          amountCents,
+          trxId,
+          orderId: input.checkoutId,
+          note: "SMS balance",
+        },
+      });
+    });
   }
 
   private async lockKey(tx: { $executeRaw: PrismaService["$executeRaw"] }, key: string) {

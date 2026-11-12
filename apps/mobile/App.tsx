@@ -359,6 +359,7 @@ function App() {
           }
         }
         let current = booksRef.current;
+        const synced = new Set<Service>();
         for (const service of SERVICES) {
           const newest = balanceRows.filter((row) => row.service === service).sort((left, right) => right.receivedAt - left.receivedAt)[0];
           if (!newest) continue;
@@ -371,11 +372,12 @@ function App() {
           });
           if (!saved.ok) continue;
           current = { ...current, [service]: nextBook };
+          synced.add(service);
         }
         for (const service of SERVICES) {
           let checkReported = true;
           for (const job of jobs.filter((item) => item.service === service)) {
-            const decision = decideWithSms(current[service], job, messages, checkReported, jobs);
+            const decision = decideWithSms(current[service], job, messages, checkReported && !synced.has(service), jobs);
             if (decision.type === "wait") {
               current = { ...current, [service]: logWait(current[service], job, decision.reason, new Date().toISOString()) };
               continue;
@@ -413,9 +415,13 @@ function App() {
     };
     void run();
     const timer = setInterval(() => void run(), 10000);
+    const watch = AppState.addEventListener("change", (next) => {
+      if (next === "active") void run();
+    });
     return () => {
       stop = true;
       clearInterval(timer);
+      watch.remove();
     };
   }, [token, uid]);
 
