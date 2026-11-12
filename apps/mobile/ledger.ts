@@ -4,7 +4,7 @@ export type Service = (typeof SERVICES)[number];
 
 export type LedgerEvent = {
   at: string;
-  kind: "initial" | "manual" | "verified" | "rejected" | "pending";
+  kind: "initial" | "manual" | "verified" | "rejected" | "pending" | "sms";
   cents: number;
   amountCents: number;
   trxId: string;
@@ -16,6 +16,7 @@ export type WalletBook = {
   cents: number | null;
   trx: string[];
   sms: string[];
+  balanceAt: number;
   events: LedgerEvent[];
 };
 
@@ -38,7 +39,7 @@ export type Decision =
   | { type: "verify"; nextCents: number };
 
 export function emptyBook(): WalletBook {
-  return { cents: null, trx: [], sms: [], events: [] };
+  return { cents: null, trx: [], sms: [], balanceAt: 0, events: [] };
 }
 
 export function normalizeBook(book: Partial<WalletBook> | null | undefined): WalletBook {
@@ -46,6 +47,7 @@ export function normalizeBook(book: Partial<WalletBook> | null | undefined): Wal
     cents: typeof book?.cents === "number" ? book.cents : null,
     trx: Array.isArray(book?.trx) ? book.trx.filter((item) => typeof item === "string") : [],
     sms: Array.isArray(book?.sms) ? book.sms.filter((item) => typeof item === "string") : [],
+    balanceAt: typeof book?.balanceAt === "number" ? book.balanceAt : 0,
     events: Array.isArray(book?.events) ? book.events : [],
   };
 }
@@ -87,7 +89,9 @@ function remember(book: WalletBook, event: LedgerEvent, trxId = ""): WalletBook 
 
 export function setBalance(book: WalletBook, cents: number, kind: "initial" | "manual", at: string): WalletBook | null {
   if (!Number.isInteger(cents) || cents < 0 || cents > 100_000_000) return null;
-  return remember(book, { at, kind, cents, amountCents: 0, trxId: "", orderId: "" });
+  const saved = remember(book, { at, kind, cents, amountCents: 0, trxId: "", orderId: "" });
+  const stamped = Date.parse(at);
+  return { ...saved, balanceAt: Number.isFinite(stamped) ? stamped : Date.now() };
 }
 
 export function nextDecision(book: WalletBook, job: VerifyJob, checkReported: boolean): Decision {
@@ -133,7 +137,7 @@ export function decideWithSms(book: WalletBook, job: VerifyJob, messages: SmsHit
   if (book.trx.includes(trxId)) return { type: "reject" as const, reason: "Transaction ID already used" };
   const sms = matchJobSms(job, messages, book.sms);
   if (sms.type === "wait") return sms;
-  const nextCents = addCents(book.cents, job.amountCents);
+  const nextCents = sms.sms.balanceCents !== null ? sms.sms.balanceCents : addCents(book.cents, job.amountCents);
   if (nextCents === null) return { type: "reject" as const, reason: "Amount is not valid" };
   return { type: "verify" as const, nextCents, sms: sms.sms };
 }
@@ -148,6 +152,7 @@ export function mergeRemote(local: Books, remote: Partial<Record<Service, { cent
       cents: book.cents === null ? row?.cents ?? null : book.cents,
       trx: [...new Set(trx)].slice(-500),
       sms: book.sms,
+      balanceAt: book.balanceAt ?? 0,
       events: book.events,
     };
   }
@@ -161,7 +166,15 @@ export type SmsHit = {
   service: Service;
   trxId: string;
   amountCents: number;
+  balanceCents: number | null;
   sender: string;
+  receivedAt: number;
+};
+
+export type SmsBalance = {
+  key: string;
+  service: Service;
+  balanceCents: number;
   receivedAt: number;
 };
 
@@ -186,12 +199,13 @@ function senderService(sender: string): Service | "" {
   return "";
 }
 
-function textCents(value: string) {
-  const text = value.replace(/,/g, "");
+function moneyCents(value: string, allowZero = false) {
+  const text = value.replace(/,/g, "").trim();
   if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
   const [whole, frac = ""] = text.split(".");
   const cents = Number(whole) * 100 + Number((frac + "00").slice(0, 2));
-  if (!Number.isSafeInteger(cents) || cents < 1) return null;
+  if (!Number.isSafeInteger(cents) || cents < 0 || cents > 100_000_000) return null;
+  if (!allowZero && cents < 1) return null;
   return cents;
 }
 
@@ -202,7 +216,31 @@ function creditCents(body: string) {
   const labeled = cleaned.match(/(?:received|credited|deposit|cash\s*in)[\s\S]{0,60}?(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   const raw = labeled?.[1] ?? cleaned.match(/(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)?.[1];
   if (!raw) return null;
-  return textCents(raw);
+  return moneyCents(raw);
+}
+
+export function readSmsBalance(row: InboxSms): SmsBalance | null {
+  const service = senderService(row.sender) || serviceOf(row.sender, row.body);
+  if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;
+  const match = row.body.match(/balance\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (!match || row.receivedAt < 1 || !row.key) return null;
+  const balanceCents = moneyCents(match[1], true);
+  if (balanceCents === null) return null;
+  return { key: row.key, service, balanceCents, receivedAt: row.receivedAt };
+}
+
+export function applySmsBalance(book: WalletBook, hit: SmsBalance, at: string): WalletBook | null {
+  if (hit.receivedAt <= (book.balanceAt ?? 0)) return null;
+  const saved = remember(book, {
+    at,
+    kind: "sms",
+    cents: hit.balanceCents,
+    amountCents: 0,
+    trxId: "",
+    orderId: "",
+    note: "SMS balance",
+  });
+  return { ...saved, balanceAt: hit.receivedAt };
 }
 
 export function readSmsPayment(row: InboxSms): SmsHit | null {
@@ -217,7 +255,16 @@ export function readSmsPayment(row: InboxSms): SmsHit | null {
   const service = senderService(row.sender) || serviceOf(row.sender, body);
   if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;
   if (amountCents === null || row.receivedAt < 1 || !row.key) return null;
-  return { key: row.key, service, trxId, amountCents, sender: row.sender.trim().slice(0, 80), receivedAt: row.receivedAt };
+  const balance = readSmsBalance(row);
+  return {
+    key: row.key,
+    service,
+    trxId,
+    amountCents,
+    balanceCents: balance && balance.service === service ? balance.balanceCents : null,
+    sender: row.sender.trim().slice(0, 80),
+    receivedAt: row.receivedAt,
+  };
 }
 
 export function matchJobSms(

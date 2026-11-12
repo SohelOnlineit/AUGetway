@@ -5,7 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
-import { SERVICES, applyVerified, decideWithSms, emptyBooks, formatTaka, isService, logWait, mergeRemote, mergeSms, normalizeBook, parseTaka, readSmsPayment, setBalance, type Books, type Service, type SmsHit, type VerifyJob } from "./ledger";
+import { SERVICES, applySmsBalance, applyVerified, decideWithSms, emptyBooks, formatTaka, isService, logWait, mergeRemote, mergeSms, normalizeBook, parseTaka, readSmsBalance, readSmsPayment, setBalance, type Books, type Service, type SmsBalance, type SmsHit, type VerifyJob } from "./ledger";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -329,20 +329,27 @@ function App() {
           if (JSON.stringify(merged) !== JSON.stringify(booksRef.current)) await storeBooks(merged);
         }
         const response = await fetch(`${DESK}/handset/balance-jobs?uid=${encodeURIComponent(uid)}`, { headers });
-        if (!response.ok) return;
-        const data = (await response.json()) as { jobs?: VerifyJob[] };
+        if (response.status === 401) {
+          if (!stop) void signOut();
+          return;
+        }
+        const data = response.ok ? (await response.json()) as { jobs?: VerifyJob[] } : {};
         const jobs = (data.jobs ?? []).filter((job): job is VerifyJob => Boolean(job) && isService(job.service) && typeof job.trxId === "string" && typeof job.amountCents === "number");
         let messages = smsCache.current;
+        let balanceRows: SmsBalance[] = [];
         if (smsReady) {
           try {
             const rows = await listRecentSms(80);
             const found = rows.flatMap((row) => {
-              const hit = readSmsPayment({
+              const item = {
                 key: `${row.receivedAt}:${row.address}:${row.body}`.slice(0, 80),
                 sender: row.address,
                 body: row.body,
                 receivedAt: row.receivedAt,
-              });
+              };
+              const balance = readSmsBalance(item);
+              if (balance) balanceRows.push(balance);
+              const hit = readSmsPayment(item);
               return hit ? [hit] : [];
             });
             messages = mergeSms(smsCache.current, found);
@@ -352,6 +359,19 @@ function App() {
           }
         }
         let current = booksRef.current;
+        for (const service of SERVICES) {
+          const newest = balanceRows.filter((row) => row.service === service).sort((left, right) => right.receivedAt - left.receivedAt)[0];
+          if (!newest) continue;
+          const nextBook = applySmsBalance(current[service], newest, new Date().toISOString());
+          if (!nextBook) continue;
+          const saved = await fetch(`${DESK}/handset/balances`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ uid, service, balanceCents: newest.balanceCents, kind: "manual" }),
+          });
+          if (!saved.ok) continue;
+          current = { ...current, [service]: nextBook };
+        }
         for (const service of SERVICES) {
           let checkReported = true;
           for (const job of jobs.filter((item) => item.service === service)) {
