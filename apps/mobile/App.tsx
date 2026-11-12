@@ -644,7 +644,7 @@ function App() {
       timer = setInterval(() => {
         if (AppState.currentState !== "active") return;
         void deliver();
-      }, 5000);
+      }, 10000);
     };
     arm(AppState.currentState);
     const sub = AppState.addEventListener("change", arm);

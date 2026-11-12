@@ -116,7 +116,7 @@ class KeepAliveService : Service() {
           // The running loop still checks the queue on the next pass.
         }
         try {
-          Thread.sleep(5_000)
+          Thread.sleep(10_000)
         } catch (_: InterruptedException) {
           break
         }
