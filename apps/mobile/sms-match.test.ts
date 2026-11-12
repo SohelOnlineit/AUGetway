@@ -83,6 +83,22 @@ test("a unique amount order is paid from the matching SMS without a typed transa
   assert.equal(shared.type, "wait");
 });
 
+test("a saved balance of 5000 does not verify when the SMS balance is 31574.85", () => {
+  const book = setBalance(emptyBook(), 500000, "manual", "2026-11-13T00:00:00.000Z");
+  const text = "You have received payment Tk 2.00 from 01770000000. Fee Tk 0.00. Balance Tk 31,574.85. TrxID DKD4EW5O5Y at 13/11/2026 01:40";
+  const row = readSmsPayment({ key: "sms-gap", sender: "bKash", body: text, receivedAt: Date.parse("2026-11-13T01:40:00.000Z") });
+  assert.ok(book && row);
+  assert.equal(row?.amountCents, 200);
+  assert.equal(row?.balanceCents, 3_157_485);
+  const decision = decideWithSms(book, job({ trxId: "DKD4EW5O5Y", amountCents: 200, reportedCents: 500000 }), [row], true);
+  assert.equal(decision.type, "reject");
+  assert.equal(book.cents, 500000);
+  const close = { ...row, balanceCents: 500204 };
+  const allowed = decideWithSms(book, job({ trxId: "DKD4EW5O5Y", amountCents: 200, reportedCents: 500000 }), [close], true);
+  assert.equal(allowed.type, "verify");
+  if (allowed.type === "verify") assert.equal(allowed.nextCents, 500204);
+});
+
 test("one SMS cannot be used for a second order", () => {
   assert.ok(sms);
   const first = matchJobSms(job(), [sms], []);

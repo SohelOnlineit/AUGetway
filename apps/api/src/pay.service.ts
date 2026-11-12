@@ -2053,6 +2053,9 @@ export class PayService implements OnModuleInit {
       }
       throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
+    if (service && verifyBy === "unique_amount" && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body))) {
+      throw new BadRequestException("SMS balance does not match the saved wallet balance");
+    }
     const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
     const paidNow = await this.prisma.$transaction(async (tx) => {
       await this.lockKey(tx, `${row.ownerId}:${providerRef}`);
@@ -2809,6 +2812,11 @@ export class PayService implements OnModuleInit {
     }
     const smsKey = (input.smsKey ?? "").trim().slice(0, 80);
     if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
+    const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
+    const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
+    if (expectedBalance === null || expectedBalance > 100_000_000 || Math.abs(input.balanceCents - expectedBalance) > 4) {
+      throw new BadRequestException("SMS balance does not match the saved wallet balance");
+    }
     const smsNote = [input.smsSender, input.smsAt, smsKey].filter(Boolean).join(" ").slice(0, 180);
     const paid = await this.prisma.$transaction(async (tx) => {
       await this.lockKey(tx, `${userId}:${trxId}`);
@@ -2947,6 +2955,8 @@ export class PayService implements OnModuleInit {
     });
     const target = ranked[0];
     if (!target) return null;
+    const wallet = walletService(target.method?.label ?? "");
+    if (wallet && target.method?.verifyBy === "unique_amount" && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
     if (!named && ranked[1] && paidAmount !== null) {
       const first = Math.abs(paidAmount - Number(ranked[0].payable));
       const second = Math.abs(paidAmount - Number(ranked[1].payable));
@@ -3002,6 +3012,15 @@ export class PayService implements OnModuleInit {
       });
     }
     return target.publicId;
+  }
+
+  private async uniqueBalanceAgrees(ownerId: string, service: "bkash" | "nagad" | "rocket" | "upay", payable: { toString(): string }, body: string) {
+    const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId, service } } });
+    const amountCents = takaCents(payable);
+    const smsBalance = smsBalanceCents(body);
+    if (!ledger || amountCents === null || smsBalance === null) return false;
+    const expected = ledger.balanceCents + amountCents;
+    return expected <= 100_000_000 && Math.abs(smsBalance - expected) <= 4;
   }
 
   private async recordUniquePaid(input: {
