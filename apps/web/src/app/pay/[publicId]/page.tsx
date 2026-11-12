@@ -246,17 +246,25 @@ export default function PayPage() {
     : "";
   const cartHref = card?.status === "paid" ? successHref || cancelHref : cancelHref;
   const cartLabel = text(lang, "Back to cart", "কার্টে ফিরে যান");
-  const [leaveIn, setLeaveIn] = useState(5);
+  const returnMs = 5000;
+  const [leaveLeft, setLeaveLeft] = useState(returnMs);
   useEffect(() => {
     if (!successHref) return;
-    setLeaveIn(5);
-    const tick = window.setInterval(() => setLeaveIn((value) => (value > 1 ? value - 1 : 1)), 1000);
-    const go = window.setTimeout(() => window.location.assign(successHref), 5000);
+    const started = Date.now();
+    setLeaveLeft(returnMs);
+    const tick = window.setInterval(() => {
+      setLeaveLeft(Math.max(0, returnMs - (Date.now() - started)));
+    }, 50);
+    const go = window.setTimeout(() => window.location.assign(successHref), returnMs);
     return () => {
       window.clearInterval(tick);
       window.clearTimeout(go);
     };
   }, [successHref]);
+  const leaveShown = (leaveLeft / 1000).toFixed(1);
+  const ringRadius = 42;
+  const ringLength = 2 * Math.PI * ringRadius;
+  const ringOffset = ringLength * (1 - leaveLeft / returnMs);
   function cartButton(compact = false, onBack?: () => void) {
     const label = compact ? text(lang, "Back", "ফিরে") : cartLabel;
     const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
@@ -342,7 +350,7 @@ export default function PayPage() {
 
         <section className="ck-main">
           <div className="ck-main-top">
-          {showPicker ? null : <div className="ck-cart-row">{cartButton()}</div>}
+          {showPicker || card?.status === "paid" ? null : <div className="ck-cart-row">{cartButton()}</div>}
           {showPicker ? (
             <div className="ck-picker">
               <header>
@@ -466,15 +474,33 @@ export default function PayPage() {
 
           {card?.status === "paid" ? (
             <div className="ck-done">
-              <span className="ck-done-mark" aria-hidden="true">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-              </span>
+              {successHref ? (
+                <div className="ck-done-ring" aria-hidden="true">
+                  <svg viewBox="0 0 100 100">
+                    <circle className="ck-done-track" cx="50" cy="50" r={ringRadius} />
+                    <circle
+                      className="ck-done-arc"
+                      cx="50"
+                      cy="50"
+                      r={ringRadius}
+                      strokeDasharray={ringLength}
+                      strokeDashoffset={ringOffset}
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <strong className="ck-done-count">{leaveShown}</strong>
+                </div>
+              ) : (
+                <span className="ck-done-mark" aria-hidden="true">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                </span>
+              )}
               <h2>{text(lang, "Payment successful", "পেমেন্ট সফল হয়েছে")}</h2>
               <p>{text(lang, "Your transaction has been verified.", "আপনার লেনদেন যাচাই হয়েছে।")}</p>
               <strong className="ck-done-amount">{priced(amount)}</strong>
               {successHref ? (
                 <>
-                  <p className="ck-done-wait">{text(lang, `Taking you back to the shop in ${leaveIn}s`, `${leaveIn} সেকেন্ডে শপে ফিরে যাচ্ছে`)}</p>
+                  <p className="ck-done-wait">{text(lang, `Taking you back to the shop in ${leaveShown}s`, `${leaveShown} সেকেন্ডে শপে ফিরে যাচ্ছে`)}</p>
                   <a className="ck-pay on" href={successHref}>{cartLabel}</a>
                 </>
               ) : (
