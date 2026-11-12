@@ -18,6 +18,7 @@ type Bill = {
 };
 type Col = "number" | "customer" | "amount" | "status" | "due" | "created";
 type SortKey = "number" | "customer" | "amount" | "due" | "created";
+type StatusView = "all" | "due" | "paid" | "cancelled";
 
 const columns: { key: Col; label: string; sort?: SortKey }[] = [
   { key: "number", label: "Invoice #", sort: "number" },
@@ -55,6 +56,7 @@ export default function BillsPage() {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusView>("all");
   const [sort, setSort] = useState<SortKey>("created");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [shown, setShown] = useState<Record<Col, boolean>>({
@@ -93,6 +95,7 @@ export default function BillsPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = rows.filter((row) => {
+      if (statusFilter !== "all" && statusOf(row.status).kind !== statusFilter) return false;
       if (!needle) return true;
       return [row.number, row.customerName, row.customerEmail ?? "", row.title, row.total, row.status, statusOf(row.status).label]
         .some((value) => value.toLowerCase().includes(needle));
@@ -107,7 +110,7 @@ export default function BillsPage() {
       if (sort === "due") return left.localeCompare(right) * factor;
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * factor;
     });
-  }, [rows, query, sort, dir]);
+  }, [rows, query, sort, dir, statusFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -142,13 +145,25 @@ export default function BillsPage() {
   }
 
   const pages = pageButtons(safePage, pageCount);
+  const counts = {
+    all: rows.length,
+    due: rows.filter((row) => statusOf(row.status).kind === "due").length,
+    paid: rows.filter((row) => statusOf(row.status).kind === "paid").length,
+    cancelled: rows.filter((row) => statusOf(row.status).kind === "cancelled").length,
+  };
+
+  function showStatus(next: StatusView) {
+    setStatusFilter(next);
+    setPage(1);
+  }
 
   return (
     <div className="inv-page">
       <header className="inv-head">
         <div>
-          <p className="inv-crumb">Invoices <span>›</span> List</p>
+          <p className="inv-crumb">Desk <span>›</span> Invoices</p>
           <h2>Invoices</h2>
+          <p className="muted">Bills you send from this desk, and whether they are still due.</p>
         </div>
         <div className="inv-head-actions">
           {picked.length ? (
@@ -159,6 +174,13 @@ export default function BillsPage() {
       </header>
       {note ? <p className="inv-note">{note}</p> : null}
       {error ? <p className="error">{error}</p> : null}
+
+      <div className="inv-stats">
+        <Stat label="Invoices" value={ready ? counts.all : "—"} on={statusFilter === "all"} onClick={() => showStatus("all")} />
+        <Stat label="Due" value={ready ? counts.due : "—"} tone="due" on={statusFilter === "due"} onClick={() => showStatus("due")} />
+        <Stat label="Paid" value={ready ? counts.paid : "—"} tone="paid" on={statusFilter === "paid"} onClick={() => showStatus("paid")} />
+        <Stat label="Cancelled" value={ready ? counts.cancelled : "—"} tone="cancelled" on={statusFilter === "cancelled"} onClick={() => showStatus("cancelled")} />
+      </div>
 
       <section className="inv-card">
         <div className="inv-tools">
@@ -247,7 +269,8 @@ export default function BillsPage() {
           {ready && !visible.length ? (
             <div className="inv-empty">
               <span className="inv-empty-mark" aria-hidden="true"><CrossIcon /></span>
-              <strong>{query ? "No matches" : "No invoices"}</strong>
+              <strong>{query || statusFilter !== "all" ? "No matches" : "No invoices yet"}</strong>
+              <p>{query || statusFilter !== "all" ? "Nothing in this list matches that view." : "Create the first invoice with the button above."}</p>
             </div>
           ) : null}
         </div>
@@ -288,6 +311,15 @@ function pageButtons(page: number, count: number) {
     items.push(number);
   });
   return items;
+}
+
+function Stat({ label, value, on, tone, onClick }: { label: string; value: number | string; on: boolean; tone?: string; onClick: () => void }) {
+  return (
+    <button type="button" className={on ? `inv-stat on${tone ? ` ${tone}` : ""}` : `inv-stat${tone ? ` ${tone}` : ""}`} onClick={onClick}>
+      <strong>{value}</strong>
+      <small>{label}</small>
+    </button>
+  );
 }
 
 function SearchIcon() {
