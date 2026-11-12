@@ -2758,14 +2758,54 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   .ck-back, .ck-active { height: 40px; }
 }
 
-.sec-page { display: grid; gap: 14px; }
-.sec-note { margin: 6px 0 0; max-width: 640px; }
-.sec-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.sec-cards article {
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+.sec-page { display: flex; flex-direction: column; gap: 16px; animation: people-rise 0.45s cubic-bezier(.2, .8, .2, 1); }
+.sec-hero {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px; border: 1px solid var(--line); border-radius: 22px;
+  background:
+    radial-gradient(ellipse 80% 120% at 100% 0%, rgb(38 191 176 / 0.16), transparent 55%),
+    var(--card);
+  box-shadow: var(--shadow);
 }
-.sec-cards p { margin: 10px 0 0; color: var(--muted); font-size: 13px; font-weight: 650; }
-.sec-cards strong { display: block; color: var(--fg); font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
+.sec-hero h2 { margin: 4px 0 0; font-family: var(--font-body), sans-serif; font-size: 34px; font-weight: 750; letter-spacing: -0.04em; }
+.sec-note { margin: 8px 0 0; max-width: 560px; line-height: 1.45; }
+.sec-hero-ico {
+  position: relative; width: 58px; height: 58px; flex: none; display: grid; place-items: center; border-radius: 18px;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.sec-hero-ico svg { width: 28px; height: 28px; }
+.sec-shield { animation: sec-pulse 2.4s ease-in-out infinite; }
+.sec-hero-ico i {
+  position: absolute; inset: 6px; border-radius: 16px; border: 2px solid var(--brand); opacity: 0;
+  animation: dev-ping 2.4s ease-out infinite;
+}
+.sec-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.sec-stat {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: center;
+  padding: 16px 16px 16px 18px; border: 1px solid var(--line); border-radius: 18px;
+  background: var(--card); color: var(--fg); text-align: left; box-shadow: var(--shadow);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.sec-stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--brand); }
+.sec-stat.user::before { background: var(--wait); }
+.sec-stat.repeat::before { background: var(--bad); }
+.sec-stat strong { display: block; color: var(--fg); font-size: 26px; font-weight: 750; letter-spacing: -0.04em; line-height: 1.1; }
+.sec-stat small { color: var(--muted); font-size: 13px; font-weight: 650; }
+.sec-stat:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
+.sec-stat.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--card)); }
+.sec-ico {
+  width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand);
+}
+.sec-ico svg { width: 22px; height: 22px; transform-box: fill-box; transform-origin: center; }
+.sec-stat.on .sec-ico { background: var(--brand); color: var(--tint); }
+.sec-ico.shield svg { animation: sec-pulse 2.4s ease-in-out infinite; }
+.sec-ico.user svg { animation: txn-shake 2.6s ease-in-out infinite; }
+.sec-ico.repeat svg { animation: set-spin 6s linear infinite; }
+.sec-ico.mail svg { animation: dev-bob 2.4s ease-in-out infinite; }
+.sec-page .keys-card { border-radius: 22px; overflow: hidden; }
 .sec-filters {
   display: grid; grid-template-columns: 1.3fr 1fr 1fr 0.7fr 0.7fr auto; gap: 10px; align-items: end;
   padding: 14px 16px 4px;
@@ -2781,6 +2821,7 @@ html[data-theme="light"] .txn-card { background: var(--card); }
   padding: 4px 10px; font-size: 12px; font-weight: 700; white-space: nowrap;
 }
 .sec-kind i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sec-kind.warn i, .sec-kind.bad i { animation: dev-ping 1.8s ease-out infinite; }
 .sec-kind.warn { background: color-mix(in srgb, var(--wait) 18%, transparent); color: var(--wait); }
 .sec-kind.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 .sec-kind.info { background: var(--tint); color: var(--brand); }
@@ -2807,10 +2848,12 @@ html[data-theme="light"] .txn-card { background: var(--card); }
 }
 @media (max-width: 680px) {
   .sec-cards, .sec-filters { grid-template-columns: 1fr; }
+  .sec-hero { align-items: flex-start; }
+  .sec-hero h2 { font-size: 28px; }
   .sec-foot { flex-direction: column; align-items: stretch; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sec-skel { animation: none; }
+  .sec-skel, .sec-page, .sec-shield, .sec-hero-ico i, .sec-ico svg, .sec-kind i, .sec-stat { animation: none; transition: none; }
   .pgw-ring, .pgw-hero-icon svg, .pgw-mark svg, .pgw-choice { animation: none; }
 }
 
