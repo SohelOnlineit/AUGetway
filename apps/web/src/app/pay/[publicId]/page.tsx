@@ -262,9 +262,7 @@ export default function PayPage() {
     };
   }, [successHref]);
   const leaveShown = (leaveLeft / 1000).toFixed(1);
-  const ringRadius = 42;
-  const ringLength = 2 * Math.PI * ringRadius;
-  const ringOffset = ringLength * (1 - leaveLeft / returnMs);
+  const doorOpen = successHref ? Math.min(68, (1 - leaveLeft / returnMs) * 68) : 0;
   function cartButton(compact = false, onBack?: () => void) {
     const label = compact ? text(lang, "Back", "ফিরে") : cartLabel;
     const mark = <span className="ck-cart-mark"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></span>;
@@ -475,20 +473,14 @@ export default function PayPage() {
           {card?.status === "paid" ? (
             <div className="ck-done">
               {successHref ? (
-                <div className="ck-done-ring" aria-hidden="true">
-                  <svg viewBox="0 0 100 100">
-                    <circle className="ck-done-track" cx="50" cy="50" r={ringRadius} />
-                    <circle
-                      className="ck-done-arc"
-                      cx="50"
-                      cy="50"
-                      r={ringRadius}
-                      strokeDasharray={ringLength}
-                      strokeDashoffset={ringOffset}
-                      transform="rotate(-90 50 50)"
-                    />
-                  </svg>
-                  <strong className="ck-done-count">{leaveShown}</strong>
+                <div className="ck-door" aria-hidden="true">
+                  <div className="ck-door-frame">
+                    <span className="ck-door-glow" />
+                    <span className="ck-door-panel" style={{ transform: `perspective(480px) rotateY(-${doorOpen}deg)` }}>
+                      <span className="ck-door-window" />
+                      <span className="ck-door-knob" />
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <span className="ck-done-mark" aria-hidden="true">
@@ -500,7 +492,8 @@ export default function PayPage() {
               <strong className="ck-done-amount">{priced(amount)}</strong>
               {successHref ? (
                 <>
-                  <p className="ck-done-wait">{text(lang, `Taking you back to the shop in ${leaveShown}s`, `${leaveShown} সেকেন্ডে শপে ফিরে যাচ্ছে`)}</p>
+                  <p className="ck-done-wait">{text(lang, "Taking you back to the shop in", "শপে ফিরে যাচ্ছে")}</p>
+                  <strong className="ck-done-count">{leaveShown}<small>s</small></strong>
                   <a className="ck-pay on" href={successHref}>{cartLabel}</a>
                 </>
               ) : (
