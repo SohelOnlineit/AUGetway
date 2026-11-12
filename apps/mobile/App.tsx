@@ -375,11 +375,12 @@ function App() {
         for (const service of SERVICES) {
           let checkReported = true;
           for (const job of jobs.filter((item) => item.service === service)) {
-            const decision = decideWithSms(current[service], job, messages, checkReported);
+            const decision = decideWithSms(current[service], job, messages, checkReported, jobs);
             if (decision.type === "wait") {
               current = { ...current, [service]: logWait(current[service], job, decision.reason, new Date().toISOString()) };
               continue;
             }
+            const trxId = decision.type === "verify" ? job.trxId.trim() || decision.sms.trxId : job.trxId;
             const saved = await fetch(`${DESK}/handset/balance-jobs/${job.id}`, {
               method: "POST",
               headers,
@@ -387,7 +388,7 @@ function App() {
                 uid,
                 decision: decision.type === "verify" ? "verified" : "rejected",
                 service,
-                trxId: job.trxId,
+                trxId,
                 amountCents: job.amountCents,
                 balanceCents: decision.type === "verify" ? decision.nextCents : current[service].cents ?? 0,
                 ...(decision.type === "reject" ? { note: decision.reason } : {}),
@@ -398,7 +399,7 @@ function App() {
             if (!saved.ok) break;
             if (decision.type === "verify" && result.status === "verified") {
               const nextCents = typeof result.balanceCents === "number" ? result.balanceCents : decision.nextCents;
-              current = { ...current, [service]: applyVerified(current[service], job, nextCents, new Date().toISOString(), decision.sms.key) };
+              current = { ...current, [service]: applyVerified(current[service], job, nextCents, new Date().toISOString(), decision.sms.key, trxId) };
               checkReported = false;
             }
           }

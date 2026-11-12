@@ -106,16 +106,17 @@ export function nextDecision(book: WalletBook, job: VerifyJob, checkReported: bo
   return { type: "verify", nextCents };
 }
 
-export function applyVerified(book: WalletBook, job: VerifyJob, nextCents: number, at: string, smsKey = ""): WalletBook {
+export function applyVerified(book: WalletBook, job: VerifyJob, nextCents: number, at: string, smsKey = "", trxFromSms = ""): WalletBook {
+  const trxId = (trxFromSms || job.trxId).trim().toUpperCase();
   const saved = remember(book, {
     at,
     kind: "verified",
     cents: nextCents,
     amountCents: job.amountCents,
-    trxId: job.trxId.trim().toUpperCase(),
+    trxId,
     orderId: job.orderId,
     note: smsKey,
-  }, job.trxId.trim().toUpperCase());
+  }, trxId);
   if (!smsKey || saved.sms.includes(smsKey)) return saved;
   return { ...saved, sms: [...saved.sms, smsKey].slice(-500) };
 }
@@ -130,10 +131,11 @@ export function logWait(book: WalletBook, job: VerifyJob, reason: string, at: st
   };
 }
 
-export function decideWithSms(book: WalletBook, job: VerifyJob, messages: SmsHit[], checkReported: boolean) {
+export function decideWithSms(book: WalletBook, job: VerifyJob, messages: SmsHit[], checkReported: boolean, peers: VerifyJob[] = []) {
   if (book.cents === null) return { type: "wait" as const, reason: "Set the wallet balance first" };
   if (checkReported && job.reportedCents !== null && job.reportedCents !== book.cents) return { type: "wait" as const, reason: "Saved balance does not match this phone" };
   const trxId = job.trxId.trim().toUpperCase();
+  if (!trxId) return decideUniqueAmount(book, job, messages, peers);
   if (book.trx.includes(trxId)) return { type: "reject" as const, reason: "Transaction ID already used" };
   const sms = matchJobSms(job, messages, book.sms);
   if (sms.type === "wait") return sms;
@@ -265,6 +267,22 @@ export function readSmsPayment(row: InboxSms): SmsHit | null {
     sender: row.sender.trim().slice(0, 80),
     receivedAt: row.receivedAt,
   };
+}
+
+function decideUniqueAmount(book: WalletBook, job: VerifyJob, messages: SmsHit[], peers: VerifyJob[]) {
+  const shared = peers.some((peer) => peer.id !== job.id && peer.service === job.service && peer.amountCents === job.amountCents && !peer.trxId.trim());
+  if (shared) return { type: "wait" as const, reason: "Two orders share this amount" };
+  const opened = Date.parse(job.createdAt);
+  const exact = messages
+    .filter((row) => row.service === job.service && row.amountCents === job.amountCents)
+    .filter((row) => !Number.isFinite(opened) || row.receivedAt + 30_000 >= opened)
+    .sort((left, right) => left.receivedAt - right.receivedAt);
+  const fresh = exact.find((row) => !book.sms.includes(row.key));
+  if (!fresh) return { type: "wait" as const, reason: exact.length > 0 ? "This SMS was already used" : "Waiting for the payment SMS" };
+  if (book.trx.includes(fresh.trxId)) return { type: "reject" as const, reason: "Transaction ID already used" };
+  const nextCents = fresh.balanceCents !== null ? fresh.balanceCents : addCents(book.cents ?? 0, job.amountCents);
+  if (nextCents === null) return { type: "reject" as const, reason: "Amount is not valid" };
+  return { type: "verify" as const, nextCents, sms: fresh };
 }
 
 export function matchJobSms(

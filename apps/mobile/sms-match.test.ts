@@ -66,6 +66,23 @@ test("a bKash SMS balance replaces the saved bKash balance", () => {
   assert.equal(saved?.cents, 3_060_089);
 });
 
+test("a unique amount order is paid from the matching SMS without a typed transaction id", () => {
+  const book = setBalance(emptyBook(), 10100, "initial", "2026-11-13T00:00:00.000Z");
+  const fresh = sms ? { ...sms, receivedAt: Date.parse("2026-11-13T00:10:00.000Z") } : null;
+  assert.ok(book && fresh);
+  const unique = job({ trxId: "", amountCents: 10000, createdAt: "2026-11-13T00:00:00.000Z" });
+  const decision = decideWithSms(book, unique, [fresh], true);
+  assert.equal(decision.type, "verify");
+  if (decision.type !== "verify") return;
+  assert.equal(decision.sms.trxId, "ABC123XYZ");
+  assert.equal(decision.nextCents, 20100);
+  const early = { ...fresh, key: "sms-old", receivedAt: Date.parse("2026-11-12T00:00:00.000Z") };
+  assert.equal(decideWithSms(book, unique, [early], true).type, "wait");
+  assert.equal(decideWithSms(book, job({ trxId: "", amountCents: 10004 }), [fresh], true).type, "wait");
+  const shared = decideWithSms(book, unique, [fresh], true, [unique, job({ id: "job_2", trxId: "", amountCents: 10000 })]);
+  assert.equal(shared.type, "wait");
+});
+
 test("one SMS cannot be used for a second order", () => {
   assert.ok(sms);
   const first = matchJobSms(job(), [sms], []);
