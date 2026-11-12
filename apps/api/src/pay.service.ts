@@ -13,10 +13,22 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import { paidFitsCheckout, paidFitsManual, pickUniqueAmount } from "./amount-window";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
+import { matchWithoutWaitingForSnapshot } from "./payment-security";
+import { PaymentSecurityService } from "./payment-security.service";
 import { PrismaService } from "./prisma.service";
 import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sessionStamp } from "./session";
 
 type MoneyRow = { toString(): string };
+
+function exceptionText(error: BadRequestException): string {
+  const body = error.getResponse();
+  if (typeof body === "string") return body;
+  if (body && typeof body === "object" && "message" in body) {
+    const message = (body as { message?: string | string[] }).message;
+    return Array.isArray(message) ? message.join(", ") : message || "";
+  }
+  return "";
+}
 
 function batchError(error: unknown) {
   if (error instanceof HttpException) {
@@ -299,6 +311,7 @@ export class PayService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly security: PaymentSecurityService,
   ) {}
 
   async onModuleInit() {
@@ -1659,7 +1672,14 @@ export class PayService implements OnModuleInit {
       throw new BadRequestException("This method does not accept a receipt");
     }
     if (providerRef) {
-      return this.claimByReference(row, providerRef, payerAccount);
+      try {
+        return await this.claimByReference(row, providerRef, payerAccount);
+      } catch (error) {
+        if (error instanceof BadRequestException && exceptionText(error).includes("already used")) {
+          this.security.watchRepeatedClaim({ ownerId: row.ownerId, trxId: providerRef, checkoutId: row.id });
+        }
+        throw error;
+      }
     }
     await this.prisma.checkout.update({
       where: { id: row.id },
@@ -1927,6 +1947,7 @@ export class PayService implements OnModuleInit {
       throw new BadRequestException("Only a wallet or bank payment message can be saved");
     }
     const receivedKey = input.receivedKey?.trim().slice(0, 80) || null;
+    const openBeforePromise = this.security.snapshot(userId);
     try {
       const saved = await this.prisma.inboxNotice.create({
         data: {
@@ -1936,11 +1957,36 @@ export class PayService implements OnModuleInit {
           receivedKey,
         },
       });
-      const matched = await this.matchOwner(userId, input.body, saved.id, input.sender ?? "");
+      const matched = await matchWithoutWaitingForSnapshot(
+        openBeforePromise,
+        () => this.matchOwner(userId, input.body, saved.id, input.sender ?? ""),
+        (result, openBefore) => {
+          this.security.watchNotice({
+            ownerId: userId,
+            handsetId: handset.id,
+            noticeId: saved.id,
+            sender,
+            body,
+            duplicate: false,
+            matchedPublicId: typeof result === "string" ? result : null,
+            openBefore,
+          });
+        },
+      );
       return { id: saved.id, matched };
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "P2002") || !receivedKey) throw error;
       const existing = await this.prisma.inboxNotice.findFirst({ where: { handsetId: handset.id, receivedKey } });
+      this.security.watchNotice({
+        ownerId: userId,
+        handsetId: handset.id,
+        noticeId: existing?.id ?? "",
+        sender,
+        body,
+        duplicate: true,
+        matchedPublicId: null,
+        openBefore: [],
+      });
       return { id: existing?.id ?? "", matched: existing?.checkoutId ?? null, duplicate: true };
     }
   }

@@ -5,6 +5,7 @@ import { DeskGuard } from "./desk.guard";
 import { PrismaService } from "./prisma.service";
 import { PayController } from "./pay.controller";
 import { PayService } from "./pay.service";
+import { PaymentSecurityService } from "./payment-security.service";
 
 @Module({
   imports: [
@@ -19,6 +20,6 @@ import { PayService } from "./pay.service";
     }),
   ],
   controllers: [PayController],
-  providers: [PrismaService, PayService, DeskGuard],
+  providers: [PrismaService, PayService, PaymentSecurityService, DeskGuard],
 })
 export class AppModule {}

@@ -33,12 +33,16 @@ import {
   UddoktaVerifyDto,
 } from "./dto";
 import { PayService } from "./pay.service";
+import { PaymentSecurityService } from "./payment-security.service";
 
 type DeskRequest = Request & { desk: DeskSession };
 
 @Controller()
 export class PayController {
-  constructor(private readonly pay: PayService) {}
+  constructor(
+    private readonly pay: PayService,
+    private readonly security: PaymentSecurityService,
+  ) {}
 
   @Get("health")
   health() {
@@ -282,6 +286,12 @@ export class PayController {
   @UseGuards(DeskGuard)
   smsLogs(@Req() request: DeskRequest) {
     return this.pay.smsLogs(request.desk.sub);
+  }
+
+  @Get("desk/security-events")
+  @UseGuards(DeskGuard)
+  securityEvents(@Req() request: DeskRequest) {
+    return this.security.list(request.desk.sub);
   }
 
   @Get("desk/sms")
