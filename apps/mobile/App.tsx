@@ -709,7 +709,7 @@ function App() {
       }
     };
     const deliver = async () => {
-      if (sending.current) return;
+      if (sending.current || AppState.currentState !== "active") return;
       sending.current = true;
       try {
         let canSend = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
@@ -738,6 +738,7 @@ function App() {
         if (!response.ok) return;
         if (!stop && (data.simSlot === 0 || data.simSlot === 1)) setSimSlot(data.simSlot);
         for (const job of data.jobs ?? []) {
+          if (AppState.currentState !== "active") return;
           try {
             if (!sentJobs.current.has(job.id)) {
               await sendOneSms(job.to, job.body, job.simSlot);
@@ -758,11 +759,23 @@ function App() {
         sending.current = false;
       }
     };
-    void deliver();
-    const timer = setInterval(() => void deliver(), 5000);
+    let timer = 0;
+    const arm = (state: string) => {
+      if (timer) clearInterval(timer);
+      timer = 0;
+      if (stop || state !== "active") return;
+      void deliver();
+      timer = setInterval(() => {
+        if (AppState.currentState !== "active") return;
+        void deliver();
+      }, 5000);
+    };
+    arm(AppState.currentState);
+    const sub = AppState.addEventListener("change", arm);
     return () => {
       stop = true;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
+      sub.remove();
     };
   }, [token, uid, smsReady]);
 

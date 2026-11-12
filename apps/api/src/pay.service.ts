@@ -2040,14 +2040,18 @@ export class PayService implements OnModuleInit {
 
   private async expireOutbound(where: { handsetId: string } | { handset: { ownerId: string } }) {
     const missed = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const unconfirmed = new Date(Date.now() - 5 * 60 * 1000);
+    const staleSend = new Date(Date.now() - 20 * 1000);
     await this.prisma.outboundSms.updateMany({
       where: { ...where, status: "queued", createdAt: { lt: missed } },
       data: { status: "failed", error: "The phone did not pick up this message. Open the AuGetway app and queue it again." },
     });
     await this.prisma.outboundSms.updateMany({
-      where: { ...where, status: "sending", updatedAt: { lt: unconfirmed } },
+      where: { ...where, status: "sending", updatedAt: { lt: missed } },
       data: { status: "failed", error: "The phone did not confirm the send" },
+    });
+    await this.prisma.outboundSms.updateMany({
+      where: { ...where, status: "sending", updatedAt: { lt: staleSend } },
+      data: { status: "queued", error: "" },
     });
   }
 
@@ -2116,7 +2120,7 @@ export class PayService implements OnModuleInit {
     const waiting = await this.prisma.outboundSms.findMany({
       where: { handsetId: handset.id, status: "queued" },
       orderBy: { createdAt: "asc" },
-      take: 5,
+      take: 1,
     });
     const jobs = [];
     for (const job of waiting) {
@@ -2137,7 +2141,7 @@ export class PayService implements OnModuleInit {
     if (!current) throw new NotFoundException("Message not found");
     if (current.status === "sent") return { ok: true };
     const updated = await this.prisma.outboundSms.updateMany({
-      where: { id, handsetId: handset.id, status: "sending" },
+      where: { id, handsetId: handset.id, status: { in: ["sending", "queued"] } },
       data: input.ok ? { status: "sent", error: "" } : { status: "failed", error: (input.error || "Could not send").slice(0, 180) },
     });
     if (updated.count === 0) throw new NotFoundException("Message not found");

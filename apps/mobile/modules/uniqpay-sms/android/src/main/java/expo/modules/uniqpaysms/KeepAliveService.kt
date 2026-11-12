@@ -103,9 +103,18 @@ class KeepAliveService : Service() {
     worker = Thread {
       var beat = 0
       while (running) {
-        if (beat == 0) ping() else if (Outbound.deliver(this) == 401) signOff()
+        try {
+          if (beat == 0) ping() else if (Outbound.deliver(this) == 401) signOff()
+        } catch (_: Exception) {
+          // One failed send must not stop the watch. The next pass tries again.
+        }
+        if (!running) break
         beat = (beat + 1) % 3
-        Watch.schedule(applicationContext, 15_000)
+        try {
+          Watch.schedule(applicationContext, 15_000)
+        } catch (_: Exception) {
+          // The running loop still checks the queue on the next pass.
+        }
         try {
           Thread.sleep(5_000)
         } catch (_: InterruptedException) {

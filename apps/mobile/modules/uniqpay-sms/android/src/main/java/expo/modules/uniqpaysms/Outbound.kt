@@ -6,6 +6,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object Outbound {
+  private const val SENT = "uniqpay_sent_jobs"
+
   fun deliver(context: Context): Int {
     val prefs = context.getSharedPreferences(KeepAliveService.PREFS, Context.MODE_PRIVATE)
     if (prefs.getBoolean("userStop", false)) return 0
@@ -25,11 +27,16 @@ object Outbound {
       val job = jobs.optJSONObject(index) ?: continue
       val id = job.optString("id")
       if (id.length < 4) continue
-      val error = try {
-        SmsSend.send(context, job.optString("to"), job.optString("body"), job.optInt("simSlot"))
+      val error = if (alreadySent(context, id)) {
         null
-      } catch (cause: Exception) {
-        cause.message ?: "Could not send the SMS"
+      } else {
+        try {
+          SmsSend.send(context, job.optString("to"), job.optString("body"), job.optInt("simSlot"))
+          rememberSent(context, id)
+          null
+        } catch (cause: Exception) {
+          cause.message ?: "Could not send the SMS"
+        }
       }
       val payload = JSONObject().put("uid", uid).put("ok", error == null)
       if (error != null) payload.put("error", error.take(180))
@@ -37,6 +44,22 @@ object Outbound {
       if (saved == 401) return 401
     }
     return 200
+  }
+
+  private fun alreadySent(context: Context, id: String): Boolean {
+    val saved = context.getSharedPreferences(SENT, Context.MODE_PRIVATE).getStringSet("ids", emptySet()) ?: emptySet()
+    return saved.contains(id)
+  }
+
+  private fun rememberSent(context: Context, id: String) {
+    val prefs = context.getSharedPreferences(SENT, Context.MODE_PRIVATE)
+    val next = (prefs.getStringSet("ids", emptySet()) ?: emptySet()).toMutableSet()
+    next.add(id)
+    while (next.size > 100) {
+      val oldest = next.firstOrNull() ?: break
+      next.remove(oldest)
+    }
+    prefs.edit().putStringSet("ids", next).apply()
   }
 
   private fun url(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())

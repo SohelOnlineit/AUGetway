@@ -46,7 +46,7 @@ object SmsSend {
           }
         }
         if (Build.VERSION.SDK_INT >= 33) {
-          app.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+          app.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_EXPORTED)
         } else {
           app.registerReceiver(receiver, IntentFilter(action))
         }
@@ -69,7 +69,7 @@ object SmsSend {
           }
         }
       }
-      if (!latch.await(45, TimeUnit.SECONDS)) throw IllegalStateException("The SIM did not accept the SMS")
+      if (!latch.await(15, TimeUnit.SECONDS)) throw IllegalStateException("The SIM did not accept the SMS")
     } finally {
       receivers.forEach { receiver ->
         try {
