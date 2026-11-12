@@ -162,10 +162,18 @@ export default function LinksPage() {
   return (
     <div className="pl-page">
       <header className="pl-head">
-        <div>
-          <p className="fin-live"><i /> Live links</p>
-          <h2>Payment Links</h2>
-          <p className="pl-crumb">Share a link and collect a payment without opening a new invoice.</p>
+        <div className="pl-head-copy">
+          <span className="pl-hero-ico" aria-hidden="true">
+            <svg className="pl-chain" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+              <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" />
+            </svg>
+          </span>
+          <div>
+            <p className="pl-crumb">Desk <span>›</span> Payment Links</p>
+            <h2>Payment Links</h2>
+            <p className="muted">Share a link and collect a payment without opening a new invoice.</p>
+          </div>
         </div>
         <div className="pl-head-actions">
           {picked.length ? (
@@ -242,7 +250,12 @@ export default function LinksPage() {
                       aria-label={`Select ${row.title}`}
                     />
                   </td>
-                  {shown.title ? <td className="pl-title">{row.title}</td> : null}
+                  {shown.title ? (
+                    <td className="pl-title">
+                      <span className="pl-row-ico" aria-hidden="true"><LinkMark /></span>
+                      <span>{row.title}</span>
+                    </td>
+                  ) : null}
                   {shown.amount ? <td className="pl-amt">{moneyLabel(row.currency, row.amount)}</td> : null}
                   {shown.slug ? (
                     <td>
@@ -341,15 +354,15 @@ function StatCard({ icon, label, value, ready, money = false, active = false, on
   const text = !ready ? "—" : money ? `৳${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : Math.round(shown).toLocaleString("en-US");
   const body = (
     <>
-      <span className={`fin-ico ${icon}`} aria-hidden="true"><StatIcon name={icon} /></span>
+      <span className={`pl-ico ${icon}`} aria-hidden="true"><StatIcon name={icon} /></span>
       <span>
-        <b>{text}</b>
+        <strong>{text}</strong>
         <small>{label}</small>
       </span>
     </>
   );
-  if (!onClick) return <article className="txn-stat">{body}</article>;
-  return <button type="button" className={active ? "txn-stat on" : "txn-stat"} onClick={onClick} aria-pressed={active}>{body}</button>;
+  if (!onClick) return <article className={`pl-stat ${icon}`}>{body}</article>;
+  return <button type="button" className={active ? `pl-stat on ${icon}` : `pl-stat ${icon}`} onClick={onClick} aria-pressed={active}>{body}</button>;
 }
 
 function StatIcon({ name }: { name: string }) {
