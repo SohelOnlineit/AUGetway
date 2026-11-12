@@ -56,3 +56,20 @@ test("a reinstall keeps the used transaction ids", () => {
   assert.equal(nextDecision(merged.bkash, job({ reportedCents: 20100 }), true).type, "reject");
   assert.equal(merged.nagad.cents, null);
 });
+
+test("a paid order updates the saved balance from the server", () => {
+  const local = setBalance(emptyBook(), 500000, "manual", "t0");
+  assert.ok(local);
+  const merged = mergeRemote(
+    { bkash: local, nagad: emptyBook(), rocket: emptyBook(), upay: emptyBook() },
+    { bkash: { cents: 510000, trx: ["PAID12345"] } },
+  );
+  assert.equal(merged.bkash.cents, 510000);
+  assert.equal(merged.bkash.trx.includes("PAID12345"), true);
+  const again = mergeRemote(
+    { bkash: merged.bkash, nagad: emptyBook(), rocket: emptyBook(), upay: emptyBook() },
+    { bkash: { cents: 510000, trx: ["PAID12345"] } },
+  );
+  assert.equal(again.bkash.cents, 510000);
+  assert.equal(again.bkash.events.filter((event) => event.kind === "verified").length, 1);
+});

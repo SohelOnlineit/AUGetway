@@ -166,6 +166,22 @@ function App() {
   const cloudRef = useRef(true);
   rulesRef.current = { whitelistOn, senders, keywords, cleanDays };
   booksRef.current = books;
+
+  useEffect(() => {
+    setAmounts((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const service of SERVICES) {
+        const cents = books[service].cents;
+        if (cents === null) continue;
+        const text = formatTaka(cents);
+        if (next[service] === text) continue;
+        next[service] = text;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [books]);
   cloudRef.current = cloudSync;
   const statusRef = useRef<Record<string, SyncState>>({});
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");

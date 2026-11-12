@@ -159,13 +159,30 @@ export function mergeRemote(local: Books, remote: Partial<Record<Service, { cent
   for (const service of SERVICES) {
     const book = local[service] ?? emptyBook();
     const row = remote[service];
-    const trx = [...book.trx, ...(row?.trx ?? [])].map((item) => item.trim().toUpperCase()).filter(Boolean);
+    const remoteTrx = (row?.trx ?? []).map((item) => item.trim().toUpperCase()).filter(Boolean);
+    const freshTrx = remoteTrx.filter((item) => !book.trx.includes(item));
+    const trx = [...new Set([...book.trx, ...remoteTrx])].slice(-500);
+    let cents = book.cents === null ? row?.cents ?? null : book.cents;
+    let events = book.events;
+    if (book.cents !== null && row?.cents != null && freshTrx.length > 0 && row.cents !== book.cents) {
+      cents = row.cents;
+      const amount = row.cents - book.cents;
+      events = [...events, {
+        at: new Date().toISOString(),
+        kind: "verified" as const,
+        cents: row.cents,
+        amountCents: amount > 0 ? amount : 0,
+        trxId: freshTrx[freshTrx.length - 1] ?? "",
+        orderId: "",
+        note: "Paid",
+      }].slice(-40);
+    }
     next[service] = {
-      cents: book.cents === null ? row?.cents ?? null : book.cents,
-      trx: [...new Set(trx)].slice(-500),
+      cents,
+      trx,
       sms: book.sms,
       balanceAt: book.balanceAt ?? 0,
-      events: book.events,
+      events,
     };
   }
   return next;
