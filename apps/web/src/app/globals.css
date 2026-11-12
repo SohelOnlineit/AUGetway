@@ -486,6 +486,55 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 @media (prefers-reduced-motion: reduce) {
   .dev-page, .dev-phone, .dev-hero-ico i, .dev-stat-ico svg, .dev-avatar svg, .dev-status.on i, .dev-stat { animation: none; transition: none; }
 }
+.ref-page { display: flex; flex-direction: column; gap: 16px; animation: people-rise 0.45s cubic-bezier(.2, .8, .2, 1); }
+.ref-hero {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px; border: 1px solid var(--line); border-radius: 22px;
+  background:
+    radial-gradient(ellipse 80% 120% at 100% 0%, rgb(38 191 176 / 0.16), transparent 55%),
+    var(--card);
+  box-shadow: var(--shadow);
+}
+.ref-hero h2 { margin: 4px 0 0; font-family: var(--font-body), sans-serif; font-size: 34px; font-weight: 750; letter-spacing: -0.04em; }
+.ref-hero .muted { margin: 8px 0 0; }
+.ref-hero-ico {
+  position: relative; width: 58px; height: 58px; flex: none; display: grid; place-items: center; border-radius: 18px;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.ref-hero-ico svg { width: 28px; height: 28px; }
+.ref-code path { stroke-dasharray: 28; animation: txn-draw 2.6s ease-in-out infinite; }
+.ref-code path:nth-child(2) { animation-delay: .15s; }
+.ref-code path:nth-child(3) { animation-delay: .3s; }
+.ref-hero-ico i {
+  position: absolute; inset: 8px; border-radius: 14px; border: 2px solid var(--brand); opacity: 0;
+  animation: dev-ping 2.4s ease-out infinite;
+}
+.ref-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow);
+}
+.ref-table { width: 100%; border-collapse: collapse; }
+.ref-table th, .ref-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ref-table th { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--surface) 70%, var(--card)); }
+.ref-table tbody tr { animation: people-in 0.4s cubic-bezier(.2, .8, .2, 1) both; }
+.ref-table tbody tr:hover td { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.ref-table tbody tr:last-child td { border-bottom: 0; }
+.ref-method {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
+}
+.ref-method svg { width: 14px; height: 14px; animation: dev-bob 2.4s ease-in-out infinite; }
+.ref-method.get { background: var(--tint); color: var(--brand); }
+.ref-method.post { background: color-mix(in srgb, var(--wait) 16%, transparent); color: var(--wait); }
+@media (max-width: 720px) {
+  .ref-hero { align-items: flex-start; }
+  .ref-hero h2 { font-size: 28px; }
+  .ref-card { overflow-x: auto; }
+  .ref-table { min-width: 640px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ref-page, .ref-table tbody tr, .ref-code path, .ref-hero-ico i, .ref-method svg { animation: none; }
+}
 .int-page { display: flex; flex-direction: column; gap: 16px; animation: people-rise 0.45s cubic-bezier(.2, .8, .2, 1); }
 .int-hero {
   display: flex; align-items: center; gap: 16px;
