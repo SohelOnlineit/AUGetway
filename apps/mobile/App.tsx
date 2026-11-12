@@ -149,6 +149,10 @@ function App() {
   const booksRef = useRef<Books>(emptyBooks());
   const smsCache = useRef<SmsHit[]>([]);
   const balancing = useRef(false);
+  const [balanceOn, setBalanceOn] = useState(true);
+  const checkRef = useRef(true);
+  const checkWrite = useRef(0);
+  const checkSeen = useRef(0);
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const [senders, setSenders] = useState<Sender[]>(DEFAULT_SENDERS);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -264,6 +268,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    void readStore("uniqpay_balance_check").then((saved) => {
+      if (checkWrite.current !== checkSeen.current) return;
+      const on = saved !== "0";
+      checkRef.current = on;
+      setBalanceOn(on);
+    });
     void readStore("uniqpay_books").then((saved) => {
       if (!saved) return;
       try {
@@ -284,6 +294,33 @@ function App() {
     booksRef.current = next;
     setBooks(next);
     await writeStore("uniqpay_books", JSON.stringify(next));
+  }
+
+  async function toggleBalanceCheck() {
+    if (!token || !uid) return;
+    const next = !checkRef.current;
+    const stamp = ++checkWrite.current;
+    checkRef.current = next;
+    setBalanceOn(next);
+    await writeStore("uniqpay_balance_check", next ? "1" : "0");
+    try {
+      const saved = await fetch(`${DESK}/handset/balance-check`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ uid, on: next }),
+      });
+      if (checkWrite.current !== stamp) return;
+      if (!saved.ok) throw new Error("Could not save");
+      checkSeen.current = stamp;
+      setNote(next ? "Realtime balance check is on" : "Realtime balance check is off");
+    } catch {
+      if (checkWrite.current !== stamp) return;
+      checkRef.current = !next;
+      setBalanceOn(!next);
+      checkSeen.current = stamp;
+      await writeStore("uniqpay_balance_check", next ? "0" : "1");
+      setNote("Could not save the balance check");
+    }
   }
 
   async function saveBalance(service: Service) {
@@ -351,7 +388,13 @@ function App() {
         }
         const data = response.ok ? (await response.json()) as { jobs?: VerifyJob[]; balanceCheck?: boolean } : {};
         const jobs = (data.jobs ?? []).filter((job): job is VerifyJob => Boolean(job) && isService(job.service) && typeof job.trxId === "string" && typeof job.amountCents === "number");
-        const balanceCheck = data.balanceCheck !== false;
+        if (response.ok && checkWrite.current === checkSeen.current) {
+          const on = data.balanceCheck !== false;
+          checkRef.current = on;
+          setBalanceOn(on);
+          void writeStore("uniqpay_balance_check", on ? "1" : "0");
+        }
+        const balanceCheck = checkRef.current;
         let messages = smsCache.current;
         if (smsReady) {
           try {
@@ -1010,6 +1053,10 @@ function App() {
                   <Text style={styles.sectionLabel}>CORE SETTINGS</Text>
                   <View style={styles.core}>
                     <View style={styles.coreRow}>
+                      <Text style={styles.menuText}>Realtime balance check</Text>
+                      <Switch on={balanceOn} onPress={() => void toggleBalanceCheck()} />
+                    </View>
+                    <View style={styles.coreRow}>
                       <Text style={styles.menuText}>Whitelist Sender Validation</Text>
                       <Switch on={whitelistOn} onPress={() => { const next = !whitelistOn; setWhitelistOn(next); void writeStore("uniqpay_whitelist", next ? "1" : "0"); }} />
                     </View>
@@ -1034,7 +1081,13 @@ function App() {
           {tab === "balances" ? (
             <ScrollView ref={pageScroll} style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
               <Text style={styles.pageTitle}>Wallet balances</Text>
-              <Text style={styles.hint}>Each wallet is separate. The phone adds a new payment to that wallet only.</Text>
+              <View style={styles.core}>
+                <View style={[styles.coreRow, styles.coreLast]}>
+                  <Text style={styles.menuText}>Realtime balance check</Text>
+                  <Switch on={balanceOn} onPress={() => void toggleBalanceCheck()} />
+                </View>
+              </View>
+              <Text style={styles.hint}>{balanceOn ? "On. The SMS balance must equal the saved balance plus the payment." : "Off. A payment can succeed without matching the saved balance."}</Text>
               {note ? <Text style={styles.note}>{note}</Text> : null}
               {SERVICES.map((service) => (
                 <View key={service} style={styles.sms}>

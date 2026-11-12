@@ -2739,6 +2739,18 @@ export class PayService implements OnModuleInit {
     return { ok: true as const, service: input.service, balanceCents: input.balanceCents };
   }
 
+  async setBalanceCheck(userId: string, uid: string, on: boolean) {
+    await this.ownedHandset(userId, uid);
+    const current = await this.prisma.brandSetting.findUnique({ where: { ownerId: userId } });
+    const prefs = { ...cleanPrefs(current?.prefs), balanceCheck: on ? "1" : "0" };
+    await this.prisma.brandSetting.upsert({
+      where: { ownerId: userId },
+      create: { ownerId: userId, prefs },
+      update: { prefs },
+    });
+    return { balanceCheck: on };
+  }
+
   async balanceJobs(userId: string, uid: string) {
     const handset = await this.ownedHandset(userId, uid);
     const [jobs, ledgers] = await Promise.all([

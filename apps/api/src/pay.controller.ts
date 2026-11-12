@@ -9,6 +9,7 @@ import {
   ChooseMethodDto,
   CustomerDto,
   HandsetDto,
+  BalanceCheckDto,
   BalanceDecisionDto,
   BalanceWriteDto,
   JobResultDto,
@@ -431,6 +432,12 @@ export class PayController {
   @UseGuards(DeskGuard)
   saveHandsetBalance(@Req() request: DeskRequest, @Body() body: BalanceWriteDto) {
     return this.pay.saveHandsetBalance(request.desk.sub, body);
+  }
+
+  @Post("handset/balance-check")
+  @UseGuards(DeskGuard)
+  setBalanceCheck(@Req() request: DeskRequest, @Body() body: BalanceCheckDto) {
+    return this.pay.setBalanceCheck(request.desk.sub, body.uid, body.on);
   }
 
   @Get("handset/balance-jobs")

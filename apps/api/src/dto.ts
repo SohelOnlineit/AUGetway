@@ -875,6 +875,16 @@ export class JobsQueryDto {
   uid!: string;
 }
 
+export class BalanceCheckDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+
+  @IsBoolean()
+  on!: boolean;
+}
+
 export class BalanceWriteDto {
   @IsString()
   @MinLength(4)
