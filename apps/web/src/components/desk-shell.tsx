@@ -242,15 +242,30 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           {cacheNote ? <p className="cache-note">Cache cleared</p> : null}
-          <button className="avatar" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account">
+          <button className={menuOpen ? "avatar on" : "avatar"} type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account" aria-expanded={menuOpen}>
             {user ? initials(user.name, user.email) : "·"}
           </button>
           {menuOpen ? (
             <div className="avatar-menu">
-              <p>{user?.name || "Desk"}</p>
-              <p className="tiny">{user?.email}</p>
-              <Link className="menu-row" href="/admin/account" onClick={() => setMenuOpen(false)}>Email and password</Link>
-              <button className="btn-line" type="button" onClick={signOut}>Sign out</button>
+              <div className="avatar-who">
+                <span className="avatar mini" aria-hidden="true">{user ? initials(user.name, user.email) : "·"}</span>
+                <div>
+                  <strong>{user?.name || "Desk"}</strong>
+                  <p>{user?.email}</p>
+                </div>
+              </div>
+              <Link className="menu-row" href="/admin/account" onClick={() => setMenuOpen(false)}>
+                <span className="menu-ico user" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M6 19c.6-2.4 2.6-4 6-4s5.4 1.6 6 4" /></svg>
+                </span>
+                Email and password
+              </Link>
+              <button className="menu-row out" type="button" onClick={signOut}>
+                <span className="menu-ico out" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M10 7V5a1 1 0 0 1 1-1h8v16h-8a1 1 0 0 1-1-1v-2" /><path d="M4 12h11M12 8l4 4-4 4" /></svg>
+                </span>
+                Sign out
+              </button>
             </div>
           ) : null}
         </div>

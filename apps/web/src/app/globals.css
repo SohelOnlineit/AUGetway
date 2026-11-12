@@ -201,39 +201,67 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 @keyframes cache-led { 0%, 100% { opacity: 0.28; } 50% { opacity: 1; } }
 @keyframes cache-flow { to { stroke-dashoffset: -8; } }
 .avatar {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
   border: 0;
-  background: var(--surface);
-  color: var(--fg);
-  font-weight: 700;
+  background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+  color: var(--brand);
+  font-weight: 800;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent);
+  animation: avatar-ring 2.4s ease-out infinite;
 }
+.avatar.on { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 28%, transparent); }
+.avatar.mini { width: 40px; height: 40px; animation: none; box-shadow: none; flex: none; }
 .avatar-menu {
   position: absolute;
   top: 52px;
   right: 0;
-  width: 240px;
+  width: 260px;
   display: grid;
   gap: 6px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 8px;
+  border-radius: 18px;
+  padding: 10px;
   z-index: 5;
+  box-shadow: var(--shadow);
+  animation: people-rise 0.28s cubic-bezier(.2, .8, .2, 1);
 }
-.avatar-menu p { margin: 4px 8px; }
-.avatar-menu button { width: 100%; }
+.avatar-who { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.avatar-who strong { display: block; font-size: 14px; }
+.avatar-who p { margin: 2px 0 0; color: var(--muted); font-size: 12px; word-break: break-all; }
 .avatar-menu .menu-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 8px;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: var(--fg);
-  text-align: left;
   text-decoration: none;
-  display: block;
-  padding: 8px 10px;
-  border-radius: 8px;
   font-weight: 650;
+  text-align: left;
+}
+.menu-ico {
+  width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; flex: none;
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand);
+}
+.menu-ico svg { width: 16px; height: 16px; }
+.menu-ico.user svg { animation: dev-bob 2.4s ease-in-out infinite; }
+.menu-ico.out { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); color: var(--bad); }
+.menu-ico.out svg { animation: dev-fly 2.2s ease-in-out infinite; }
+.menu-row.out { color: var(--bad); }
+@keyframes avatar-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar, .avatar-menu, .menu-ico svg, .account-mark, .account-facts svg, .account-icon svg { animation: none; }
 }
 .avatar-menu .menu-row:hover { background: var(--surface); }
 .rail {
@@ -1833,7 +1861,8 @@ button.dev-sim { border: 0; cursor: default; }
   font-size: 26px;
   font-weight: 750;
   letter-spacing: -0.04em;
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--brand) 28%, transparent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent);
+  animation: avatar-ring 2.6s ease-out infinite;
 }
 .account-role {
   padding: 6px 12px;
@@ -1845,7 +1874,11 @@ button.dev-sim { border: 0; cursor: default; }
 }
 .account-facts { list-style: none; margin: 8px 0 0; padding: 18px 0 0; display: grid; gap: 14px; border-top: 1px solid var(--line); width: 100%; }
 .account-facts li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
-.account-facts svg { flex: none; margin-top: 2px; color: var(--brand); }
+.account-facts svg { flex: none; margin-top: 2px; color: var(--brand); animation: dev-bob 2.6s ease-in-out infinite; }
+.account-facts li:nth-child(2) svg { animation-name: set-sway; }
+.account-facts li:nth-child(3) svg { animation-name: txn-pulse; }
+.account-icon svg { animation: dev-bob 2.4s ease-in-out infinite; }
+.account-block:nth-child(2) .account-icon svg { animation-name: txn-pulse; }
 .account-main { display: flex; flex-direction: column; min-width: 0; background: var(--card); }
 .account-top { padding: 26px 32px 20px; border-bottom: 1px solid var(--line); }
 .account-top h2 { margin: 8px 0 0; font-size: 32px; font-weight: 750; letter-spacing: -0.03em; }
