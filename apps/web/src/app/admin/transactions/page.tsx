@@ -343,10 +343,18 @@ export default function TransactionsPage() {
   return (
     <div className="txn-page">
       <header className="txn-head">
-        <div>
-          <p className="fin-live"><i /> Live ledger</p>
-          <h2>Transactions</h2>
-          <p className="txn-crumb">Find an AmarPin order and open its payment.</p>
+        <div className="txn-head-copy">
+          <span className="txn-hero-ico" aria-hidden="true">
+            <svg className="txn-receipt" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 3.5h10a1 1 0 0 1 1 1V20l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2V4.5a1 1 0 0 1 1-1z" />
+              <path d="M9 8h6M9 12h6" />
+            </svg>
+          </span>
+          <div>
+            <p className="txn-crumb">Desk <span>›</span> Transactions</p>
+            <h2>Transactions</h2>
+            <p className="muted">Find an AmarPin order and open its payment.</p>
+          </div>
         </div>
         <div className="txn-head-actions">
           {picked.length ? (
@@ -435,10 +443,13 @@ export default function TransactionsPage() {
                     </td>
                     <td className="txn-lead" data-label="Order">
                       <div className="txn-order">
-                        <button className="txn-ref" type="button" onClick={() => copyText(row.publicId, row.shopOrder || row.reference)}>
-                          {copied === row.publicId ? "Copied" : (row.shopOrder ? `#${row.shopOrder.replace(/^#/, "")}` : row.reference)}
-                        </button>
-                        <p>Pay ID {row.publicId}</p>
+                        <span className="txn-row-ico" aria-hidden="true"><ReceiptIcon /></span>
+                        <div>
+                          <button className="txn-ref" type="button" onClick={() => copyText(row.publicId, row.shopOrder || row.reference)}>
+                            {copied === row.publicId ? "Copied" : (row.shopOrder ? `#${row.shopOrder.replace(/^#/, "")}` : row.reference)}
+                          </button>
+                          <p>Pay ID {row.publicId}</p>
+                        </div>
                       </div>
                     </td>
                     <td data-label="Gateway">
