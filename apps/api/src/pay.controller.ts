@@ -9,6 +9,8 @@ import {
   ChooseMethodDto,
   CustomerDto,
   HandsetDto,
+  BalanceDecisionDto,
+  BalanceWriteDto,
   JobResultDto,
   JobsQueryDto,
   KeyDto,
@@ -417,6 +419,30 @@ export class PayController {
   @UseGuards(DeskGuard)
   jobResult(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: JobResultDto) {
     return this.pay.finishJob(request.desk.sub, id, body);
+  }
+
+  @Get("handset/balances")
+  @UseGuards(DeskGuard)
+  handsetBalances(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    return this.pay.handsetBalances(request.desk.sub, query.uid);
+  }
+
+  @Post("handset/balances")
+  @UseGuards(DeskGuard)
+  saveHandsetBalance(@Req() request: DeskRequest, @Body() body: BalanceWriteDto) {
+    return this.pay.saveHandsetBalance(request.desk.sub, body);
+  }
+
+  @Get("handset/balance-jobs")
+  @UseGuards(DeskGuard)
+  balanceJobs(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    return this.pay.balanceJobs(request.desk.sub, query.uid);
+  }
+
+  @Post("handset/balance-jobs/:id")
+  @UseGuards(DeskGuard)
+  decideBalance(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: BalanceDecisionDto) {
+    return this.pay.decideBalance(request.desk.sub, id, body);
   }
 
   @Get("sms/status")

@@ -110,6 +110,12 @@ export function isDebitMessage(body: string) {
   return WEAK_DEBIT.some((hint) => lower.includes(hint));
 }
 
+export function walletService(label: string): "bkash" | "nagad" | "rocket" | "upay" | "" {
+  const brand = walletBrand(label);
+  if (brand === "bkash" || brand === "nagad" || brand === "rocket" || brand === "upay") return brand;
+  return "";
+}
+
 export function senderFitsMethod(sender: string, body: string, label: string) {
   const labelBrand = walletBrand(label);
   const senderBrand = walletBrand(sender);

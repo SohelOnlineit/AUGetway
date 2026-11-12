@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -51,6 +51,11 @@ test("a unique-amount message keeps its own transaction id and wallet", () => {
   assert.equal(senderFitsMethod("Nagad", body, "bKash Merchant"), false);
   assert.equal(senderFitsMethod("bKash", "You have received Tk 10.00. Ref nagad.", "Nagad Personal"), false);
   assert.equal(senderFitsMethod("bKash", body, "City Bank"), true);
+  assert.equal(walletService("bKash Personal"), "bkash");
+  assert.equal(walletService("Nagad"), "nagad");
+  assert.equal(walletService("Rocket"), "rocket");
+  assert.equal(walletService("Upay Merchant"), "upay");
+  assert.equal(walletService("City Bank"), "");
 });
 
 test("an otp or verification code is not a payment", () => {

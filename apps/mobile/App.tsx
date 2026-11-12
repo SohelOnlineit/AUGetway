@@ -5,6 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
+import { SERVICES, applyVerified, emptyBooks, formatTaka, isService, mergeRemote, nextDecision, parseTaka, setBalance, type Books, type Service, type VerifyJob } from "./ledger";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -55,7 +56,7 @@ function problem(data: { message?: string | string[] }, fallback: string) {
 
 type SyncState = "pending" | "synced" | "failed";
 type InboxItem = PaymentSms & { key: string; status: SyncState; wallet: string };
-type Tab = "home" | "filters" | "settings";
+type Tab = "home" | "filters" | "balances" | "settings";
 type ListFilter = "all" | SyncState;
 
 function dayKey(time: number) {
@@ -143,6 +144,10 @@ function App() {
   const [handsetId, setHandsetId] = useState("");
   const [items, setItems] = useState<InboxItem[]>([]);
   const [tab, setTab] = useState<Tab>("home");
+  const [books, setBooks] = useState<Books>(emptyBooks());
+  const [amounts, setAmounts] = useState<Record<Service, string>>({ bkash: "", nagad: "", rocket: "", upay: "" });
+  const booksRef = useRef<Books>(emptyBooks());
+  const balancing = useRef(false);
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const [senders, setSenders] = useState<Sender[]>(DEFAULT_SENDERS);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -159,6 +164,7 @@ function App() {
   const rulesRef = useRef<InboxRules>({ whitelistOn: true, senders: DEFAULT_SENDERS, keywords: [], cleanDays: 0 });
   const cloudRef = useRef(true);
   rulesRef.current = { whitelistOn, senders, keywords, cleanDays };
+  booksRef.current = books;
   cloudRef.current = cloudSync;
   const statusRef = useRef<Record<string, SyncState>>({});
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
@@ -239,6 +245,132 @@ function App() {
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    void readStore("uniqpay_books").then((saved) => {
+      if (!saved) return;
+      try {
+        const parsed = JSON.parse(saved) as Books;
+        if (parsed?.bkash && parsed?.nagad && parsed?.rocket && parsed?.upay) {
+          booksRef.current = parsed;
+          setBooks(parsed);
+        }
+      } catch {
+        // A new balance entry starts empty.
+      }
+    });
+  }, []);
+
+  async function storeBooks(next: Books) {
+    booksRef.current = next;
+    setBooks(next);
+    await writeStore("uniqpay_books", JSON.stringify(next));
+  }
+
+  async function saveBalance(service: Service) {
+    const cents = parseTaka(amounts[service]);
+    if (cents === null) {
+      setNote("Enter the balance like 101 or 101.50");
+      return;
+    }
+    if (!token || !uid) return;
+    const kind = booksRef.current[service].cents === null ? "initial" : "manual";
+    const nextBook = setBalance(booksRef.current[service], cents, kind, new Date().toISOString());
+    if (!nextBook) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`${DESK}/handset/balances`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ uid, service, balanceCents: cents, kind }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string | string[] };
+      if (!response.ok) {
+        setNote(problem(data, "Could not save the balance"));
+        return;
+      }
+      await storeBooks({ ...booksRef.current, [service]: nextBook });
+      setNote(`${service} balance saved`);
+    } catch {
+      setNote("Could not save the balance");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !uid) return;
+    let stop = false;
+    const run = async () => {
+      if (balancing.current || AppState.currentState !== "active") return;
+      balancing.current = true;
+      try {
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+        const listed = await fetch(`${DESK}/handset/balances?uid=${encodeURIComponent(uid)}`, { headers });
+        if (listed.status === 401) {
+          if (!stop) void signOut();
+          return;
+        }
+        if (listed.ok) {
+          const data = (await listed.json()) as { services?: Record<string, { cents?: number | null; trx?: string[] }> };
+          const remote: Partial<Record<Service, { cents: number | null; trx: string[] }>> = {};
+          for (const service of SERVICES) {
+            const row = data.services?.[service];
+            if (!row) continue;
+            remote[service] = {
+              cents: typeof row.cents === "number" ? row.cents : null,
+              trx: Array.isArray(row.trx) ? row.trx.filter((item) => typeof item === "string") : [],
+            };
+          }
+          const merged = mergeRemote(booksRef.current, remote);
+          if (JSON.stringify(merged) !== JSON.stringify(booksRef.current)) await storeBooks(merged);
+        }
+        const response = await fetch(`${DESK}/handset/balance-jobs?uid=${encodeURIComponent(uid)}`, { headers });
+        if (!response.ok) return;
+        const data = (await response.json()) as { jobs?: VerifyJob[] };
+        const jobs = (data.jobs ?? []).filter((job): job is VerifyJob => Boolean(job) && isService(job.service) && typeof job.trxId === "string" && typeof job.amountCents === "number");
+        let current = booksRef.current;
+        for (const service of SERVICES) {
+          let checkReported = true;
+          for (const job of jobs.filter((item) => item.service === service)) {
+            const decision = nextDecision(current[service], job, checkReported);
+            if (decision.type === "wait") break;
+            const saved = await fetch(`${DESK}/handset/balance-jobs/${job.id}`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                uid,
+                decision: decision.type === "verify" ? "verified" : "rejected",
+                service,
+                trxId: job.trxId,
+                amountCents: job.amountCents,
+                balanceCents: decision.type === "verify" ? decision.nextCents : current[service].cents ?? 0,
+                ...(decision.type === "reject" ? { note: decision.reason } : {}),
+              }),
+            });
+            const result = (await saved.json().catch(() => ({}))) as { status?: string; balanceCents?: number };
+            if (!saved.ok) break;
+            if (decision.type === "verify" && result.status === "verified") {
+              const nextCents = typeof result.balanceCents === "number" ? result.balanceCents : decision.nextCents;
+              current = { ...current, [service]: applyVerified(current[service], job, nextCents, new Date().toISOString()) };
+              checkReported = false;
+            }
+          }
+        }
+        if (JSON.stringify(current) !== JSON.stringify(booksRef.current)) await storeBooks(current);
+      } catch {
+        // The next poll tries the same pending order again.
+      } finally {
+        balancing.current = false;
+      }
+    };
+    void run();
+    const timer = setInterval(() => void run(), 10000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [token, uid]);
 
   useEffect(() => {
     Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name"), readStore("uniqpay_sent_jobs")]).then(
@@ -847,6 +979,26 @@ function App() {
               {note ? <Text style={styles.note}>{note}</Text> : null}
             </ScrollView>
           ) : null}
+          {tab === "balances" ? (
+            <ScrollView ref={pageScroll} style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+              <Text style={styles.pageTitle}>Wallet balances</Text>
+              <Text style={styles.hint}>Each wallet is separate. The phone adds a new payment to that wallet only.</Text>
+              {note ? <Text style={styles.note}>{note}</Text> : null}
+              {SERVICES.map((service) => (
+                <View key={service} style={styles.sms}>
+                  <Text style={styles.smsTitle}>{service}</Text>
+                  <Text style={styles.smsBody}>Current {books[service].cents === null ? "not set" : `${formatTaka(books[service].cents)} BDT`}</Text>
+                  <Field scroll={pageScroll} style={styles.input} value={amounts[service]} onChangeText={(value) => setAmounts((current) => ({ ...current, [service]: value }))} keyboardType="decimal-pad" placeholder="101.00" placeholderTextColor="#94a3b8" />
+                  <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void saveBalance(service)}>
+                    <Text style={styles.buttonText}>{books[service].cents === null ? "Set balance" : "Update balance"}</Text>
+                  </Pressable>
+                  {books[service].events.slice(-3).reverse().map((event) => (
+                    <Text key={`${event.at}-${event.kind}-${event.trxId}`} style={styles.smsWhen}>{event.kind} {formatTaka(event.cents)}{event.trxId ? ` · ${event.trxId}` : ""}</Text>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
           <View style={[styles.nav, { paddingBottom: 12 + (keyboard > 0 ? 0 : insets.bottom) }]}>
             <Pressable style={styles.navItem} onPress={() => setTab("home")}>
               <Text style={[styles.navIcon, tab === "home" && styles.navOn]}>⌂</Text>
@@ -855,6 +1007,10 @@ function App() {
             <Pressable style={styles.navItem} onPress={() => setTab("filters")}>
               <Text style={[styles.navIcon, tab === "filters" && styles.navOn]}>⇅</Text>
               <Text style={[styles.navLabel, tab === "filters" && styles.navOn]}>Filters</Text>
+            </Pressable>
+            <Pressable style={styles.navItem} onPress={() => setTab("balances")}>
+              <Text style={[styles.navIcon, tab === "balances" && styles.navOn]}>৳</Text>
+              <Text style={[styles.navLabel, tab === "balances" && styles.navOn]}>Balance</Text>
             </Pressable>
             <Pressable style={styles.navItem} onPress={() => setTab("settings")}>
               <Text style={[styles.navIcon, tab === "settings" && styles.navOn]}>⚙</Text>

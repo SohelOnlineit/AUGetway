@@ -875,6 +875,60 @@ export class JobsQueryDto {
   uid!: string;
 }
 
+export class BalanceWriteDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+
+  @IsIn(["bkash", "nagad", "rocket", "upay"])
+  service!: "bkash" | "nagad" | "rocket" | "upay";
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  balanceCents!: number;
+
+  @IsIn(["initial", "manual"])
+  kind!: "initial" | "manual";
+}
+
+export class BalanceDecisionDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  uid!: string;
+
+  @IsIn(["verified", "rejected"])
+  decision!: "verified" | "rejected";
+
+  @IsIn(["bkash", "nagad", "rocket", "upay"])
+  service!: "bkash" | "nagad" | "rocket" | "upay";
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(20)
+  trxId!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100_000_000)
+  amountCents!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  balanceCents!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  note?: string;
+}
+
 export class JobResultDto {
   @IsString()
   @MinLength(4)

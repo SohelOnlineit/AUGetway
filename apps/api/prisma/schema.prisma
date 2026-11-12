@@ -223,6 +223,50 @@ model OutboundSms {
   updatedAt DateTime @updatedAt
 }
 
+model WalletLedger {
+  id           String   @id @default(cuid())
+  ownerId      String
+  service      String
+  balanceCents Int
+  updatedAt    DateTime @updatedAt
+
+  @@unique([ownerId, service])
+}
+
+model LedgerEvent {
+  id           String   @id @default(cuid())
+  ownerId      String
+  service      String
+  kind         String
+  balanceCents Int
+  amountCents  Int      @default(0)
+  trxId        String   @default("")
+  orderId      String   @default("")
+  note         String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@index([ownerId, service, createdAt])
+}
+
+model VerifyOrder {
+  id            String    @id @default(cuid())
+  ownerId       String
+  checkoutId    String    @unique
+  handsetId     String
+  service       String
+  orderPublicId String
+  customerRef   String    @default("")
+  trxId         String
+  amountCents   Int
+  status        String    @default("pending")
+  note          String    @default("")
+  createdAt     DateTime  @default(now())
+  decidedAt     DateTime?
+
+  @@index([handsetId, status])
+  @@index([ownerId, trxId])
+}
+
 /// Passive security log. No relation to Checkout or InboxNotice, and no effect on payment status.
 model PaymentSecurityEvent {
   id         String   @id @default(cuid())
