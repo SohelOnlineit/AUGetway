@@ -349,8 +349,9 @@ function App() {
           if (!stop) void signOut();
           return;
         }
-        const data = response.ok ? (await response.json()) as { jobs?: VerifyJob[] } : {};
+        const data = response.ok ? (await response.json()) as { jobs?: VerifyJob[]; balanceCheck?: boolean } : {};
         const jobs = (data.jobs ?? []).filter((job): job is VerifyJob => Boolean(job) && isService(job.service) && typeof job.trxId === "string" && typeof job.amountCents === "number");
+        const balanceCheck = data.balanceCheck !== false;
         let messages = smsCache.current;
         if (smsReady) {
           try {
@@ -375,7 +376,7 @@ function App() {
         for (const service of SERVICES) {
           let checkReported = true;
           for (const job of jobs.filter((item) => item.service === service)) {
-            const decision = decideWithSms(current[service], job, messages, checkReported, jobs);
+            const decision = decideWithSms(current[service], job, messages, checkReported, jobs, balanceCheck);
             if (decision.type === "wait") {
               current = { ...current, [service]: logWait(current[service], job, decision.reason, new Date().toISOString()) };
               continue;

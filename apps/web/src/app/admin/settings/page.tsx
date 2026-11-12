@@ -97,6 +97,15 @@ const cards: { id: string; title: string; description: string; icon: string; fie
     ],
   },
   {
+    id: "balance",
+    title: "Realtime balance",
+    description: "Turn the wallet balance check on or off for bKash, Nagad, Rocket, and Upay",
+    icon: "gear",
+    fields: [
+      { key: "balanceCheck", label: "Require the SMS balance to equal the saved balance plus the payment", kind: "check", fallback: "1", hint: "On: a mismatch fails the payment and the app balance stays unchanged. Off: the order can succeed without that balance check." },
+    ],
+  },
+  {
     id: "faq",
     title: "FAQ",
     description: "Manage frequently asked questions displayed on checkout",
@@ -174,7 +183,7 @@ export default function SettingsPage() {
     if (!settings) return;
     setError("");
     setOpenId(id);
-    setDraft({ ...settings.prefs, brandName: settings.brandName, supportEmail: settings.supportEmail, currency: settings.currency, checkoutNote: settings.checkoutNote });
+    setDraft({ ...settings.prefs, brandName: settings.brandName, supportEmail: settings.supportEmail, currency: settings.currency, checkoutNote: settings.checkoutNote, balanceCheck: settings.prefs.balanceCheck === "0" ? "0" : "1" });
   }
 
   async function save(event: FormEvent) {

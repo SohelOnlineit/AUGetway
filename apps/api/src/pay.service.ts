@@ -415,6 +415,7 @@ const PREF_KEYS = new Set([
   "faqTitle",
   "faqContent",
   "smsHandsetId",
+  "balanceCheck",
   "metaTitle",
   "metaDescription",
   "metaKeywords",
@@ -2765,6 +2766,7 @@ export class PayService implements OnModuleInit {
       this.prisma.walletLedger.findMany({ where: { ownerId: userId } }),
     ]);
     return {
+      balanceCheck: await this.balanceCheckOn(userId),
       jobs: jobs.map((job) => ({
         id: job.id,
         orderId: job.orderPublicId,
@@ -2812,10 +2814,12 @@ export class PayService implements OnModuleInit {
     }
     const smsKey = (input.smsKey ?? "").trim().slice(0, 80);
     if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
-    const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
-    const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
-    if (expectedBalance === null || expectedBalance > 100_000_000 || input.balanceCents !== expectedBalance) {
-      throw new BadRequestException("SMS balance does not match the saved wallet balance");
+    if (await this.balanceCheckOn(userId)) {
+      const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
+      const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
+      if (expectedBalance === null || expectedBalance > 100_000_000 || input.balanceCents !== expectedBalance) {
+        throw new BadRequestException("SMS balance does not match the saved wallet balance");
+      }
     }
     const smsNote = [input.smsSender, input.smsAt, smsKey].filter(Boolean).join(" ").slice(0, 180);
     const paid = await this.prisma.$transaction(async (tx) => {
@@ -3014,7 +3018,13 @@ export class PayService implements OnModuleInit {
     return target.publicId;
   }
 
+  private async balanceCheckOn(ownerId: string) {
+    const row = await this.prisma.brandSetting.findUnique({ where: { ownerId }, select: { prefs: true } });
+    return cleanPrefs(row?.prefs).balanceCheck !== "0";
+  }
+
   private async uniqueBalanceAgrees(ownerId: string, service: "bkash" | "nagad" | "rocket" | "upay", payable: { toString(): string }, body: string) {
+    if (!(await this.balanceCheckOn(ownerId))) return true;
     const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId, service } } });
     const amountCents = takaCents(payable);
     const smsBalance = smsBalanceCents(body);
