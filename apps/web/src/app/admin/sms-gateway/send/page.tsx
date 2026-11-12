@@ -65,7 +65,7 @@ export default function SendSmsPage() {
           <div>
             <p className="keys-crumb">SMS Gateway <span>›</span> Send</p>
             <h2>Send SMS</h2>
-            <p className="muted">The signed-in AuGetway phone sends each message from its SIM, including while the screen is off. Keep the UniqBD Pay notification on.</p>
+            <p className="muted">The signed-in AU-Getway phone sends each message from its SIM, including while the screen is off. Keep the AU-Getway notification on.</p>
           </div>
         </header>
         <form className="dev-modal-body dev-send" onSubmit={(event) => { event.preventDefault(); void sendSms(); }}>

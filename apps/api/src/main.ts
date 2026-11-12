@@ -32,7 +32,7 @@ async function bootstrap() {
 
   const port = Number(config.get("PORT") ?? 4100);
   await app.listen(port, "127.0.0.1");
-  Logger.log(`UniqBD Pay API on http://127.0.0.1:${port}/api`, "Bootstrap");
+  Logger.log(`AU-Getway API on http://127.0.0.1:${port}/api`, "Bootstrap");
 }
 
 bootstrap().catch((error: unknown) => {

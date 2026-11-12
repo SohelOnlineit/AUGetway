@@ -34,5 +34,5 @@ function paintTheme(light: boolean) {
 
 export function customBrand(site: { brandName?: string; brandLogo?: string } | null | undefined) {
   if (!site) return false;
-  return Boolean(site.brandLogo || (site.brandName && site.brandName !== "UniqBD Pay"));
+  return Boolean(site.brandLogo || (site.brandName && site.brandName !== "AU-Getway" && site.brandName !== "UniqBD Pay"));
 }

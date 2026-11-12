@@ -1729,7 +1729,7 @@ export class PayService implements OnModuleInit {
   async settings(ownerId: string) {
     const row = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
     return {
-      brandName: row?.brandName ?? "UniqBD Pay",
+      brandName: row?.brandName && row.brandName !== "UniqBD Pay" ? row.brandName : "AU-Getway",
       supportEmail: row?.supportEmail ?? "",
       currency: row?.currency ?? "BDT",
       checkoutNote: row?.checkoutNote ?? "",
@@ -2043,7 +2043,7 @@ export class PayService implements OnModuleInit {
     const staleSend = new Date(Date.now() - 20 * 1000);
     await this.prisma.outboundSms.updateMany({
       where: { ...where, status: "queued", createdAt: { lt: missed } },
-      data: { status: "failed", error: "The phone did not pick up this message. Open the AuGetway app and queue it again." },
+      data: { status: "failed", error: "The phone did not pick up this message. Open the AU-Getway app and queue it again." },
     });
     await this.prisma.outboundSms.updateMany({
       where: { ...where, status: "sending", updatedAt: { lt: missed } },
@@ -2650,7 +2650,7 @@ export class PayService implements OnModuleInit {
 
   private blankSite(): SiteCard {
     return {
-      brandName: "UniqBD Pay",
+      brandName: "AU-Getway",
       supportEmail: "",
       supportPhone: "",
       currency: "BDT",
@@ -2673,7 +2673,7 @@ export class PayService implements OnModuleInit {
     const row = await this.settings(ownerId);
     const theme = row.prefs.checkoutTheme;
     return {
-      brandName: row.brandName || "UniqBD Pay",
+      brandName: row.brandName || "AU-Getway",
       supportEmail: row.supportEmail,
       supportPhone: row.prefs.supportPhone ?? "",
       currency: row.currency || "BDT",

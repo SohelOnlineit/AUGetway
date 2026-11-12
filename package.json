@@ -2,7 +2,7 @@
   "name": "uniqpay",
   "version": "0.1.0",
   "private": true,
-  "description": "UniqBD Pay — merchant checkout desk (Next.js 16 + NestJS 11 + Prisma 7)",
+  "description": "AU-Getway — merchant checkout desk (Next.js 16 + NestJS 11 + Prisma 7)",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.19.0"

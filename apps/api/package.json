@@ -2,7 +2,7 @@
   "name": "@uniqpay/api",
   "version": "0.1.0",
   "private": true,
-  "description": "UniqBD Pay NestJS 11 API",
+  "description": "AU-Getway NestJS 11 API",
   "scripts": {
     "prebuild": "pnpm run prisma:generate",
     "build": "nest build",

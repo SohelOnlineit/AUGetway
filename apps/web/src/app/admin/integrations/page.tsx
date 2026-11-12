@@ -16,7 +16,7 @@ export default function IntegrationsPage() {
       </article>
       <article className="card">
         <strong>Android handset</strong>
-        <p>The UniqBD Pay app signs in with this desk account and submits a payment message you received on that phone.</p>
+        <p>The AU-Getway app signs in with this desk account and submits a payment message you received on that phone.</p>
       </article>
     </div>
   );

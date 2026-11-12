@@ -156,7 +156,7 @@ class KeepAliveService : Service() {
   private fun ensureChannel() {
     if (Build.VERSION.SDK_INT < 26) return
     val manager = getSystemService(NotificationManager::class.java) ?: return
-    val channel = NotificationChannel(CHANNEL, "Payment watch", NotificationManager.IMPORTANCE_DEFAULT)
+    val channel = NotificationChannel(CHANNEL, "AU-Getway", NotificationManager.IMPORTANCE_DEFAULT)
     channel.description = "Keeps this phone online while the screen is off."
     channel.setSound(null, null)
     channel.enableVibration(false)
@@ -171,7 +171,7 @@ class KeepAliveService : Service() {
     val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
     builder
       .setSmallIcon(android.R.drawable.stat_notify_sync)
-      .setContentTitle("UniqBD Pay")
+      .setContentTitle("AU-Getway")
       .setContentText("Online. This phone stays connected in the background.")
       .setOngoing(true)
       .setOnlyAlertOnce(true)

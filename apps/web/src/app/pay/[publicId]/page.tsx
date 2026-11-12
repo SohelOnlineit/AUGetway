@@ -251,9 +251,9 @@ export default function PayPage() {
   }
   function brandMark() {
     return (
-      <div className="ck-brand" aria-label={card?.site?.brandName || "UniQbd"}>
+      <div className="ck-brand" aria-label={card?.site?.brandName || "AU-Getway"}>
         {card?.site?.brandLogo ? <img className="ck-site-logo" src={card.site.brandLogo} alt="" /> : null}
-        {customBrand(card?.site) ? <span className="ck-word">{card?.site?.brandName}</span> : <span className="ck-word">Uni<span>Q</span>bd</span>}
+        <span className="ck-word">{customBrand(card?.site) ? card?.site?.brandName : "AU-Getway"}</span>
       </div>
     );
   }

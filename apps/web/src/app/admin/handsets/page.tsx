@@ -20,7 +20,7 @@ export default function HandsetsPage() {
       <div>
         <p className="kicker">Android</p>
         <h2>Handsets</h2>
-        <p className="muted">Install the UniqBD Pay app, sign in with this desk, and submit a payment message you received on that phone.</p>
+        <p className="muted">Install the AU-Getway app, sign in with this desk, and submit a payment message you received on that phone.</p>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="list">

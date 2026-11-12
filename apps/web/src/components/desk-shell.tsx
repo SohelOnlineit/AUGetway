@@ -89,7 +89,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!readToken()) {
-      router.replace("/au-getway");
+      router.replace("/au");
       return;
     }
     const fresh = new URL(window.location.href);
@@ -105,7 +105,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         clearToken();
-        router.replace("/au-getway");
+        router.replace("/au");
       });
     function onAccount(event: Event) {
       const detail = (event as CustomEvent<{ name?: string; email?: string }>).detail;
@@ -164,7 +164,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   function signOut() {
     clearToken();
-    router.replace("/au-getway");
+    router.replace("/au");
   }
 
   function clearCache() {
@@ -195,17 +195,9 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
             {navOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
           </svg>
         </button>
-        <Link href="/admin" className="wordmark" aria-label={site?.brandName || "UniQbd"}>
+        <Link href="/admin" className="wordmark" aria-label={site?.brandName || "AU-Getway"}>
           {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
-          {customBrand(site) ? (
-            <span>{site?.brandName}</span>
-          ) : (
-            <>
-              <span className="wordmark-uni">Uni</span>
-              <span className="wordmark-q">Q</span>
-              <span className="wordmark-bd">bd</span>
-            </>
-          )}
+          <span>{customBrand(site) ? site?.brandName : "AU-Getway"}</span>
         </Link>
         <div className="top-tools">
           <div className="top-search">

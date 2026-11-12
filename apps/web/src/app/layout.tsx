@@ -7,8 +7,8 @@ const body = Figtree({ subsets: ["latin"], weight: ["400", "500", "600", "700"],
 const bangla = Noto_Sans_Bengali({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla" });
 
 export const metadata: Metadata = {
-  title: "UniqBD Pay",
-  description: "Merchant checkout desk for UniqBD.",
+  title: "AU-Getway",
+  description: "Merchant checkout desk for AU-Getway.",
 };
 
 const themeBoot = `(function(){try{var pref=localStorage.getItem("uniqpay_theme");var light=pref==="LIGHT";var root=document.documentElement;root.setAttribute("data-theme",light?"light":"dark");root.style.colorScheme=light?"light":"dark";}catch(e){}})();`;

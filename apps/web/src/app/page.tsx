@@ -14,7 +14,7 @@ export default function HomePage() {
   useEffect(() => {
     applySiteChrome(site, { layout: true });
   }, [site]);
-  const brand = site?.brandName || "UniqBD Pay";
+  const brand = !site?.brandName || site.brandName === "UniqBD Pay" ? "AU-Getway" : site.brandName;
   return (
     <main className="wrap">
       <header className="top">
@@ -29,10 +29,10 @@ export default function HomePage() {
       </header>
       <section className="hero">
         <div>
-          <p className="kicker">Pay desk for UniqBD</p>
+          <p className="kicker">Pay desk for AU-Getway</p>
           <h1>Collect a payment without handing over your store.</h1>
           <p className="lede">
-            Create a checkout, send the customer a link, and confirm it from the desk or from the UniqBD handset app on your own Android phone.
+            Create a checkout, send the customer a link, and confirm it from the desk or from the AU-Getway app on your own Android phone.
           </p>
           <div className="row">
             <a href="#flow" className="btn">See the flow</a>

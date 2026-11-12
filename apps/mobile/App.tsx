@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
-import { DEFAULT_SENDERS, isOtpMessage, keepMessage, matchesSender, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
+import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -141,8 +141,6 @@ function App() {
   const [name, setName] = useState("UniqBD handset");
   const [simSlot, setSimSlot] = useState(0);
   const [handsetId, setHandsetId] = useState("");
-  const [body, setBody] = useState("");
-  const [sender, setSender] = useState("");
   const [items, setItems] = useState<InboxItem[]>([]);
   const [tab, setTab] = useState<Tab>("home");
   const [listFilter, setListFilter] = useState<ListFilter>("all");
@@ -163,14 +161,11 @@ function App() {
   rulesRef.current = { whitelistOn, senders, keywords, cleanDays };
   cloudRef.current = cloudSync;
   const statusRef = useRef<Record<string, SyncState>>({});
-  const [smsTo, setSmsTo] = useState("");
-  const [smsText, setSmsText] = useState("");
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
   const seenSms = useRef(new Set<string>());
   const sentJobs = useRef(new Set<string>());
   const work = useRef(false);
   const sending = useRef(false);
-  const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
@@ -282,15 +277,11 @@ function App() {
           return;
         }
         if (!response.ok || !data.id) {
-          if (!stop) {
-            setOnline(false);
-            setNote(problem(data, "Could not reach the desk."));
-          }
+          if (!stop) setNote(problem(data, "Could not reach the desk."));
           return;
         }
         if (!stop) {
           setHandsetId(data.id);
-          setOnline(true);
           if (data.simSlot === 0 || data.simSlot === 1) setSimSlot(data.simSlot);
         }
         if (synced) return;
@@ -305,10 +296,7 @@ function App() {
           setSimSlot(mine.simSlot === 1 ? 1 : 0);
         }
       } catch {
-        if (!stop) {
-          setOnline(false);
-          setNote("Could not reach the desk. Check the desk URL.");
-        }
+        if (!stop) setNote("Could not reach the desk. Check the desk URL.");
       }
     };
     void beat();
@@ -360,29 +348,12 @@ function App() {
       await writeStore("uniqpay_token", data.accessToken);
       await writeStore("uniqpay_name", name.trim() || "UniqBD handset");
       setToken(data.accessToken);
-      setNote(smsReady ? "This phone can read payment SMS and send one SMS at a time." : "Sign-in worked. SMS reading needs the UniqBD Pay Android build. You can still paste a message.");
+      setNote(smsReady ? "This phone is online. Website SMS goes out from here, and payment SMS syncs to the desk." : "Sign-in worked. SMS needs the AU-Getway Android app.");
     } catch {
       setNote("Could not reach the desk. Check the desk URL and your internet connection.");
     } finally {
       setBusy(false);
     }
-  }
-
-  async function saveName() {
-    const label = name.trim();
-    await writeStore("uniqpay_name", label || "UniqBD handset");
-    if (!token || !handsetId) return;
-    if (label.length < 2) {
-      setNote("Phone name must be at least 2 characters.");
-      return;
-    }
-    const response = await fetch(`${DESK}/desk/handsets/${handsetId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ label }),
-    });
-    const data = (await response.json()) as { message?: string | string[] };
-    if (!response.ok) setNote(problem(data, "Could not save the phone name"));
   }
 
   async function refreshDevice() {
@@ -454,75 +425,6 @@ function App() {
       askBattery();
     } catch (cause) {
       setNote(cause instanceof Error ? cause.message : "Could not open battery settings.");
-    }
-  }
-
-  async function submitMessage(message: string, from = "", receivedKey = "", quiet = false) {
-    if (!token) return false;
-    const text = message.trim();
-    if (text.length < 4) {
-      setNote("The payment message is too short.");
-      return false;
-    }
-    setNote("");
-    try {
-      const pulse = await fetch(`${DESK}/handset/pulse`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: pulsePayload(uid, name),
-      });
-      if (pulse.status === 401) {
-        await signOut();
-        return false;
-      }
-      if (!pulse.ok) {
-        const data = (await pulse.json()) as { message?: string | string[] };
-        setNote(problem(data, "Register this phone on the desk first."));
-        return false;
-      }
-      const response = await fetch(`${DESK}/handset/notice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          uid,
-          body: text,
-          ...(from.trim() ? { sender: from.trim().slice(0, 80) } : {}),
-          ...(receivedKey ? { receivedKey: receivedKey.slice(0, 80) } : {}),
-        }),
-      });
-      const data = (await response.json()) as { matched?: string | null; message?: string | string[] };
-      if (response.status === 401) {
-        await signOut();
-        return false;
-      }
-      if (!response.ok) {
-        setNote(problem(data, "Could not submit the message"));
-        return false;
-      }
-      if (!quiet) setNote(data.matched ? `Matched checkout ${data.matched}` : "Saved on the desk.");
-      return true;
-    } catch {
-      setNote("Could not reach the desk.");
-      return false;
-    }
-  }
-
-  async function sendNotice() {
-    if (work.current) return;
-    const rules = rulesRef.current;
-    const allowed = rules.senders.some((item) => item.enabled && matchesSender(sender, item.name));
-    if (!allowed || isOtpMessage(body)) {
-      setNote("This sender is not on the whitelist, so the payment was rejected.");
-      return;
-    }
-    work.current = true;
-    setBusy(true);
-    try {
-      const ok = await submitMessage(body, sender);
-      if (ok) setBody("");
-    } finally {
-      work.current = false;
-      setBusy(false);
     }
   }
 
@@ -606,7 +508,7 @@ function App() {
     try {
     if (!manual) setBusy(false);
     if (!smsReady) {
-      if (manual) setNote("SMS reading needs the UniqBD Pay Android build, not Expo Go.");
+      if (manual) setNote("SMS reading needs the AU-Getway Android app, not Expo Go.");
       return;
     }
     const alreadyAllowed = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_SMS"));
@@ -652,32 +554,6 @@ function App() {
     }
     } finally {
       work.current = false;
-      setBusy(false);
-    }
-  }
-
-  async function sendSms() {
-    if (sending.current) return;
-    sending.current = true;
-    if (!smsReady) {
-      sending.current = false;
-      setNote("SMS sending needs the UniqBD Pay Android build, not Expo Go.");
-      return;
-    }
-    if (!(await allowSms())) {
-      sending.current = false;
-      setNote("Allow SMS permission to send a message.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await sendOneSms(smsTo, smsText, simSlot);
-      setSmsText("");
-      setNote(`SMS sent to ${smsTo.trim()}.`);
-    } catch (cause) {
-      setNote(cause instanceof Error ? cause.message : "Could not send the SMS");
-    } finally {
-      sending.current = false;
       setBusy(false);
     }
   }
@@ -792,7 +668,6 @@ function App() {
     }
     await clearStore("uniqpay_token");
     setToken(null);
-    setOnline(false);
     setHandsetId("");
     setNote("Signed out. This phone's saved messages stay on the desk.");
   }
@@ -967,22 +842,6 @@ function App() {
                       <Switch on={cloudSync} onPress={() => { const next = !cloudSync; setCloudSync(next); cloudRef.current = next; void writeStore("uniqpay_cloud", next ? "1" : "0"); publishRules(); }} />
                     </View>
                   </View>
-                  <Text style={styles.sectionLabel}>PHONE</Text>
-                  <Text style={styles.hint}>Outgoing SMS uses {simSlot === 1 ? "SIM 2" : "SIM 1"}. Change the SIM on the website. {online ? "This phone is online." : "Waiting for the desk."} The UniqBD Pay notification keeps this phone online and syncs new payment SMS while the screen is off. Do not remove that notification, and keep battery optimization off.</Text>
-                  <Text style={styles.label}>Phone name</Text>
-                  <Field scroll={pageScroll} style={styles.input} value={name} onChangeText={setName} onBlur={() => void saveName()} maxLength={80} placeholderTextColor="#94a3b8" />
-                  <Text style={styles.label}>Send one SMS</Text>
-                  <Field scroll={pageScroll} style={styles.input} value={smsTo} onChangeText={setSmsTo} keyboardType="phone-pad" placeholder="01XXXXXXXXX" placeholderTextColor="#94a3b8" />
-                  <Field scroll={pageScroll} style={[styles.input, styles.message]} multiline value={smsText} onChangeText={setSmsText} maxLength={320} placeholder="Message" placeholderTextColor="#94a3b8" />
-                  <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendSms()}>
-                    <Text style={styles.buttonText}>Send SMS</Text>
-                  </Pressable>
-                  <Text style={styles.label}>Paste a payment</Text>
-                  <Field scroll={pageScroll} style={styles.input} value={sender} onChangeText={setSender} autoCapitalize="none" placeholder="Sender" placeholderTextColor="#94a3b8" />
-                  <Field scroll={pageScroll} style={[styles.input, styles.message]} multiline value={body} onChangeText={setBody} placeholder="Paste the message" placeholderTextColor="#94a3b8" />
-                  <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void sendNotice()}>
-                    <Text style={styles.buttonText}>{busy ? "Sending" : "Submit to desk"}</Text>
-                  </Pressable>
                 </>
               ) : null}
               {note ? <Text style={styles.note}>{note}</Text> : null}
@@ -1072,7 +931,6 @@ const styles = StyleSheet.create({
   label: { color: "#94a3b8", fontSize: 13, fontWeight: "700", marginTop: 8 },
   hint: { color: "#94a3b8", lineHeight: 18 },
   input: { borderWidth: 1, borderColor: "#0e2832", borderRadius: 14, padding: 12, color: "#f8fafc", backgroundColor: "#06212a" },
-  message: { minHeight: 90, textAlignVertical: "top" },
   button: { backgroundColor: "#0f766e", borderRadius: 14, padding: 14, alignItems: "center" },
   buttonText: { color: "#ffffff", fontWeight: "800" },
   disabled: { opacity: 0.6 },
