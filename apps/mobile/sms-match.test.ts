@@ -93,10 +93,12 @@ test("a saved balance of 5000 does not verify when the SMS balance is 31574.85",
   const decision = decideWithSms(book, job({ trxId: "DKD4EW5O5Y", amountCents: 200, reportedCents: 500000 }), [row], true);
   assert.equal(decision.type, "reject");
   assert.equal(book.cents, 500000);
-  const close = { ...row, balanceCents: 500204 };
+  const close = { ...row, balanceCents: 500200 };
   const allowed = decideWithSms(book, job({ trxId: "DKD4EW5O5Y", amountCents: 200, reportedCents: 500000 }), [close], true);
   assert.equal(allowed.type, "verify");
-  if (allowed.type === "verify") assert.equal(allowed.nextCents, 500204);
+  if (allowed.type === "verify") assert.equal(allowed.nextCents, 500200);
+  const onePoisha = { ...row, key: "sms-poisha", balanceCents: 500201 };
+  assert.equal(decideWithSms(book, job({ trxId: "DKD4EW5O5Y", amountCents: 200, reportedCents: 500000 }), [onePoisha], true).type, "reject");
 });
 
 test("one SMS cannot be used for a second order", () => {

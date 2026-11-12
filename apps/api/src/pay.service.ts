@@ -2814,7 +2814,7 @@ export class PayService implements OnModuleInit {
     if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
     const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
     const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
-    if (expectedBalance === null || expectedBalance > 100_000_000 || Math.abs(input.balanceCents - expectedBalance) > 4) {
+    if (expectedBalance === null || expectedBalance > 100_000_000 || input.balanceCents !== expectedBalance) {
       throw new BadRequestException("SMS balance does not match the saved wallet balance");
     }
     const smsNote = [input.smsSender, input.smsAt, smsKey].filter(Boolean).join(" ").slice(0, 180);
@@ -3020,7 +3020,7 @@ export class PayService implements OnModuleInit {
     const smsBalance = smsBalanceCents(body);
     if (!ledger || amountCents === null || smsBalance === null) return false;
     const expected = ledger.balanceCents + amountCents;
-    return expected <= 100_000_000 && Math.abs(smsBalance - expected) <= 4;
+    return expected <= 100_000_000 && smsBalance === expected;
   }
 
   private async recordUniquePaid(input: {

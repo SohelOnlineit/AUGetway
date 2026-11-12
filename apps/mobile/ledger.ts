@@ -131,15 +131,13 @@ export function logWait(book: WalletBook, job: VerifyJob, reason: string, at: st
   };
 }
 
-const BALANCE_GAP = 4;
-
 function confirmedBalance(previous: number, amountCents: number, smsBalance: number | null):
   | { type: "verify"; nextCents: number }
   | { type: "reject"; reason: string } {
   const expected = addCents(previous, amountCents);
   if (expected === null) return { type: "reject", reason: "Amount is not valid" };
   if (smsBalance === null) return { type: "reject", reason: "SMS balance is missing" };
-  if (Math.abs(smsBalance - expected) > BALANCE_GAP) return { type: "reject", reason: "SMS balance does not match the app balance" };
+  if (smsBalance !== expected) return { type: "reject", reason: "SMS balance does not match the app balance" };
   return { type: "verify", nextCents: smsBalance };
 }
 
