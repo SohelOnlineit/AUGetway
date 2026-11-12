@@ -927,6 +927,22 @@ export class BalanceDecisionDto {
   @IsString()
   @MaxLength(180)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(80)
+  smsKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  smsSender?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  smsAt?: string;
 }
 
 export class JobResultDto {

@@ -4,16 +4,18 @@ export type Service = (typeof SERVICES)[number];
 
 export type LedgerEvent = {
   at: string;
-  kind: "initial" | "manual" | "verified" | "rejected";
+  kind: "initial" | "manual" | "verified" | "rejected" | "pending";
   cents: number;
   amountCents: number;
   trxId: string;
   orderId: string;
+  note?: string;
 };
 
 export type WalletBook = {
   cents: number | null;
   trx: string[];
+  sms: string[];
   events: LedgerEvent[];
 };
 
@@ -36,7 +38,16 @@ export type Decision =
   | { type: "verify"; nextCents: number };
 
 export function emptyBook(): WalletBook {
-  return { cents: null, trx: [], events: [] };
+  return { cents: null, trx: [], sms: [], events: [] };
+}
+
+export function normalizeBook(book: Partial<WalletBook> | null | undefined): WalletBook {
+  return {
+    cents: typeof book?.cents === "number" ? book.cents : null,
+    trx: Array.isArray(book?.trx) ? book.trx.filter((item) => typeof item === "string") : [],
+    sms: Array.isArray(book?.sms) ? book.sms.filter((item) => typeof item === "string") : [],
+    events: Array.isArray(book?.events) ? book.events : [],
+  };
 }
 
 export function emptyBooks(): Books {
@@ -71,7 +82,7 @@ export function parseTaka(value: string) {
 
 function remember(book: WalletBook, event: LedgerEvent, trxId = ""): WalletBook {
   const trx = trxId && !book.trx.includes(trxId) ? [...book.trx, trxId].slice(-500) : book.trx;
-  return { cents: event.cents, trx, events: [...book.events, event].slice(-40) };
+  return { ...book, cents: event.cents, trx, sms: book.sms ?? [], events: [...book.events, event].slice(-40) };
 }
 
 export function setBalance(book: WalletBook, cents: number, kind: "initial" | "manual", at: string): WalletBook | null {
@@ -91,15 +102,40 @@ export function nextDecision(book: WalletBook, job: VerifyJob, checkReported: bo
   return { type: "verify", nextCents };
 }
 
-export function applyVerified(book: WalletBook, job: VerifyJob, nextCents: number, at: string): WalletBook {
-  return remember(book, {
+export function applyVerified(book: WalletBook, job: VerifyJob, nextCents: number, at: string, smsKey = ""): WalletBook {
+  const saved = remember(book, {
     at,
     kind: "verified",
     cents: nextCents,
     amountCents: job.amountCents,
     trxId: job.trxId.trim().toUpperCase(),
     orderId: job.orderId,
+    note: smsKey,
   }, job.trxId.trim().toUpperCase());
+  if (!smsKey || saved.sms.includes(smsKey)) return saved;
+  return { ...saved, sms: [...saved.sms, smsKey].slice(-500) };
+}
+
+export function logWait(book: WalletBook, job: VerifyJob, reason: string, at: string): WalletBook {
+  const trxId = job.trxId.trim().toUpperCase();
+  const last = book.events[book.events.length - 1];
+  if (last?.kind === "pending" && last.trxId === trxId && last.note === reason) return book;
+  return {
+    ...book,
+    events: [...book.events, { at, kind: "pending", cents: book.cents ?? 0, amountCents: job.amountCents, trxId, orderId: job.orderId, note: reason }].slice(-40),
+  };
+}
+
+export function decideWithSms(book: WalletBook, job: VerifyJob, messages: SmsHit[], checkReported: boolean) {
+  if (book.cents === null) return { type: "wait" as const, reason: "Set the wallet balance first" };
+  if (checkReported && job.reportedCents !== null && job.reportedCents !== book.cents) return { type: "wait" as const, reason: "Saved balance does not match this phone" };
+  const trxId = job.trxId.trim().toUpperCase();
+  if (book.trx.includes(trxId)) return { type: "reject" as const, reason: "Transaction ID already used" };
+  const sms = matchJobSms(job, messages, book.sms);
+  if (sms.type === "wait") return sms;
+  const nextCents = addCents(book.cents, job.amountCents);
+  if (nextCents === null) return { type: "reject" as const, reason: "Amount is not valid" };
+  return { type: "verify" as const, nextCents, sms: sms.sms };
 }
 
 export function mergeRemote(local: Books, remote: Partial<Record<Service, { cents: number | null; trx: string[] }>>): Books {
@@ -111,8 +147,99 @@ export function mergeRemote(local: Books, remote: Partial<Record<Service, { cent
     next[service] = {
       cents: book.cents === null ? row?.cents ?? null : book.cents,
       trx: [...new Set(trx)].slice(-500),
+      sms: book.sms,
       events: book.events,
     };
   }
   return next;
+}
+
+export type InboxSms = { key: string; sender: string; body: string; receivedAt: number };
+
+export type SmsHit = {
+  key: string;
+  service: Service;
+  trxId: string;
+  amountCents: number;
+  sender: string;
+  receivedAt: number;
+};
+
+const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to", "debited", "deducted"];
+const CREDIT = ["received", "cash in", "deposit", "credited", "credit to"];
+
+function serviceOf(sender: string, body: string): Service | "" {
+  const from = `${sender} ${body}`.toLowerCase();
+  if (from.includes("bkash")) return "bkash";
+  if (from.includes("nagad")) return "nagad";
+  if (from.includes("rocket") || from.includes("16216")) return "rocket";
+  if (from.includes("upay")) return "upay";
+  return "";
+}
+
+function senderService(sender: string): Service | "" {
+  const from = sender.toLowerCase();
+  if (from.includes("bkash")) return "bkash";
+  if (from.includes("nagad")) return "nagad";
+  if (from.includes("rocket") || from.includes("16216")) return "rocket";
+  if (from.includes("upay")) return "upay";
+  return "";
+}
+
+function textCents(value: string) {
+  const text = value.replace(/,/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
+  const [whole, frac = ""] = text.split(".");
+  const cents = Number(whole) * 100 + Number((frac + "00").slice(0, 2));
+  if (!Number.isSafeInteger(cents) || cents < 1) return null;
+  return cents;
+}
+
+function creditCents(body: string) {
+  const cleaned = body
+    .replace(/balance[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ")
+    .replace(/\bfee[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ");
+  const labeled = cleaned.match(/(?:received|credited|deposit|cash\s*in)[\s\S]{0,60}?(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  const raw = labeled?.[1] ?? cleaned.match(/(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)?.[1];
+  if (!raw) return null;
+  return textCents(raw);
+}
+
+export function readSmsPayment(row: InboxSms): SmsHit | null {
+  const body = row.body.trim();
+  const lower = body.toLowerCase();
+  if (!body || DEBIT.some((hint) => lower.includes(hint))) return null;
+  if (!CREDIT.some((hint) => lower.includes(hint))) return null;
+  const found = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
+  const trxId = found?.[1]?.toUpperCase() ?? "";
+  if (!/^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(trxId)) return null;
+  const amountCents = creditCents(body);
+  const service = senderService(row.sender) || serviceOf(row.sender, body);
+  if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;
+  if (amountCents === null || row.receivedAt < 1 || !row.key) return null;
+  return { key: row.key, service, trxId, amountCents, sender: row.sender.trim().slice(0, 80), receivedAt: row.receivedAt };
+}
+
+export function matchJobSms(
+  job: { service: Service; trxId: string; amountCents: number },
+  rows: SmsHit[],
+  usedKeys: string[],
+): { type: "hit"; sms: SmsHit } | { type: "wait"; reason: string } {
+  const trxId = job.trxId.trim().toUpperCase();
+  const same = rows.filter((row) => row.trxId === trxId);
+  if (same.length === 0) return { type: "wait", reason: "Waiting for the payment SMS" };
+  const exact = same
+    .filter((row) => row.service === job.service && row.amountCents === job.amountCents)
+    .sort((left, right) => left.receivedAt - right.receivedAt);
+  const fresh = exact.find((row) => !usedKeys.includes(row.key));
+  if (fresh) return { type: "hit", sms: fresh };
+  if (exact.length > 0) return { type: "wait", reason: "This SMS was already used" };
+  if (!same.some((row) => row.service === job.service)) return { type: "wait", reason: "SMS service does not match" };
+  return { type: "wait", reason: "SMS amount does not match" };
+}
+
+export function mergeSms(saved: SmsHit[], incoming: SmsHit[]) {
+  const byKey = new Map<string, SmsHit>();
+  for (const row of [...saved, ...incoming]) byKey.set(row.key, row);
+  return [...byKey.values()].sort((left, right) => left.receivedAt - right.receivedAt).slice(-200);
 }

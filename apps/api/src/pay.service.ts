@@ -2672,7 +2672,7 @@ export class PayService implements OnModuleInit {
     };
   }
 
-  async decideBalance(userId: string, id: string, input: { uid: string; decision: "verified" | "rejected"; service: "bkash" | "nagad" | "rocket" | "upay"; trxId: string; amountCents: number; balanceCents: number; note?: string }) {
+  async decideBalance(userId: string, id: string, input: { uid: string; decision: "verified" | "rejected"; service: "bkash" | "nagad" | "rocket" | "upay"; trxId: string; amountCents: number; balanceCents: number; note?: string; smsKey?: string; smsSender?: string; smsAt?: string }) {
     const handset = await this.ownedHandset(userId, input.uid);
     const job = await this.prisma.verifyOrder.findFirst({ where: { id, ownerId: userId, handsetId: handset.id } });
     if (!job) throw new NotFoundException("Verification not found");
@@ -2703,6 +2703,9 @@ export class PayService implements OnModuleInit {
     if (trxId !== job.trxId || input.service !== job.service || input.amountCents !== job.amountCents) {
       throw new BadRequestException("This decision does not match the pending order");
     }
+    const smsKey = (input.smsKey ?? "").trim().slice(0, 80);
+    if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
+    const smsNote = [input.smsSender, input.smsAt, smsKey].filter(Boolean).join(" ").slice(0, 180);
     const paid = await this.prisma.$transaction(async (tx) => {
       await this.lockKey(tx, `${userId}:${job.trxId}`);
       const current = await tx.verifyOrder.findUnique({ where: { id: job.id } });
@@ -2713,6 +2716,11 @@ export class PayService implements OnModuleInit {
         select: { id: true },
       });
       if (used) return "used" as const;
+      const smsUsed = await tx.verifyOrder.findFirst({
+        where: { ownerId: userId, smsKey, status: "verified", id: { not: job.id } },
+        select: { id: true },
+      });
+      if (smsUsed) return "used" as const;
       const checkout = await tx.checkout.findUnique({ where: { id: job.checkoutId } });
       if (!checkout || checkout.providerRef !== job.trxId) return "closed" as const;
       const saved = await tx.checkout.updateMany({
@@ -2723,7 +2731,7 @@ export class PayService implements OnModuleInit {
       if (checkout.billId) await tx.bill.update({ where: { id: checkout.billId }, data: { status: "paid" } });
       await tx.verifyOrder.update({
         where: { id: job.id },
-        data: { status: "verified", decidedAt: new Date(), note: "" },
+        data: { status: "verified", decidedAt: new Date(), smsKey, note: smsNote },
       });
       await tx.walletLedger.upsert({
         where: { ownerId_service: { ownerId: userId, service: job.service } },
@@ -2739,6 +2747,7 @@ export class PayService implements OnModuleInit {
           amountCents: job.amountCents,
           trxId: job.trxId,
           orderId: job.orderPublicId,
+          note: smsNote,
         },
       });
       return "paid" as const;
