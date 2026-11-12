@@ -396,7 +396,7 @@ function App() {
         }
         const balanceCheck = checkRef.current;
         let messages = smsCache.current;
-        if (smsReady) {
+        if (smsReady && jobs.length > 0) {
           try {
             const rows = await listRecentSms(80);
             const found = rows.flatMap((row) => {

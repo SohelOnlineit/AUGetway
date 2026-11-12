@@ -8,32 +8,24 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.net.wifi.WifiManager
+import android.database.ContentObserver
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
+import android.provider.Telephony
 
 class KeepAliveService : Service() {
   @Volatile private var running = false
   private var worker: Thread? = null
-  private var wake: PowerManager.WakeLock? = null
-  private var wifi: WifiManager.WifiLock? = null
+  private var inbox: ContentObserver? = null
+  private val main = Handler(Looper.getMainLooper())
+  private val pushSms = Runnable { pushNewSms() }
 
   override fun onCreate() {
     super.onCreate()
     ensureChannel()
-    val power = getSystemService(PowerManager::class.java)
-    wake = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:keepalive")?.apply {
-      setReferenceCounted(false)
-    }
-    try {
-      val radios = applicationContext.getSystemService(WifiManager::class.java)
-      wifi = radios?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "uniqpay:wifi")?.apply {
-        setReferenceCounted(false)
-      }
-    } catch (_: Exception) {
-      wifi = null
-    }
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -58,20 +50,7 @@ class KeepAliveService : Service() {
     } else {
       startForeground(NOTICE_ID, notice)
     }
-    if (wake?.isHeld != true) {
-      try {
-        wake?.acquire()
-      } catch (_: Exception) {
-        // The alarm still wakes the phone if the lock is refused.
-      }
-    }
-    if (wifi?.isHeld != true) {
-      try {
-        wifi?.acquire()
-      } catch (_: Exception) {
-        // Mobile data does not need the Wi-Fi lock.
-      }
-    }
+    watchInbox()
     Watch.schedule(applicationContext)
     ensureLoop()
     return START_STICKY
@@ -84,10 +63,13 @@ class KeepAliveService : Service() {
 
   override fun onDestroy() {
     running = false
+    main.removeCallbacks(pushSms)
+    inbox?.let {
+      contentResolver.unregisterContentObserver(it)
+      inbox = null
+    }
     worker?.interrupt()
     worker = null
-    if (wake?.isHeld == true) wake?.release()
-    if (wifi?.isHeld == true) wifi?.release()
     val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
     val stopped = prefs.getBoolean("userStop", false)
     val token = prefs.getString("token", null)
@@ -103,26 +85,70 @@ class KeepAliveService : Service() {
     worker = Thread {
       var beat = 0
       while (running) {
+        val power = getSystemService(PowerManager::class.java)
+        val held = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:keepalive")?.apply {
+          setReferenceCounted(false)
+        }
         try {
+          held?.acquire(20_000)
           if (beat == 0) ping() else if (Outbound.deliver(this) == 401) signOff()
         } catch (_: Exception) {
           // One failed send must not stop the watch. The next pass tries again.
+        } finally {
+          if (held?.isHeld == true) held.release()
         }
         if (!running) break
         beat = (beat + 1) % 3
         try {
-          Watch.schedule(applicationContext, 15_000)
+          Watch.schedule(applicationContext, 180_000)
         } catch (_: Exception) {
           // The running loop still checks the queue on the next pass.
         }
         try {
-          Thread.sleep(10_000)
+          Thread.sleep(30_000)
         } catch (_: InterruptedException) {
           break
         }
       }
     }.apply {
       name = "uniqpay-keep"
+      isDaemon = true
+      start()
+    }
+  }
+
+  private fun watchInbox() {
+    if (inbox != null) return
+    val observer = object : ContentObserver(main) {
+      override fun onChange(selfChange: Boolean) {
+        main.removeCallbacks(pushSms)
+        main.postDelayed(pushSms, 400)
+      }
+    }
+    contentResolver.registerContentObserver(Telephony.Sms.CONTENT_URI, true, observer)
+    inbox = observer
+  }
+
+  private fun pushNewSms() {
+    Thread {
+      val power = getSystemService(PowerManager::class.java)
+      val held = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:sms")?.apply {
+        setReferenceCounted(false)
+      }
+      try {
+        held?.acquire(20_000)
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val base = prefs.getString("base", null) ?: return@Thread
+        val token = prefs.getString("token", null) ?: return@Thread
+        val uid = prefs.getString("uid", null) ?: return@Thread
+        if (SmsSync.push(applicationContext, base, token, uid) == 401) signOff()
+      } catch (_: Exception) {
+        // The next payment message tries again.
+      } finally {
+        if (held?.isHeld == true) held.release()
+      }
+    }.apply {
+      name = "uniqpay-sms"
       isDaemon = true
       start()
     }

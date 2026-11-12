@@ -171,7 +171,7 @@ export default function PayPage() {
     if (!card || card.status === "paid" || card.status === "failed" || card.status === "expired") return;
     const timer = window.setInterval(() => {
       load().catch(() => undefined);
-    }, 4000);
+    }, 2000);
     return () => window.clearInterval(timer);
   }, [card?.status, params.publicId]);
 
