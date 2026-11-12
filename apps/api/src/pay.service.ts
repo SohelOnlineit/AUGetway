@@ -1862,22 +1862,6 @@ export class PayService implements OnModuleInit {
         return this.checkoutCard(saved, true);
       }
     }
-    if ((row.status === "waiting" || row.status === "pending") && row.method?.verifyBy === "unique_amount" && walletService(row.method.label)) {
-      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { status: true } });
-      if (queued?.status === "pending") {
-        const notices = await this.prisma.inboxNotice.findMany({
-          where: { handset: { ownerId: row.ownerId }, checkoutId: null },
-          orderBy: { createdAt: "desc" },
-          take: 40,
-        });
-        for (const notice of notices) {
-          const matched = await this.matchOwner(row.ownerId, notice.body, notice.id, notice.sender);
-          if (matched === row.publicId) break;
-        }
-        const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id }, include: { method: true } });
-        if (fresh) return this.checkoutCard(fresh, fresh.status === "open" || fresh.status === "waiting");
-      }
-    }
     return this.checkoutCard(row, row.status === "open" || row.status === "waiting");
   }
 
