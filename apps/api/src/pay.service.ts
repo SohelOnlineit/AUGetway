@@ -1930,7 +1930,7 @@ export class PayService implements OnModuleInit {
     if (providerRef && !trxRefOk(providerRef)) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
-    if (providerRef && (row.providerRef ?? "").toUpperCase() === providerRef && (row.status === "pending" || row.status === "paid")) {
+    if (providerRef && (row.providerRef ?? "").toUpperCase() === providerRef) {
       throw new BadRequestException("TRX_USED");
     }
     if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
