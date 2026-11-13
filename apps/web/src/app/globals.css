@@ -1467,6 +1467,67 @@ button.dev-sim { border: 0; cursor: default; }
 .ck-empty, .ck-error { margin: 8px 0 0; color: var(--muted); font-size: 15px; font-weight: 400; line-height: 1.6; }
 .ck-note { margin: 0; padding: 14px 16px; color: var(--fg); font-size: 16px; font-weight: 400; line-height: 1.65; }
 .ck-error { color: #f87171; font-weight: 500; }
+.ck-warn {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 10, 14, 0.72);
+  backdrop-filter: blur(8px);
+}
+.ck-warn-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px 22px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 22px;
+  background: var(--card);
+  color: var(--fg);
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: ck-warn-in 0.38s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.ck-warn-card h2 { margin: 4px 0 0; font-size: 22px; line-height: 1.35; }
+.ck-warn-card p { margin: 0 0 8px; color: var(--muted); font-size: 16px; line-height: 1.6; }
+.ck-warn-card .ck-pay { max-width: 180px; }
+.ck-warn-ico { position: relative; width: 88px; height: 88px; }
+.ck-warn-ico i {
+  position: absolute;
+  inset: 8px;
+  border: 2px solid rgba(251, 191, 36, 0.55);
+  border-radius: 50%;
+  animation: ck-warn-ring 1.8s ease-out infinite;
+}
+.ck-warn-ico i:last-of-type { animation-delay: 0.6s; }
+.ck-warn-ico span {
+  position: absolute;
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(251, 191, 36, 0.14);
+  color: #fbbf24;
+  animation: ck-warn-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.ck-warn-ico svg { width: 36px; height: 36px; }
+@keyframes ck-warn-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ck-warn-pop {
+  0% { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  70% { transform: scale(1.08) rotate(2deg); }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes ck-warn-ring {
+  0% { transform: scale(0.72); opacity: 0.75; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
 .ck-foot { flex-direction: column; align-items: stretch; gap: 16px; margin-top: 8px; }
 .ck-pay {
   width: 100%;

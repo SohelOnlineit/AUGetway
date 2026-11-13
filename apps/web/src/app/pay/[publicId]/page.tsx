@@ -121,6 +121,7 @@ export default function PayPage() {
   const params = useParams<{ publicId: string }>();
   const [card, setCard] = useState<CheckoutCard | null>(null);
   const [error, setError] = useState("");
+  const [trxWarn, setTrxWarn] = useState(false);
   const [pending, setPending] = useState(false);
   const [now, setNow] = useState(0);
   const [lang, setLang] = useState<Lang>("bn");
@@ -222,7 +223,9 @@ export default function PayPage() {
       }));
       setPicking(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not submit");
+      const message = cause instanceof Error ? cause.message : "Could not submit";
+      if (message.includes("TRX_USED") || /already used/i.test(message)) setTrxWarn(true);
+      else setError(message);
     } finally {
       setPending(false);
     }
@@ -532,6 +535,26 @@ export default function PayPage() {
           </footer>
         </section>
       </section>
+      {trxWarn ? (
+        <div className="ck-warn" role="alertdialog" aria-modal="true" aria-labelledby="ck-warn-title">
+          <div className="ck-warn-card">
+            <div className="ck-warn-ico" aria-hidden="true">
+              <i />
+              <i />
+              <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M12 8.2v5.2" />
+                  <path d="M12 16.8h.01" />
+                  <path d="M10.3 4.8 2.9 17.6A2 2 0 0 0 4.6 20.6h14.8a2 2 0 0 0 1.7-3L13.7 4.8a2 2 0 0 0-3.4 0Z" />
+                </svg>
+              </span>
+            </div>
+            <h2 id="ck-warn-title">এই ট্রানজেকশন আইডি আগে সাবমিট করা হয়েছে</h2>
+            <p>পেন্ডিং বা পেইড অর্ডারে একটি ট্রানজেকশন আইডি একবারই সাবমিট করা যাবে।</p>
+            <button type="button" className="ck-pay on" onClick={() => setTrxWarn(false)}>ঠিক আছে</button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

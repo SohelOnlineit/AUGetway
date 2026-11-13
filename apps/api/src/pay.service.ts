@@ -1930,6 +1930,9 @@ export class PayService implements OnModuleInit {
     if (providerRef && !trxRefOk(providerRef)) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
+    if (providerRef && (row.providerRef ?? "").toUpperCase() === providerRef && (row.status === "pending" || row.status === "paid")) {
+      throw new BadRequestException("TRX_USED");
+    }
     if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
@@ -1943,7 +1946,7 @@ export class PayService implements OnModuleInit {
       try {
         return await this.claimByReference(row, providerRef, payerAccount);
       } catch (error) {
-        if (error instanceof BadRequestException && exceptionText(error).includes("already used")) {
+        if (error instanceof BadRequestException && exceptionText(error).includes("TRX_USED")) {
           this.security.watchRepeatedClaim({ ownerId: row.ownerId, trxId: providerRef, checkoutId: row.id });
         }
         throw error;
@@ -2049,7 +2052,7 @@ export class PayService implements OnModuleInit {
         where: { ownerId: row.ownerId, providerRef, id: { not: row.id }, status: { in: ["waiting", "pending", "paid"] } },
         select: { id: true },
       });
-      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+      if (used) throw new BadRequestException("TRX_USED");
       const claimed = await tx.inboxNotice.updateMany({
         where: { id: fit.id, checkoutId: null },
         data: { checkoutId: row.id },
@@ -3092,7 +3095,7 @@ export class PayService implements OnModuleInit {
         where: { ownerId, providerRef, id: { not: checkoutId }, status: { in: ["waiting", "pending", "paid"] } },
         select: { id: true },
       });
-      if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
+      if (used) throw new BadRequestException("TRX_USED");
       if (!save) return;
       const saved = await tx.checkout.updateMany({
         where: { id: checkoutId, status: { in: ["waiting", "pending"] } },
