@@ -93,7 +93,7 @@ const cards: { id: string; title: string; description: string; icon: string; fie
       { key: "themeMode", label: "Admin theme mode", kind: "select", options: [["dark", "Dark Mode (Default)"], ["light", "Light Mode"], ["system", "System Auto"]] },
       { key: "checkoutTheme", label: "Checkout page layout", kind: "select", options: [["modern_dark", "Modern Fintech Dark"], ["clean_light", "Clean Minimal Light"]] },
       { key: "methodTabs", label: "Show All options, Mobile banking and Bank transfer", kind: "check", hint: "Off by default. Turn this on to show those three buttons above the payment methods." },
-      { key: "checkoutLang", label: "Checkout default language", kind: "select", fallback: "en", options: [["en", "English"], ["bn", "Bangla"]], hint: "The checkout opens in this language. The customer can still switch it with the language button." },
+      { key: "checkoutLang", label: "Checkout default language", kind: "select", fallback: "bn", options: [["bn", "Bangla"], ["en", "English"]], hint: "The checkout opens in this language. The customer can still switch it with the language button." },
     ],
   },
   {

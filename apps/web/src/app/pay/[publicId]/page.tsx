@@ -123,7 +123,7 @@ export default function PayPage() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [now, setNow] = useState(0);
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>("bn");
   const langChosen = useRef(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [picked, setPicked] = useState("");
@@ -148,7 +148,7 @@ export default function PayPage() {
 
   useEffect(() => {
     if (langChosen.current) return;
-    setLang(card?.site?.checkoutLang === "bn" ? "bn" : "en");
+    setLang(card?.site?.checkoutLang === "en" ? "en" : "bn");
   }, [card?.site?.checkoutLang]);
 
   useEffect(() => {

@@ -3158,7 +3158,7 @@ export class PayService implements OnModuleInit {
       themeAccent: accentColor(row.prefs.themeAccent),
       checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
       methodTabs: row.prefs.methodTabs === "1" ? "1" : "",
-      checkoutLang: row.prefs.checkoutLang === "bn" ? "bn" : "en",
+      checkoutLang: row.prefs.checkoutLang === "en" ? "en" : "bn",
       faqTitle: row.prefs.faqTitle ?? "",
       faqContent: row.prefs.faqContent ?? "",
       metaTitle: row.prefs.metaTitle ?? "",
