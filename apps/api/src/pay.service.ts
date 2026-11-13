@@ -2029,17 +2029,18 @@ export class PayService implements OnModuleInit {
       if (hits.length > 0) {
         throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
       }
-      if (verifyBy === "unique_amount") {
-        await this.reserveReference(row.ownerId, row.id, providerRef, { payerAccount });
-      }
-      if (row.method?.holdUnmatched) {
+      if (service || row.method?.holdUnmatched) {
         await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
         return this.publicPay(row.publicId);
+      }
+      if (verifyBy === "unique_amount") {
+        await this.reserveReference(row.ownerId, row.id, providerRef, { payerAccount });
       }
       throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
     if (service && verifyBy === "unique_amount" && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body))) {
-      throw new BadRequestException("SMS balance does not match the saved wallet balance");
+      await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
+      return this.publicPay(row.publicId);
     }
     const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
     const paidNow = await this.prisma.$transaction(async (tx) => {
