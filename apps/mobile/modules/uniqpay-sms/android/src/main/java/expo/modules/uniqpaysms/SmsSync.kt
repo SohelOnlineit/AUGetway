@@ -187,7 +187,7 @@ object SmsSync {
     return trx(body).isNotEmpty() || amount(body).isNotEmpty()
   }
 
-  private val defaultSenders = listOf("16216", "16269", "16316", "AB BANK", "AB BANK PLC", "BANK ASIA", "bKash", "BRAC BANK", "Cellfin", "CITY BANK", "Nagad", "Rocket", "Upay")
+  private val defaultSenders = listOf("16167", "16216", "16269", "16316", "AB BANK", "AB BANK PLC", "BANK ASIA", "bKash", "BRAC BANK", "Cellfin", "CITY BANK", "DBBL", "Nagad", "Rocket", "Upay")
 
   private fun personal(address: String): Boolean {
     val digits = address.filter { it.isDigit() }

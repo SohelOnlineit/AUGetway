@@ -11,7 +11,7 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { paidFitsCheckout, paidFitsManual, pickUniqueAmount } from "./amount-window";
-import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { matchWithoutWaitingForSnapshot } from "./payment-security";
 import { PaymentSecurityService } from "./payment-security.service";
@@ -365,9 +365,9 @@ function smsStillDecides(method: { label?: string; verifyBy?: string } | null | 
 }
 
 function smsBalanceCents(body: string) {
-  const match = body.match(/balance\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-  if (!match) return null;
-  const raw = match[1].replace(/,/g, "");
+  const taka = readBalanceTaka(body);
+  if (taka === null) return null;
+  const raw = taka.toFixed(2);
   if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
   const [whole, frac = ""] = raw.split(".");
   const cents = Number(whole) * 100 + Number((frac + "00").slice(0, 2));

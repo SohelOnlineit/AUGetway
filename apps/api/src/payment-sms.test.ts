@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -29,6 +29,9 @@ test("the desk stores a wallet payment and refuses a personal message", () => {
 
 test("a transaction id is a whole code, not part of an amount", () => {
   assert.equal(trxRefOk("8N70O2M4RB"), true);
+  assert.equal(trxRefOk("5291837465"), true);
+  assert.equal(trxRefOk("733423DO"), true);
+  assert.equal(trxRefOk("01711111111"), false);
   assert.equal(trxRefOk("100"), false);
   assert.equal(trxRefOk("ABC"), false);
   assert.equal(bodyHasRef("You have received Tk 1.00. TrxID 8N70O2M4RB.", "8N70O2M4RB"), true);
@@ -39,6 +42,11 @@ test("a transaction id is a whole code, not part of an amount", () => {
 test("a unique-amount message keeps its own transaction id and wallet", () => {
   const body = "You have received Tk 1.00 from 01700000000. TrxID 8N70O2M4RB.";
   assert.equal(readTrxId(body), "8N70O2M4RB");
+  assert.equal(readTrxId("TxnID: 733423DO"), "733423DO");
+  assert.equal(readTrxId("TxnId:5291837465."), "5291837465");
+  assert.equal(readBalanceTaka("Balance: Tk 4,511.38"), 4511.38);
+  assert.equal(readBalanceTaka("Balance Tk 201.00"), 201);
+  assert.equal(readBalanceTaka("A/C Balance is Tk. 600.00"), 600);
   assert.equal(readTrxId("You have received Tk 100.00."), "");
   assert.equal(readTrxId("TrxID 8N70O2M4RBEXTRAXXXXXY"), "");
   assert.equal("8N70O2M4RBEXTRAXXXXXY".length > 20, true);

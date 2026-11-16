@@ -18,6 +18,29 @@ const job = (patch: Partial<VerifyJob> = {}): VerifyJob => ({
   ...patch,
 });
 
+test("nagad and rocket payment messages keep their transaction id and balance", () => {
+  const nagad = readSmsPayment({
+    key: "nagad-1",
+    sender: "Nagad",
+    body: "Money Received.\nAmount: Tk 100.00\nSender: 01700000000\nRef: 2\nTxnID: 733423DO\nBalance: Tk 201.00",
+    receivedAt: 1_700_000_000_000,
+  });
+  assert.equal(nagad?.service, "nagad");
+  assert.equal(nagad?.trxId, "733423DO");
+  assert.equal(nagad?.amountCents, 10000);
+  assert.equal(nagad?.balanceCents, 20100);
+  const rocket = readSmsPayment({
+    key: "rocket-1",
+    sender: "16216",
+    body: "Tk.100.00 received from 01700000000. Fee Tk.0.00. Balance Tk.201.00. TxnId:5291837465.",
+    receivedAt: 1_700_000_000_000,
+  });
+  assert.equal(rocket?.service, "rocket");
+  assert.equal(rocket?.trxId, "5291837465");
+  assert.equal(rocket?.amountCents, 10000);
+  assert.equal(rocket?.balanceCents, 20100);
+});
+
 test("the payment amount is read and the SMS balance text is ignored", () => {
   assert.ok(sms);
   assert.equal(sms?.amountCents, 10000);

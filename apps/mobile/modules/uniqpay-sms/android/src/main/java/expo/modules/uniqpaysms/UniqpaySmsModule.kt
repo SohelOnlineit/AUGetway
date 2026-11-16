@@ -143,7 +143,7 @@ class UniqpaySmsModule : Module() {
   private fun isPayment(address: String, body: String): Boolean {
     if (Regex("(?i)\\botp\\b").containsMatchIn(body) || Regex("(?i)\\bverification\\s*code\\b").containsMatchIn(body)) return false
     val from = address.trim().lowercase()
-    val names = listOf("16216", "16269", "16316", "ab bank", "ab bank plc", "bank asia", "bkash", "brac bank", "cellfin", "city bank", "nagad", "rocket", "upay")
+    val names = listOf("16167", "16216", "16269", "16316", "ab bank", "ab bank plc", "bank asia", "bkash", "brac bank", "cellfin", "city bank", "dbbl", "nagad", "rocket", "upay")
     return names.any { name ->
       if (name.all { it.isDigit() }) {
         val digits = from.filter { it.isDigit() }

@@ -223,8 +223,8 @@ const CREDIT = ["received", "cash in", "deposit", "credited", "credit to"];
 function serviceOf(sender: string, body: string): Service | "" {
   const from = `${sender} ${body}`.toLowerCase();
   if (from.includes("bkash")) return "bkash";
-  if (from.includes("nagad")) return "nagad";
-  if (from.includes("rocket") || from.includes("16216")) return "rocket";
+  if (from.includes("nagad") || from.includes("16167")) return "nagad";
+  if (from.includes("rocket") || from.includes("16216") || from.includes("dbbl")) return "rocket";
   if (from.includes("upay")) return "upay";
   return "";
 }
@@ -232,8 +232,8 @@ function serviceOf(sender: string, body: string): Service | "" {
 function senderService(sender: string): Service | "" {
   const from = sender.toLowerCase();
   if (from.includes("bkash")) return "bkash";
-  if (from.includes("nagad")) return "nagad";
-  if (from.includes("rocket") || from.includes("16216")) return "rocket";
+  if (from.includes("nagad") || from.includes("16167")) return "nagad";
+  if (from.includes("rocket") || from.includes("16216") || from.includes("dbbl")) return "rocket";
   if (from.includes("upay")) return "upay";
   return "";
 }
@@ -261,7 +261,7 @@ function creditCents(body: string) {
 export function readSmsBalance(row: InboxSms): SmsBalance | null {
   const service = senderService(row.sender) || serviceOf(row.sender, row.body);
   if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;
-  const match = row.body.match(/balance\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  const match = row.body.match(/balance\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   if (!match || row.receivedAt < 1 || !row.key) return null;
   const balanceCents = moneyCents(match[1], true);
   if (balanceCents === null) return null;
@@ -289,7 +289,7 @@ export function readSmsPayment(row: InboxSms): SmsHit | null {
   if (!CREDIT.some((hint) => lower.includes(hint))) return null;
   const found = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
   const trxId = found?.[1]?.toUpperCase() ?? "";
-  if (!/^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(trxId)) return null;
+  if (!/^[A-Z0-9]{8,20}$/.test(trxId) || /^(\d)\1+$/.test(trxId) || /^01[3-9]\d{8}$/.test(trxId)) return null;
   const amountCents = creditCents(body);
   const service = senderService(row.sender) || serviceOf(row.sender, body);
   if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;

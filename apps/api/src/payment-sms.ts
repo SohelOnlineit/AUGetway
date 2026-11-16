@@ -9,6 +9,8 @@ const PAYMENT_SENDERS = [
   "BRAC BANK",
   "Cellfin",
   "CITY BANK",
+  "16167",
+  "DBBL",
   "Nagad",
   "Rocket",
   "Upay",
@@ -72,7 +74,19 @@ function walletBrand(value: string) {
 }
 
 export function trxRefOk(value: string) {
-  return /^(?=.*[A-Z])[A-Z0-9]{8,20}$/.test(value);
+  const ref = value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{8,20}$/.test(ref)) return false;
+  if (/^(\d)\1+$/.test(ref)) return false;
+  if (/^01[3-9]\d{8}$/.test(ref) || /^8801[3-9]\d{8}$/.test(ref)) return false;
+  return true;
+}
+
+export function readBalanceTaka(body: string) {
+  const match = body.match(/balance\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (!match) return null;
+  const amount = Number(match[1].replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return amount;
 }
 
 export function readTrxId(body: string) {

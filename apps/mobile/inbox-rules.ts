@@ -8,6 +8,7 @@ export type InboxRules = {
 };
 
 export const DEFAULT_SENDERS: Sender[] = [
+  "16167",
   "16216",
   "16269",
   "AB BANK",
@@ -17,6 +18,7 @@ export const DEFAULT_SENDERS: Sender[] = [
   "BRAC BANK",
   "Cellfin",
   "CITY BANK",
+  "DBBL",
   "Nagad",
   "Rocket",
   "Upay",
