@@ -47,6 +47,13 @@ test("a unique-amount message keeps its own transaction id and wallet", () => {
   assert.equal(readBalanceTaka("Balance: Tk 4,511.38"), 4511.38);
   assert.equal(readBalanceTaka("Balance Tk 201.00"), 201);
   assert.equal(readBalanceTaka("A/C Balance is Tk. 600.00"), 600);
+  assert.equal(readBalanceTaka("Bal: Tk.201.00"), 201);
+  assert.equal(readTrxId("TxnNo: 733423DO"), "733423DO");
+  assert.equal(readPaidAmount("Money Received. Fee Tk 5.00. Amount: Tk 100.00. Balance: Tk 201.00."), 100);
+  assert.equal(isDebitMessage("Money Received. Amount: Tk 100.00. Charge deducted Tk 5.00."), false);
+  assert.equal(isDebitMessage("Cash Out Tk 50.00 successful."), true);
+  assert.equal(senderFitsMethod("16167", "Money Received. Amount: Tk 10.00. TxnID: 733423DO", "Nagad Personal"), true);
+  assert.equal(senderFitsMethod("01716167111", "Money Received. Amount: Tk 10.00. TxnID: 733423DO", "Nagad Personal"), false);
   assert.equal(readTrxId("You have received Tk 100.00."), "");
   assert.equal(readTrxId("TrxID 8N70O2M4RBEXTRAXXXXXY"), "");
   assert.equal("8N70O2M4RBEXTRAXXXXXY".length > 20, true);

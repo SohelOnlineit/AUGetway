@@ -52,25 +52,35 @@ export function isPaymentSender(sender: string) {
 
 function paymentSignals(body: string) {
   return {
-    trx: /(?:trx\s*id|trxid|txn\s*id|transaction\s*id)[:\s]*[A-Z0-9]{6,}/i.test(body),
+    trx: /(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id)[:\s]*[A-Z0-9]{6,}/i.test(body),
     amount: /(?:tk|bdt|৳)\s*[0-9]/i.test(body) || /[0-9][0-9,]*\.[0-9]{2}/.test(body),
   };
 }
 
 const WALLET_BRANDS: [string, string[]][] = [
   ["bkash", ["bkash"]],
-  ["nagad", ["nagad"]],
+  ["nagad", ["nagad", "16167"]],
   ["rocket", ["rocket", "16216", "dbbl"]],
   ["upay", ["upay"]],
   ["cellfin", ["cellfin"]],
 ];
 
-const STRONG_DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to", "debited", "deducted"];
+const STRONG_DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
+const SOFT_DEBIT = ["debited", "deducted"];
 const WEAK_DEBIT = ["reserved for", "bill successfully paid", "biller:", "mobile recharge", "recharge of", "purchased", "payment of", "recharge"];
+
+function mentions(text: string, word: string) {
+  if (/^\d+$/.test(word)) {
+    const digits = text.replace(/\D/g, "");
+    const local = digits.startsWith("880") ? digits.slice(3) : digits;
+    return local === word || new RegExp(`(^|\\D)${word}(\\D|$)`).test(text);
+  }
+  return text.includes(word);
+}
 
 function walletBrand(value: string) {
   const text = value.toLowerCase();
-  return WALLET_BRANDS.find(([, words]) => words.some((word) => text.includes(word)))?.[0] ?? "";
+  return WALLET_BRANDS.find(([, words]) => words.some((word) => mentions(text, word)))?.[0] ?? "";
 }
 
 export function trxRefOk(value: string) {
@@ -82,7 +92,7 @@ export function trxRefOk(value: string) {
 }
 
 export function readBalanceTaka(body: string) {
-  const match = body.match(/balance\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  const match = body.match(/\bbal(?:ance)?\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   if (!match) return null;
   const amount = Number(match[1].replace(/,/g, ""));
   if (!Number.isFinite(amount) || amount < 0) return null;
@@ -90,20 +100,27 @@ export function readBalanceTaka(body: string) {
 }
 
 export function readTrxId(body: string) {
-  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
+  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
   if (!match) return "";
   const ref = match[1].toUpperCase();
   return trxRefOk(ref) ? ref : "";
 }
 
+function withoutSideAmounts(body: string) {
+  return body
+    .replace(/\bbal(?:ance)?[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ")
+    .replace(/\b(?:fee|comm(?:ission)?|charge)[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ");
+}
+
 export function readPaidAmount(body: string) {
+  const cleaned = withoutSideAmounts(body);
   const patterns = [
     /(?:amount|amt)\s*[:\s]\s*(?:tk|bdt|taka|৳)?\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
     /(?:received|credited|deposit|cash\s*in)[\s\S]{0,48}?(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
     /(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi,
   ];
   for (const pattern of patterns) {
-    const matches = body.matchAll(pattern);
+    const matches = cleaned.matchAll(pattern);
     for (const match of matches) {
       const amount = Number(match[1].replace(/,/g, ""));
       if (Number.isFinite(amount) && amount > 0) return amount;
@@ -121,6 +138,7 @@ export function isDebitMessage(body: string) {
   const lower = body.toLowerCase();
   if (STRONG_DEBIT.some((hint) => lower.includes(hint))) return true;
   if (isCreditMessage(body)) return false;
+  if (SOFT_DEBIT.some((hint) => lower.includes(hint))) return true;
   return WEAK_DEBIT.some((hint) => lower.includes(hint));
 }
 

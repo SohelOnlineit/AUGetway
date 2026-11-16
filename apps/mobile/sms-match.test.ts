@@ -39,6 +39,25 @@ test("nagad and rocket payment messages keep their transaction id and balance", 
   assert.equal(rocket?.trxId, "5291837465");
   assert.equal(rocket?.amountCents, 10000);
   assert.equal(rocket?.balanceCents, 20100);
+  const charged = readSmsPayment({
+    key: "nagad-fee",
+    sender: "16167",
+    body: "Money Received. Amount: Tk 100.00. Charge deducted Tk 5.00. TxnID: 733423DO. Bal: Tk 201.00",
+    receivedAt: 1_700_000_000_000,
+  });
+  assert.equal(charged?.service, "nagad");
+  assert.equal(charged?.amountCents, 10000);
+  assert.equal(charged?.balanceCents, 20100);
+  const upay = readSmsPayment({
+    key: "upay-1",
+    sender: "upay",
+    body: "You have received BDT 100.00 from 01700000000. Fee BDT 0.00. Balance: BDT 201.00. TxnID: UP12AB34CD.",
+    receivedAt: 1_700_000_000_000,
+  });
+  assert.equal(upay?.service, "upay");
+  assert.equal(upay?.trxId, "UP12AB34CD");
+  assert.equal(upay?.amountCents, 10000);
+  assert.equal(upay?.balanceCents, 20100);
 });
 
 test("the payment amount is read and the SMS balance text is ignored", () => {

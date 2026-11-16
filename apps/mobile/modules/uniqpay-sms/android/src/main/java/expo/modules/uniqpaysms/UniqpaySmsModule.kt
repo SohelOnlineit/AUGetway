@@ -153,7 +153,7 @@ class UniqpaySmsModule : Module() {
   }
 
   private fun parseTrx(body: String): String {
-    val match = Regex("(?i)(?:trx\\s*id|trxid|txn\\s*id|transaction\\s*id)[:\\s]*([A-Z0-9]{6,})").find(body)
+    val match = Regex("(?i)(?:trx\\s*id|trxid|txn\\s*id|txnid|txn\\s*no|txnno|transaction\\s*id)[:\\s]*([A-Z0-9]{6,})").find(body)
     return match?.groupValues?.getOrNull(1)?.uppercase().orEmpty()
   }
 

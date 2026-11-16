@@ -217,7 +217,8 @@ export type SmsBalance = {
   receivedAt: number;
 };
 
-const DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to", "debited", "deducted"];
+const HARD_DEBIT = ["transferred to", "transfer to", "sent to", "send money", "cash out", "payment to"];
+const SOFT_DEBIT = ["debited", "deducted"];
 const CREDIT = ["received", "cash in", "deposit", "credited", "credit to"];
 
 function serviceOf(sender: string, body: string): Service | "" {
@@ -250,8 +251,8 @@ function moneyCents(value: string, allowZero = false) {
 
 function creditCents(body: string) {
   const cleaned = body
-    .replace(/balance[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ")
-    .replace(/\bfee[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ");
+    .replace(/\bbal(?:ance)?[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ")
+    .replace(/\b(?:fee|comm(?:ission)?|charge)[\s\S]{0,24}?(?:tk|bdt|taka|৳)?\.?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, " ");
   const labeled = cleaned.match(/(?:received|credited|deposit|cash\s*in)[\s\S]{0,60}?(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   const raw = labeled?.[1] ?? cleaned.match(/(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)?.[1];
   if (!raw) return null;
@@ -261,7 +262,7 @@ function creditCents(body: string) {
 export function readSmsBalance(row: InboxSms): SmsBalance | null {
   const service = senderService(row.sender) || serviceOf(row.sender, row.body);
   if (service !== "bkash" && service !== "nagad" && service !== "rocket" && service !== "upay") return null;
-  const match = row.body.match(/balance\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  const match = row.body.match(/\bbal(?:ance)?\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   if (!match || row.receivedAt < 1 || !row.key) return null;
   const balanceCents = moneyCents(match[1], true);
   if (balanceCents === null) return null;
@@ -285,9 +286,10 @@ export function applySmsBalance(book: WalletBook, hit: SmsBalance, at: string): 
 export function readSmsPayment(row: InboxSms): SmsHit | null {
   const body = row.body.trim();
   const lower = body.toLowerCase();
-  if (!body || DEBIT.some((hint) => lower.includes(hint))) return null;
-  if (!CREDIT.some((hint) => lower.includes(hint))) return null;
-  const found = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
+  const credit = CREDIT.some((hint) => lower.includes(hint));
+  if (!body || HARD_DEBIT.some((hint) => lower.includes(hint)) || (!credit && SOFT_DEBIT.some((hint) => lower.includes(hint)))) return null;
+  if (!credit) return null;
+  const found = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
   const trxId = found?.[1]?.toUpperCase() ?? "";
   if (!/^[A-Z0-9]{8,20}$/.test(trxId) || /^(\d)\1+$/.test(trxId) || /^01[3-9]\d{8}$/.test(trxId)) return null;
   const amountCents = creditCents(body);

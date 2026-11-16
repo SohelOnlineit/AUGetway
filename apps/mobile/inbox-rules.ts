@@ -26,7 +26,7 @@ export const DEFAULT_SENDERS: Sender[] = [
 ].map((name) => ({ name, enabled: true }));
 
 export function parseTrx(body: string) {
-  const match = /(?:trx\s*id|trxid|txn\s*id|transaction\s*id)[:\s]*([A-Z0-9]{6,})/i.exec(body);
+  const match = /(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id)[:\s]*([A-Z0-9]{6,})/i.exec(body);
   return match?.[1]?.toUpperCase() ?? "";
 }
 
