@@ -84,7 +84,6 @@ class KeepAliveService : Service() {
     running = true
     worker = Thread {
       var lastPulse = 0L
-      var lastAlarm = 0L
       while (running) {
         val power = getSystemService(PowerManager::class.java)
         val held = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:keepalive")?.apply {
@@ -97,7 +96,20 @@ class KeepAliveService : Service() {
             lastPulse = now
             pulse()
           }
-          Outbound.deliver(this)
+          val started = Outbound.deliver(this)
+          try {
+            Watch.schedule(applicationContext, 15_000)
+          } catch (_: Exception) {
+            // The running loop still checks the queue on the next pass.
+          }
+          if (running) {
+            try {
+              Thread.sleep(if (started > 0) 250 else 1_000)
+            } catch (_: InterruptedException) {
+              running = false
+            }
+          }
+          started
         } catch (_: Exception) {
           0
         } finally {
@@ -108,20 +120,6 @@ class KeepAliveService : Service() {
           break
         }
         if (!running) break
-        val alarmAt = System.currentTimeMillis()
-        if (alarmAt - lastAlarm >= 60_000) {
-          lastAlarm = alarmAt
-          try {
-            Watch.schedule(applicationContext, 180_000)
-          } catch (_: Exception) {
-            // The running loop still checks the queue on the next pass.
-          }
-        }
-        try {
-          Thread.sleep(if (dispatched > 0) 250 else 1_000)
-        } catch (_: InterruptedException) {
-          break
-        }
       }
     }.apply {
       name = "uniqpay-keep"

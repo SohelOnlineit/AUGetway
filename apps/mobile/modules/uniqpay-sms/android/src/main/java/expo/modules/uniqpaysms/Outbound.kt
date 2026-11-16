@@ -114,8 +114,8 @@ object Outbound {
   private fun open(address: String, token: String, method: String): HttpURLConnection {
     return (URL(address).openConnection() as HttpURLConnection).apply {
       requestMethod = method
-      connectTimeout = 5000
-      readTimeout = 5000
+      connectTimeout = 15000
+      readTimeout = 15000
       setRequestProperty("Authorization", "Bearer $token")
       if (method == "POST") doOutput = true
     }
