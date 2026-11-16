@@ -10,7 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { paidFitsCheckout, paidFitsManual, pickUniqueAmount } from "./amount-window";
+import { paidFitsCheckout, pickUniqueAmount } from "./amount-window";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { matchWithoutWaitingForSnapshot } from "./payment-security";
@@ -1467,6 +1467,14 @@ export class PayService implements OnModuleInit {
     return day;
   }
 
+  private cleanReceipt(value: string) {
+    const image = value.replace(/\s/g, "");
+    if (!/^data:image\/(jpeg|jpg|png|webp);base64,[a-z0-9+/=]+$/i.test(image) || image.length > 400_000) {
+      throw new BadRequestException("Receipt must be a JPG, PNG, or WEBP image under the size limit");
+    }
+    return image;
+  }
+
   private cleanImage(value?: string) {
     const image = (value ?? "").replace(/\s/g, "");
     if (!image) return "";
@@ -1925,8 +1933,7 @@ export class PayService implements OnModuleInit {
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const providerRef = (input.providerRef ?? "").trim().toUpperCase();
     const payerAccount = (input.payerAccount ?? "").trim();
-    const receipt = input.receipt?.startsWith("data:image/") ? input.receipt : "";
-    if (input.receipt && !receipt) throw new BadRequestException("Receipt must be an image");
+    const receipt = input.receipt ? this.cleanReceipt(input.receipt) : "";
     if (providerRef && !trxRefOk(providerRef)) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
@@ -2026,7 +2033,7 @@ export class PayService implements OnModuleInit {
     const fit = hits.find((notice) => {
       const paid = parsePaidAmount(notice.body);
       if (paid === null) return false;
-      return paidFitsManual(paid, expected, verifyBy === "unique_amount" ? base : expected, under, over);
+      return paidFitsCheckout(paid, expected, base, under, over, verifyBy);
     });
     if (!fit) {
       if (hits.length > 0) {
@@ -2941,8 +2948,7 @@ export class PayService implements OnModuleInit {
       if (stored && smsRef && stored !== smsRef) return false;
       if (verifyBy === "sender_number") {
         if (!senderInNotice(row.payerAccount ?? "", body) || paidAmount === null) return false;
-        const paidCents = Math.round(paidAmount * 100);
-        return paidCents === Math.round(payable * 100) || paidCents === Math.round(Number(row.amount) * 100);
+        return paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);
       }
       if (verifyBy === "unique_amount") {
         if (paidAmount === null) return false;

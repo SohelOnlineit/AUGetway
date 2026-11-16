@@ -286,7 +286,7 @@ export class ProofDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(1_800_000)
+  @MaxLength(400_000)
   receipt?: string;
 }
 
