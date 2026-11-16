@@ -1,6 +1,7 @@
 package expo.modules.uniqpaysms
 
 import android.content.Context
+import android.os.PowerManager
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,7 +40,12 @@ object Outbound {
       val body = job.optString("body")
       val slot = job.optInt("simSlot")
       sender.execute {
+        val power = context.getSystemService(PowerManager::class.java)
+        val held = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:send")?.apply {
+          setReferenceCounted(false)
+        }
         val error = try {
+          held?.acquire(25_000)
           if (!alreadySent(context, id)) {
             SmsSend.send(context, to, body, slot)
             rememberSent(context, id)
@@ -53,6 +59,7 @@ object Outbound {
           if (error != null) payload.put("error", error.take(180))
           post("${base.trimEnd('/')}/handset/jobs/$id", token, payload.toString())
         } finally {
+          if (held?.isHeld == true) held.release()
           inFlight.remove(id)
         }
       }

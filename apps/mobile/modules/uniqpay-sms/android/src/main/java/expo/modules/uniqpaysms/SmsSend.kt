@@ -60,19 +60,26 @@ object SmsSend {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
         sentIntents += PendingIntent.getBroadcast(app, requests.get(), call, flags)
       }
-      try {
-        if (parts.size == 1) {
-          manager.sendTextMessage(number, null, parts[0], sentIntents[0], null)
-        } else {
-          manager.sendMultipartTextMessage(number, null, ArrayList(parts), sentIntents, null)
-        }
-      } catch (error: Exception) {
-        for (index in parts.indices) {
-          if (results[index] == null) results[index] = error.message ?: "Could not send the SMS"
-          latch.countDown()
+      val handed = CountDownLatch(1)
+      val giveToSim = Runnable {
+        try {
+          if (parts.size == 1) {
+            manager.sendTextMessage(number, null, parts[0], sentIntents[0], null)
+          } else {
+            manager.sendMultipartTextMessage(number, null, ArrayList(parts), sentIntents, null)
+          }
+        } catch (error: Exception) {
+          for (index in parts.indices) {
+            if (results[index] == null) results[index] = error.message ?: "Could not send the SMS"
+            latch.countDown()
+          }
+        } finally {
+          handed.countDown()
         }
       }
-      if (!latch.await(15, TimeUnit.SECONDS)) throw IllegalStateException("The SIM did not accept the SMS")
+      if (Looper.myLooper() == Looper.getMainLooper()) giveToSim.run() else Handler(Looper.getMainLooper()).post(giveToSim)
+      if (!handed.await(5, TimeUnit.SECONDS)) throw IllegalStateException("Could not send the SMS")
+      if (!latch.await(20, TimeUnit.SECONDS)) throw IllegalStateException("The SIM did not accept the SMS")
     } finally {
       receivers.forEach { receiver ->
         try {
