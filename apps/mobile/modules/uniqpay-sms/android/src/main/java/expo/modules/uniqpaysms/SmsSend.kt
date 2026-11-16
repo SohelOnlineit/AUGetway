@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
@@ -19,7 +20,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 object SmsSend {
-  private val main = Handler(Looper.getMainLooper())
+  private val deliveryThread = HandlerThread("uniqpay-sms-result").apply { start() }
+  private val delivery = Handler(deliveryThread.looper)
   private val requests = AtomicInteger(20)
 
   fun send(context: Context, to: String, message: String, slot: Int) {
@@ -29,6 +31,7 @@ object SmsSend {
     val number = normalize(to) ?: throw IllegalStateException("Use a Bangladesh mobile number, like 01XXXXXXXXX")
     val text = message.trim()
     if (text.length !in 1..320) throw IllegalStateException("Message must be 1 to 320 characters")
+    if (Looper.myLooper() == delivery.looper) throw IllegalStateException("Could not send the SMS")
     val manager = manager(context, if (slot == 1) 1 else 0)
     val parts = if (text.length <= 160) listOf(text) else manager.divideMessage(text)
     val app = context.applicationContext
@@ -46,7 +49,9 @@ object SmsSend {
           }
         }
         if (Build.VERSION.SDK_INT >= 33) {
-          app.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_EXPORTED)
+          app.registerReceiver(receiver, IntentFilter(action), null, delivery, Context.RECEIVER_EXPORTED)
+        } else if (Build.VERSION.SDK_INT >= 26) {
+          app.registerReceiver(receiver, IntentFilter(action), null, delivery)
         } else {
           app.registerReceiver(receiver, IntentFilter(action))
         }
@@ -55,18 +60,16 @@ object SmsSend {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
         sentIntents += PendingIntent.getBroadcast(app, requests.get(), call, flags)
       }
-      main.post {
-        try {
-          if (parts.size == 1) {
-            manager.sendTextMessage(number, null, parts[0], sentIntents[0], null)
-          } else {
-            manager.sendMultipartTextMessage(number, null, ArrayList(parts), sentIntents, null)
-          }
-        } catch (error: Exception) {
-          for (index in parts.indices) {
-            if (results[index] == null) results[index] = error.message ?: "Could not send the SMS"
-            latch.countDown()
-          }
+      try {
+        if (parts.size == 1) {
+          manager.sendTextMessage(number, null, parts[0], sentIntents[0], null)
+        } else {
+          manager.sendMultipartTextMessage(number, null, ArrayList(parts), sentIntents, null)
+        }
+      } catch (error: Exception) {
+        for (index in parts.indices) {
+          if (results[index] == null) results[index] = error.message ?: "Could not send the SMS"
+          latch.countDown()
         }
       }
       if (!latch.await(15, TimeUnit.SECONDS)) throw IllegalStateException("The SIM did not accept the SMS")

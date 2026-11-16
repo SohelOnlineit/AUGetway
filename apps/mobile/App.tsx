@@ -3,7 +3,7 @@ import { AppState, Dimensions, Keyboard, Linking, PermissionsAndroid, Platform, 
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, sendOneSms, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
+import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 import { SERVICES, applyVerified, decideWithSms, emptyBooks, formatTaka, isService, logWait, mergeRemote, mergeSms, normalizeBook, parseTaka, readSmsPayment, setBalance, type Books, type Service, type SmsHit, type VerifyJob } from "./ledger";
 
@@ -190,9 +190,7 @@ function App() {
   const statusRef = useRef<Record<string, SyncState>>({});
   const [note, setNote] = useState("Sign in with the same account you use on the desk.");
   const seenSms = useRef(new Set<string>());
-  const sentJobs = useRef(new Set<string>());
   const work = useRef(false);
-  const sending = useRef(false);
   const [busy, setBusy] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
@@ -468,17 +466,9 @@ function App() {
   }, [token, uid]);
 
   useEffect(() => {
-    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name"), readStore("uniqpay_sent_jobs")]).then(
-      ([savedToken, savedUid, savedName, savedJobs]) => {
+    Promise.all([readStore("uniqpay_token"), readStore("uniqpay_uid"), readStore("uniqpay_name")]).then(
+      ([savedToken, savedUid, savedName]) => {
         if (savedName) setName(savedName);
-        if (savedJobs) {
-          try {
-            const ids = JSON.parse(savedJobs) as string[];
-            if (Array.isArray(ids)) sentJobs.current = new Set(ids.filter((id) => typeof id === "string").slice(-100));
-          } catch {
-            // A bad saved list just means a queued SMS can be sent once more.
-          }
-        }
         const nextUid = savedUid || deviceUid();
         setUid(nextUid);
         if (!savedUid) void writeStore("uniqpay_uid", nextUid);
@@ -792,95 +782,6 @@ function App() {
     const timer = setInterval(tick, 20000);
     return () => clearInterval(timer);
   }, [token, smsReady, settingsReady]);
-
-  useEffect(() => {
-    if (!token || !uid || !smsReady) return;
-    let stop = false;
-    const confirmJob = async (id: string, ok: boolean, error?: string) => {
-      const payload = JSON.stringify({ uid, ok, ...(error ? { error } : {}) });
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const response = await fetch(`${DESK}/handset/jobs/${id}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: payload,
-          });
-          if (response.ok || response.status === 404) return;
-        } catch {
-          // The second attempt covers a short network drop after the SMS left the phone.
-        }
-      }
-    };
-    const deliver = async () => {
-      if (sending.current || AppState.currentState !== "active") return;
-      sending.current = true;
-      try {
-        let canSend = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
-        let canChooseSim = Platform.OS === "android" && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
-        if (!canSend || !canChooseSim) {
-          const granted = await allowSms();
-          canSend = granted && (await PermissionsAndroid.check("android.permission.SEND_SMS"));
-          canChooseSim = granted && (await PermissionsAndroid.check("android.permission.READ_PHONE_STATE"));
-        }
-        if (!canSend || !canChooseSim) {
-          if (!stop) setNote("Allow SMS and phone permission so this phone can send the desk message.");
-          return;
-        }
-        const response = await fetch(`${DESK}/handset/jobs?uid=${encodeURIComponent(uid)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = (await response.json().catch(() => ({}))) as { message?: string | string[]; simSlot?: number; jobs?: { id: string; to: string; body: string; simSlot: number }[] };
-        if (response.status === 401) {
-          if (!stop) void signOut();
-          return;
-        }
-        if (response.status === 404 && /^Cannot GET/i.test(problem(data, ""))) {
-          if (!stop) setNote("Update the website before this phone can send desk SMS.");
-          return;
-        }
-        if (!response.ok) return;
-        if (!stop && (data.simSlot === 0 || data.simSlot === 1)) setSimSlot(data.simSlot);
-        for (const job of data.jobs ?? []) {
-          if (AppState.currentState !== "active") return;
-          try {
-            if (!sentJobs.current.has(job.id)) {
-              await sendOneSms(job.to, job.body, job.simSlot);
-              sentJobs.current.add(job.id);
-              await writeStore("uniqpay_sent_jobs", JSON.stringify([...sentJobs.current].slice(-100)));
-            }
-            await confirmJob(job.id, true);
-            if (!stop) setNote(`Sent SMS to ${job.to} from ${job.simSlot === 1 ? "SIM 2" : "SIM 1"}.`);
-          } catch (cause) {
-            const error = cause instanceof Error ? cause.message : "Could not send the SMS";
-            await confirmJob(job.id, false, error);
-            if (!stop) setNote(error);
-          }
-        }
-      } catch {
-        if (!stop) setNote("Could not reach the desk for outgoing SMS.");
-      } finally {
-        sending.current = false;
-      }
-    };
-    let timer = 0;
-    const arm = (state: string) => {
-      if (timer) clearInterval(timer);
-      timer = 0;
-      if (stop || state !== "active") return;
-      void deliver();
-      timer = setInterval(() => {
-        if (AppState.currentState !== "active") return;
-        void deliver();
-      }, 10000);
-    };
-    arm(AppState.currentState);
-    const sub = AppState.addEventListener("change", arm);
-    return () => {
-      stop = true;
-      if (timer) clearInterval(timer);
-      sub.remove();
-    };
-  }, [token, uid, smsReady]);
 
   async function signOut() {
     try {

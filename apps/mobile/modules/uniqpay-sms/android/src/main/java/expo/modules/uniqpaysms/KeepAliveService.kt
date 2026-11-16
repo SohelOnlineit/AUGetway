@@ -91,21 +91,25 @@ class KeepAliveService : Service() {
         }
         try {
           held?.acquire(20_000)
-          if (beat == 0) ping() else if (Outbound.deliver(this) == 401) signOff()
+          if (beat == 0) {
+            if (ping() == 401) signOff()
+          } else if (Outbound.deliver(this) == 401) {
+            signOff()
+          }
         } catch (_: Exception) {
           // One failed send must not stop the watch. The next pass tries again.
         } finally {
           if (held?.isHeld == true) held.release()
         }
         if (!running) break
-        beat = (beat + 1) % 3
+        beat = (beat + 1) % 12
         try {
           Watch.schedule(applicationContext, 180_000)
         } catch (_: Exception) {
           // The running loop still checks the queue on the next pass.
         }
         try {
-          Thread.sleep(30_000)
+          Thread.sleep(5_000)
         } catch (_: InterruptedException) {
           break
         }
@@ -154,22 +158,26 @@ class KeepAliveService : Service() {
     }
   }
 
-  private fun ping() {
+  private fun ping(): Int {
     val code = Heartbeat.send(this)
     val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
     if (code == 401) {
       signOff()
-      return
+      return 401
     }
     if (Outbound.deliver(this) == 401) {
       signOff()
-      return
+      return 401
     }
-    if (code !in 200..299) return
-    val base = prefs.getString("base", null) ?: return
-    val token = prefs.getString("token", null) ?: return
-    val uid = prefs.getString("uid", null) ?: return
-    if (SmsSync.push(applicationContext, base, token, uid) == 401) signOff()
+    if (code !in 200..299) return 0
+    val base = prefs.getString("base", null) ?: return 0
+    val token = prefs.getString("token", null) ?: return 0
+    val uid = prefs.getString("uid", null) ?: return 0
+    if (SmsSync.push(applicationContext, base, token, uid) == 401) {
+      signOff()
+      return 401
+    }
+    return 0
   }
 
   private fun signOff() {
