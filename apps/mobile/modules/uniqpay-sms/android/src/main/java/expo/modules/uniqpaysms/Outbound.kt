@@ -4,9 +4,15 @@ import android.content.Context
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 object Outbound {
   private const val SENT = "uniqpay_sent_jobs"
+  private val inFlight = ConcurrentHashMap.newKeySet<String>()
+  private val sender = Executors.newFixedThreadPool(4) { runnable ->
+    Thread(runnable, "uniqpay-send").apply { isDaemon = true }
+  }
 
   fun deliver(context: Context): Int {
     val prefs = context.getSharedPreferences(KeepAliveService.PREFS, Context.MODE_PRIVATE)
@@ -23,27 +29,35 @@ object Outbound {
     } catch (_: Exception) {
       null
     } ?: return 0
+    var started = 0
     for (index in 0 until jobs.length()) {
       val job = jobs.optJSONObject(index) ?: continue
       val id = job.optString("id")
-      if (id.length < 4) continue
-      val error = if (alreadySent(context, id)) {
-        null
-      } else {
-        try {
-          SmsSend.send(context, job.optString("to"), job.optString("body"), job.optInt("simSlot"))
-          rememberSent(context, id)
+      if (id.length < 4 || !inFlight.add(id)) continue
+      started += 1
+      val to = job.optString("to")
+      val body = job.optString("body")
+      val slot = job.optInt("simSlot")
+      sender.execute {
+        val error = try {
+          if (!alreadySent(context, id)) {
+            SmsSend.send(context, to, body, slot)
+            rememberSent(context, id)
+          }
           null
         } catch (cause: Exception) {
           cause.message ?: "Could not send the SMS"
         }
+        try {
+          val payload = JSONObject().put("uid", uid).put("ok", error == null)
+          if (error != null) payload.put("error", error.take(180))
+          post("${base.trimEnd('/')}/handset/jobs/$id", token, payload.toString())
+        } finally {
+          inFlight.remove(id)
+        }
       }
-      val payload = JSONObject().put("uid", uid).put("ok", error == null)
-      if (error != null) payload.put("error", error.take(180))
-      val saved = post("${base.trimEnd('/')}/handset/jobs/$id", token, payload.toString())
-      if (saved == 401) return 401
     }
-    return 200
+    return started
   }
 
   private fun alreadySent(context: Context, id: String): Boolean {

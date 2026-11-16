@@ -2124,7 +2124,7 @@ export class PayService implements OnModuleInit {
 
   private async expireOutbound(where: { handsetId: string } | { handset: { ownerId: string } }) {
     const missed = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const staleSend = new Date(Date.now() - 20 * 1000);
+    const staleSend = new Date(Date.now() - 3 * 60 * 1000);
     await this.prisma.outboundSms.updateMany({
       where: { ...where, status: "queued", createdAt: { lt: missed } },
       data: { status: "failed", error: "The phone did not pick up this message. Open the AU-Getway app and queue it again." },
@@ -2208,7 +2208,7 @@ export class PayService implements OnModuleInit {
     const waiting = await this.prisma.outboundSms.findMany({
       where: { handsetId: handset.id, status: "queued" },
       orderBy: { createdAt: "asc" },
-      take: 1,
+      take: 8,
     });
     const jobs = [];
     for (const job of waiting) {

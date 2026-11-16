@@ -83,33 +83,37 @@ class KeepAliveService : Service() {
     if (worker?.isAlive == true) return
     running = true
     worker = Thread {
-      var beat = 0
+      var lastPulse = 0L
       while (running) {
         val power = getSystemService(PowerManager::class.java)
         val held = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "uniqpay:keepalive")?.apply {
           setReferenceCounted(false)
         }
-        try {
+        val dispatched = try {
           held?.acquire(20_000)
-          if (beat == 0) {
-            if (ping() == 401) signOff()
-          } else if (Outbound.deliver(this) == 401) {
-            signOff()
+          val now = System.currentTimeMillis()
+          if (now - lastPulse >= 60_000) {
+            lastPulse = now
+            pulse()
           }
+          Outbound.deliver(this)
         } catch (_: Exception) {
-          // One failed send must not stop the watch. The next pass tries again.
+          0
         } finally {
           if (held?.isHeld == true) held.release()
         }
+        if (dispatched == 401) {
+          signOff()
+          break
+        }
         if (!running) break
-        beat = (beat + 1) % 12
         try {
           Watch.schedule(applicationContext, 180_000)
         } catch (_: Exception) {
           // The running loop still checks the queue on the next pass.
         }
         try {
-          Thread.sleep(5_000)
+          Thread.sleep(if (dispatched > 0) 250 else 1_000)
         } catch (_: InterruptedException) {
           break
         }
@@ -158,26 +162,24 @@ class KeepAliveService : Service() {
     }
   }
 
-  private fun ping(): Int {
-    val code = Heartbeat.send(this)
-    val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-    if (code == 401) {
-      signOff()
-      return 401
+  private fun pulse() {
+    Thread {
+      val code = Heartbeat.send(this)
+      if (code == 401) {
+        signOff()
+        return@Thread
+      }
+      if (code !in 200..299) return@Thread
+      val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+      val base = prefs.getString("base", null) ?: return@Thread
+      val token = prefs.getString("token", null) ?: return@Thread
+      val uid = prefs.getString("uid", null) ?: return@Thread
+      if (SmsSync.push(applicationContext, base, token, uid) == 401) signOff()
+    }.apply {
+      name = "uniqpay-pulse"
+      isDaemon = true
+      start()
     }
-    if (Outbound.deliver(this) == 401) {
-      signOff()
-      return 401
-    }
-    if (code !in 200..299) return 0
-    val base = prefs.getString("base", null) ?: return 0
-    val token = prefs.getString("token", null) ?: return 0
-    val uid = prefs.getString("uid", null) ?: return 0
-    if (SmsSync.push(applicationContext, base, token, uid) == 401) {
-      signOff()
-      return 401
-    }
-    return 0
   }
 
   private fun signOff() {
