@@ -1,81 +1,117 @@
-# Ubuntu 22.04 / 24.04 deploy (UniqBD Pay)
+# AU-Getway হোস্ট করা
 
-This is the same VPS pattern as AmarPin: aaPanel handles Nginx and SSL only. Node and the app run through systemd. PostgreSQL is Neon, not a database installed on the VPS.
+Git: https://github.com/SohelOnlineit/Payment-Getway.git
 
-| Host | Role |
-|------|------|
-| **pay.uniqbd.com** | Desk and checkout (Next.js → `127.0.0.1:3100`) |
-| **api.pay.uniqbd.com** | Nest API → `127.0.0.1:4100` |
+aaPanel শুধু Nginx আর SSL। Node, PostgreSQL 18, আর অ্যাপ systemd দিয়ে চলে। Neon ব্যবহার হয় না। `apt install nginx` চালাবেন না। পোর্ট 3100, 4100, 5432 ফায়ারওয়ালে খুলবেন না।
 
-Install path: **`/var/www/pay.uniqbd.com`**  
-System user: **`uniqpay`**  
-Services: **`uniqpay-api`**, **`uniqpay-web`**
+| | |
+| --- | --- |
+| ওয়েবসাইট | https://pay.uniqbd.com → `127.0.0.1:3100` |
+| API | https://api.uniqbd.com → `127.0.0.1:4100` |
+| কোড | `/var/www/pay.uniqbd.com` |
+| ইউজার | `uniqpay` |
+| সার্ভিস | `uniqpay-api`, `uniqpay-web` |
+| ডাটাবেস | `uniqpay` ইউজার `uniqpay`, `127.0.0.1:5432` |
 
-AmarPin stays where it is: `/var/www/amarpin.com`, user `amarpin`, ports **3000** and **4000**. Do not point these Nginx sites at those ports. Do not `apt install nginx`. Do not open ports 3100 or 4100 in the firewall.
+AmarPin আলাদা সাইট। তার পোর্ট 3000 আর 4000। এই অ্যাপের ডাটাবেসে AmarPin-এর URL দেবেন না।
 
-Use a Neon database for UniqBD Pay. Do not put AmarPin's `AUWebsiteData` URL in this app.
+কমান্ডগুলো রুট হিসেবে, একটা শেষ হওয়ার পর পরেরটা।
 
-## 1. Clone
+## 1. ডাটাবেস
+
+পাসওয়ার্ড নিজে বসান।
 
 ```bash
-sudo mkdir -p /var/www
+sudo -u postgres /usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -c "CREATE ROLE uniqpay LOGIN PASSWORD 'CHANGE_THIS_PASSWORD'"
+```
+
+```bash
+sudo -u postgres /usr/lib/postgresql/18/bin/createdb -O uniqpay uniqpay
+```
+
+## 2. Git থেকে কোড
+
+ইউজারনেম `sohelonlineit`। পাসওয়ার্ডের জায়গায় GitHub token দিন। `git config` চালাবেন না।
+
+```bash
 sudo git clone https://github.com/SohelOnlineit/Payment-Getway.git /var/www/pay.uniqbd.com
 ```
 
-The GitHub repo is private. Clone with an account that can read it.
-
-## 2. Stack
+## 3. স্ট্যাক
 
 ```bash
-cd /var/www/pay.uniqbd.com && sudo bash deploy/ubuntu/install-stack.sh
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/install-stack.sh
 ```
-
-If this VPS already has Node 22 from AmarPin, the script keeps that Node and only adds the `uniqpay` user and the two systemd units.
-
-## 3. Environment
-
-Copy a pooled Neon connection string from the Neon console. `sslmode=require` is enough. The script removes `channel_binding`, which Node's `pg` driver does not support.
 
 ```bash
-DATABASE_URL='postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require' \
-  sudo -E bash deploy/ubuntu/prepare-env.sh
+sudo chown -R uniqpay:uniqpay /var/www/pay.uniqbd.com
 ```
 
-This writes `.env` and `apps/web/.env.production.local`. It refuses to overwrite those files. It prints the desk password once. That password is not stored in git.
+## 4. এনভায়রনমেন্ট
 
-## 4. aaPanel Nginx
-
-Add two sites and issue Let's Encrypt for each:
-
-1. **pay.uniqbd.com** — paste `deploy/ubuntu/nginx-site-snippet.conf` inside the site `server { }` block. Remove the default PHP `location /`.
-2. **api.pay.uniqbd.com** — paste `deploy/ubuntu/nginx-api-snippet.conf` the same way.
-
-Point both DNS records at this VPS before requesting certificates. Reload Nginx from the panel.
-
-## 5. Build and start
+উপরের ডাটাবেস পাসওয়ার্ড এখানে দিন। `.env` থাকলে স্ক্রিপ্ট আবার লেখে না। আউটপুটে ডেস্ক ইমেইল আর পাসওয়ার্ড একবার আসে। সেটা রেখে দিন।
 
 ```bash
-sudo bash deploy/ubuntu/redeploy.sh
+DATABASE_URL='postgresql://uniqpay:CHANGE_THIS_PASSWORD@127.0.0.1:5432/uniqpay' sudo -E bash /var/www/pay.uniqbd.com/deploy/ubuntu/prepare-env.sh pay.uniqbd.com api.uniqbd.com
 ```
 
-Later updates:
+## 5. বিল্ড এবং স্টার্ট
 
 ```bash
-cd /var/www/pay.uniqbd.com
-sudo git pull
-sudo bash deploy/ubuntu/redeploy.sh
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/redeploy.sh
 ```
 
-## 6. Check
+শেষে `verify-live: OK (API :4100, web :3100)` আসবে।
+
+## 6. aaPanel
+
+DNS-এ `pay.uniqbd.com` আর `api.uniqbd.com` এই VPS-এর IP-তে পয়েন্ট করুন। দুটো সাইটে Let's Encrypt চালু করুন।
+
+`pay.uniqbd.com` কনফিগ:
+
+- `location /api/` → `http://127.0.0.1:4100`
+- `location /` → `http://127.0.0.1:3100`
+
+`api.uniqbd.com` কনফিগ:
+
+- `location /` → `http://127.0.0.1:4100`
+
+PHP ব্লক রাখবেন না। `listen`, `server_name`, আর `ssl_certificate` প্যানেলের লাইন রাখুন। তারপর:
+
+```bash
+nginx -t && nginx -s reload
+```
+
+একই `server_name` দুই ফাইলে থাকলে Nginx একটাকে বাদ দেয়। বাকি ফাইল সরিয়ে আবার রিলোড দিন।
+
+## পরে আপডেট
+
+```bash
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com pull
+```
+
+```bash
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/redeploy.sh
+```
+
+## চেক
 
 - https://pay.uniqbd.com
-- https://api.pay.uniqbd.com/api/health
-- Desk login uses the email and password printed by `prepare-env.sh`
+- https://pay.uniqbd.com/api/health
+- https://api.uniqbd.com/api/health
 
-On a phone, set the handset app desk URL to `https://api.pay.uniqbd.com/api`.
+দুটো health-ই `{"ok":true,"service":"uniqpay"}` দেখাবে।
 
-## Logs
+ফোন অ্যাপের ডেস্ক ঠিকানা: `https://api.uniqbd.com/api`
+
+## লগ
 
 ```bash
 journalctl -u uniqpay-api -u uniqpay-web -f
 ```
+
+## ডাটাবেস ফিরিয়ে আনা
+
+`pg_dump` ফাইল সার্ভারে রাখুন: `/var/www/pay.uniqbd.com/uniqpay-restore.sql`
+
+সাইট বন্ধ করে খালি ডাটাবেসে `psql` 18 দিয়ে বসান। তারপর `uniqpay` ইউজারকে টেবিলের অনুমতি দিয়ে সার্ভিস চালু করুন। বসানোর পর লগইন ডাম্পের পুরনো ডেস্ক অ্যাকাউন্ট।
