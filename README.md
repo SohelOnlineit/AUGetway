@@ -1,6 +1,50 @@
-# AuGetway
+# AU-Getway
 
-Digital-goods marketplace for game top-ups, gift cards, and vouchers.
+AU-Getway is a digital-goods marketplace for game top-ups, gift cards, and vouchers.
+
+Repository: **https://github.com/SohelOnlineit/AU-Getway.git** (branch `main`)
+
+Live store: **https://amarpin.com**  
+API: **https://api.amarpin.com**
+
+## Git workflow (read before you push)
+
+This is the only repository for AU-Getway. Do not push this code to any other repository (for example `Payment-Getway`, which holds a different project).
+
+```bash
+git clone https://github.com/SohelOnlineit/AU-Getway.git
+cd AU-Getway
+git pull origin main          # always pull first, so your push is never rejected
+# ...make changes...
+git add -A
+git commit -m "Short description of the change"
+git push origin main
+```
+
+Rules:
+
+- If a push is rejected, run `git pull --rebase origin main`, fix any conflicts, then push again. Never force-push `main`.
+- Never commit `.env`, `.env.local`, passwords, API keys, or the `uploads/` folder. They are already in `.gitignore`; only the `*.env.example` templates belong in git.
+- On Windows, "dubious ownership" means the folder belongs to another Windows user. Fix it once with `git config --global --add safe.directory <folder path>`.
+- If `git remote -v` does not show the URL above, set it with `git remote set-url origin https://github.com/SohelOnlineit/AU-Getway.git`.
+
+## Deploy
+
+After pushing, run on the server (path and process names are in the Production section below):
+
+```bash
+cd /var/www/pay.uniqbd.com && git pull origin main && sudo bash deploy/ubuntu/redeploy.sh
+```
+
+Before the first deploy of the security update, `.env` on the server must have different, random `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values (generate with `openssl rand -base64 48`). In production the API refuses to start with placeholder or identical secrets.
+
+## Security notes
+
+- Email-verification and password-reset **codes need the account email**; failed attempts lock the code for 30 minutes after 5 tries.
+- Sign-in locks an email for 15 minutes after 10 failed attempts. Passwords need 8+ characters.
+- Payment webhooks store nothing from their body; the gateway's own verify call is the source of truth, and one invoice can settle only one order.
+- Requests other than image uploads are limited to 1 MB.
+- The web app and API send HSTS and CSP headers; nginx examples in `deploy/` include HSTS.
 
 Live store: **https://amarpin.com**  
 API: **https://api.amarpin.com**
@@ -11,7 +55,7 @@ Two public websites, one backend:
 
 | Storefront | Role |
 | --- | --- |
-| **amarpin.com** | AuGetway shop |
+| **amarpin.com** | AU-Getway shop |
 | **uniqbd.com** | Second shop, same catalog engine |
 
 Both sites use the **same PostgreSQL database**, API, live chat, and admin. Completing work on either site updates the other immediately.
