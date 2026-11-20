@@ -1,0 +1,19 @@
+---
+description: Commit and push to GitHub when a task is finished
+alwaysApply: true
+---
+
+# Push when work is finished
+
+When a task is finished and the repo has changes from that work, commit them and push to
+`origin` (`https://github.com/SohelOnlineit/AUGetway.git`), on the current branch.
+The owner allowed this permanently. Do not wait for a "push" reminder.
+
+- Check your work first (type check, unit tests, a run of what you changed). Do not push half-done work or work whose checks fail.
+- Verify `git remote get-url origin` is the URL above. If not, do not push.
+- Do not commit secrets: `.env` (not `.env.example`), passwords, tokens, `backups/`, `*.sql` dumps, `*.apk`.
+- Do not create an empty commit when there is nothing to commit.
+- Do not force-push, rewrite published history, skip hooks, or change global git config.
+- If the push is rejected, `git pull --rebase origin <branch>`. On conflicts, stop and tell the owner.
+- On Windows pass `-c safe.directory=D:/AuGetway` if git says "dubious ownership". The commit author is `Sohel <sohelonlineit@gmail.com>`.
+- After pushing, say so in one line. The live server still needs `sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh`.
