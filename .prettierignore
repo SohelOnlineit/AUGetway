@@ -1,7 +1,0 @@
-node_modules
-dist
-.next
-.turbo
-pnpm-lock.yaml
-apps/api/src/generated
-PROJECT_PLAN.md

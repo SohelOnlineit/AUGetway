@@ -1,151 +1,161 @@
-# AuGetway হোস্ট করা
+# AU-Getway হোস্ট করা
 
-Git থেকে এই VPS-এ উঠবে। ডাটাবেস এই সার্ভারের PostgreSQL। Neon নয়।
+Git: https://github.com/SohelOnlineit/Payment-Getway.git
+
+aaPanel শুধু Nginx আর SSL। Node, PostgreSQL 18, আর অ্যাপ systemd দিয়ে চলে। Neon ব্যবহার হয় না। `apt install nginx` চালাবেন না। পোর্ট 3100, 4100, 5432 ফায়ারওয়ালে খুলবেন না।
 
 | | |
 | --- | --- |
-| ওয়েবসাইট | https://pay.uniqbd.com → `127.0.0.1:3001` |
-| API | https://api.uniqbd.com → `127.0.0.1:4001` |
+| ওয়েবসাইট | https://pay.uniqbd.com → `127.0.0.1:3100` |
+| API | https://api.uniqbd.com → `127.0.0.1:4100` |
 | কোড | `/var/www/pay.uniqbd.com` |
-| ইউজার | `payuniqbd` |
-| সার্ভিস | `payuniqbd-api`, `payuniqbd-web` |
-| ডাটাবেস | `payuniqbd` ইউজার `payuniqbd`, `127.0.0.1:5432` |
-| Git | https://github.com/SohelOnlineit/AmarPin.git |
+| ইউজার | `uniqpay` |
+| সার্ভিস | `uniqpay-api`, `uniqpay-web` |
+| ডাটাবেস | `uniqpay` ইউজার `uniqpay`, `127.0.0.1:5432` |
 
-aaPanel শুধু Nginx আর SSL। `apt install nginx` চালাবেন না। পোর্ট 3001, 4001, 5432, 6379 ফায়ারওয়ালে খুলবেন না।
+AmarPin আলাদা সাইট। তার পোর্ট 3000 আর 4000। এই অ্যাপের ডাটাবেসে AmarPin-এর URL দেবেন না।
 
-`amarpin.com` আলাদা সাইট। তার ডাটাবেস ও পোর্ট এখানে ব্যবহার হবে না।
-
-নিচের কমান্ডগুলো রুট হিসেবে, একটা শেষ হওয়ার পর পরেরটা।
+কমান্ডগুলো রুট হিসেবে, একটা শেষ হওয়ার পর পরেরটা।
 
 ## 1. ডাটাবেস
 
 পাসওয়ার্ড নিজে বসান।
 
 ```bash
-sudo -u postgres /usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -c "CREATE ROLE payuniqbd LOGIN PASSWORD 'CHANGE_THIS_PASSWORD'"
+sudo -u postgres /usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -c "CREATE ROLE uniqpay LOGIN PASSWORD 'CHANGE_THIS_PASSWORD'"
 ```
 
 ```bash
-sudo -u postgres /usr/lib/postgresql/18/bin/createdb -O payuniqbd payuniqbd
+sudo -u postgres /usr/lib/postgresql/18/bin/createdb -O uniqpay uniqpay
 ```
 
 ## 2. Git থেকে কোড
 
-`/var/www/pay.uniqbd.com` আগে থেকে থাকলে ক্লোন হবে না। পেমেন্ট অ্যাপ ওই ফোল্ডারে থাকলে আগে সরিয়ে রাখুন। মুছবেন না।
-
-```bash
-mv /var/www/pay.uniqbd.com /var/www/uniqpay-app
-```
-
-```bash
-sudo git clone https://github.com/SohelOnlineit/AmarPin.git /var/www/pay.uniqbd.com
-```
-
 ইউজারনেম `sohelonlineit`। পাসওয়ার্ডের জায়গায় GitHub token দিন। `git config` চালাবেন না।
+
+```bash
+sudo git clone https://github.com/SohelOnlineit/Payment-Getway.git /var/www/pay.uniqbd.com
+```
 
 ## 3. স্ট্যাক
 
 ```bash
-cd /var/www/pay.uniqbd.com
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/install-stack.sh
 ```
 
 ```bash
-sudo bash deploy/ubuntu/install-stack.sh
-```
-
-```bash
-sudo chown -R payuniqbd:payuniqbd /var/www/pay.uniqbd.com
+sudo chown -R uniqpay:uniqpay /var/www/pay.uniqbd.com
 ```
 
 ## 4. এনভায়রনমেন্ট
 
-উপরের ডাটাবেস পাসওয়ার্ড এখানে দিন। একবার চালান। `.env` থাকলে স্ক্রিপ্ট আবার লেখে না।
+উপরের ডাটাবেস পাসওয়ার্ড এখানে দিন। `.env` থাকলে স্ক্রিপ্ট আবার লেখে না। আউটপুটে ডেস্ক ইমেইল আর পাসওয়ার্ড একবার আসে। সেটা রেখে দিন।
 
 ```bash
-cd /var/www/pay.uniqbd.com
-```
-
-```bash
-DATABASE_URL='postgresql://payuniqbd:CHANGE_THIS_PASSWORD@127.0.0.1:5432/payuniqbd' sudo -E bash deploy/ubuntu/prepare-env.sh pay.uniqbd.com api.uniqbd.com
+DATABASE_URL='postgresql://uniqpay:CHANGE_THIS_PASSWORD@127.0.0.1:5432/uniqpay' sudo -E bash /var/www/pay.uniqbd.com/deploy/ubuntu/prepare-env.sh pay.uniqbd.com api.uniqbd.com
 ```
 
 ## 5. বিল্ড এবং স্টার্ট
-
-`.env`-এ `MAIL_PROVIDER=noop` এবং `PAYMENT_SANDBOX_ENABLED=false` থাকতে হবে। Prisma টেবিল ড্রপ করতে বললে `y` দেবেন না।
 
 ```bash
 sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/redeploy.sh
 ```
 
-শেষে `verify-live: OK (API :4001, web :3001)` আসবে।
-
-খালি ডাটাবেসে অ্যাডমিন একবার:
-
-```bash
-cd /var/www/pay.uniqbd.com/apps/api
-```
-
-```bash
-export ALLOW_ADMIN_SEED=true
-```
-
-```bash
-export ADMIN_SEED_EMAIL='you@email.com'
-```
-
-```bash
-export ADMIN_SEED_PASSWORD='ChangeThisPass1'
-```
-
-পাসওয়ার্ডে বড় হাতের অক্ষর, ছোট হাতের অক্ষর, একটি সংখ্যা, অন্তত ১০ অক্ষর।
-
-```bash
-corepack pnpm seed:identity
-```
+শেষে `verify-live: OK (API :4100, web :3100)` আসবে।
 
 ## 6. aaPanel
 
-DNS-এ `pay` এবং `api` দুটো A রেকর্ড `103.114.38.211`।
+DNS-এ `pay.uniqbd.com` আর `api.uniqbd.com` এই VPS-এর IP-তে পয়েন্ট করুন। দুটো সাইটে Let's Encrypt চালু করুন।
 
-একবার:
+`pay.uniqbd.com` কনফিগ:
+
+- `location /api/` → `http://127.0.0.1:4100`
+- `location /` → `http://127.0.0.1:3100`
+
+`api.uniqbd.com` কনফিগ:
+
+- `location /` → `http://127.0.0.1:4100`
+
+PHP ব্লক রাখবেন না। `listen`, `server_name`, আর `ssl_certificate` প্যানেলের লাইন রাখুন। তারপর:
 
 ```bash
-cp /var/www/pay.uniqbd.com/deploy/ubuntu/nginx-websocket-map.conf /www/server/panel/vhost/nginx/00-amarpin-websocket-map.conf
+nginx -t && nginx -s reload
 ```
 
-তারপর প্যানেলে:
-
-- `pay.uniqbd.com` এর কনফিগে `deploy/ubuntu/nginx-site-snippet.conf` বসান। প্রক্সি `127.0.0.1:3001`।
-- নতুন সাইট `api.uniqbd.com`। কনফিগে `deploy/ubuntu/nginx-api-snippet.conf` বসান। প্রক্সি `127.0.0.1:4001`।
-- দুটোতে Let's Encrypt। তারপর Nginx রিলোড।
+একই `server_name` দুই ফাইলে থাকলে Nginx একটাকে বাদ দেয়। বাকি ফাইল সরিয়ে আবার রিলোড দিন।
 
 ## পরে আপডেট
 
 ```bash
-cd /var/www/pay.uniqbd.com
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com pull
 ```
 
 ```bash
-sudo git -c safe.directory=/var/www/pay.uniqbd.com pull
-```
-
-```bash
-sudo bash deploy/ubuntu/redeploy.sh
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/redeploy.sh
 ```
 
 ## চেক
 
+- https://pay.uniqbd.com
+- https://pay.uniqbd.com/api/health
+- https://api.uniqbd.com/api/health
+
+দুটো health-ই `{"ok":true,"service":"uniqpay"}` দেখাবে।
+
+ফোন অ্যাপের ডেস্ক ঠিকানা: `https://api.uniqbd.com/api`
+
+## লগ
+
 ```bash
-curl -fsS http://127.0.0.1:4001/api/health/ready
+journalctl -u uniqpay-api -u uniqpay-web -f
+```
+
+## ডাটাবেস ফিরিয়ে আনা
+
+`pg_dump` ফাইল সার্ভারে রাখুন: `/var/www/pay.uniqbd.com/uniqpay-restore.sql`
+
+সাইট বন্ধ করে খালি ডাটাবেসে `psql` 18 দিয়ে বসান। তারপর `uniqpay` ইউজারকে টেবিলের অনুমতি দিয়ে সার্ভিস চালু করুন। বসানোর পর লগইন ডাম্পের পুরনো ডেস্ক অ্যাকাউন্ট।
+
+## ব্যাকআপ
+
+ডেস্কের **Backups** পেজ (`/admin/backups`) থেকে ডাটাবেসের কপি সেভ, ডাউনলোড ও মুছা যায়। শুধু মূল অ্যাডমিন এটা ব্যবহার করতে পারেন।
+
+- প্রতিদিন ভোর ৫:০০টায় (Asia/Dhaka) অটো কপি সেভ হয়। সার্ভার তখন বন্ধ থাকলে চালু হওয়ার সময় একবার সেভ হয়।
+- ৬০ দিনের পুরনো কপি নিজে থেকে মুছে যায়।
+- ফাইল থাকে `/var/www/pay.uniqbd.com/backups/augetway-database-তারিখ-সময়.sql`। ফোল্ডার শুধু `uniqpay` ইউজার পড়তে পারে।
+- কপিতে সব ডেটা থাকে (পাসওয়ার্ড হ্যাশ, API কী হ্যাশ, গেটওয়ে ক্রেডেনশিয়াল সহ)। ডাউনলোড করা ফাইল নিরাপদ জায়গায় রাখুন, আর সার্ভারের বাইরেও একটা কপি রাখুন।
+
+কপি থেকে ফিরিয়ে আনতে (সাইট বন্ধ করে, স্কিমা আগে থেকে `prisma db push` করা থাকতে হবে):
+
+```bash
+sudo systemctl stop uniqpay-api uniqpay-web
 ```
 
 ```bash
-curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/
+sudo -u uniqpay psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f /var/www/pay.uniqbd.com/backups/augetway-database-তারিখ-সময়.sql
 ```
-
-লগ:
 
 ```bash
-journalctl -u payuniqbd-api -u payuniqbd-web -f
+sudo systemctl start uniqpay-api uniqpay-web
 ```
+
+ফাইলটা একটাই ট্রানজ্যাকশনে চলে। মাঝখানে ভুল হলে কিছুই বদলায় না।
+
+## Cloudflare Turnstile
+
+বট ঠেকাতে ডেস্ক লগইন এবং পাবলিক পেমেন্ট পেজে (পেমেন্ট লিংক, বিল, ট্রানজেকশন আইডি যাচাই) Cloudflare Turnstile চালানো যায়। ফোন অ্যাপের লগইনে এটা চায় না।
+
+সেটআপ (শুধু মূল অ্যাডমিন): ডেস্কে **Security Monitoring** পেজের উপরে **Cloudflare Turnstile** কার্ড।
+
+1. Cloudflare ড্যাশবোর্ডে Turnstile → Add widget। Domain-এ `pay.uniqbd.com` দিন। **Site key** আর **Secret key** কপি করুন।
+2. কার্ডে দুটো key বসিয়ে **Save keys** চাপুন।
+3. নিচের চেকটা একবার সলভ করে **Test and turn on** চাপুন। টেস্ট পাশ না করলে চালু হয় না, তাই ভুল key দিয়ে নিজে লগইন বন্ধ হয়ে যাওয়ার ভয় নেই।
+4. key বদলালে চেক নিজে থেকে বন্ধ হয়, আবার টেস্ট পাশ করে চালু করতে হয়। **Turn off** দিলে key সেভ থাকে।
+
+কখনো লগইন আটকে গেলে (যেমন Cloudflare সমস্যা বা domain বদল): সার্ভারের `/var/www/pay.uniqbd.com/.env`-এ `TURNSTILE_OFF=1` লিখে API রিস্টার্ট করুন। ঢুকে সমস্যা ঠিক করে লাইনটা মুছে আবার রিস্টার্ট করুন।
+
+```bash
+sudo systemctl restart uniqpay-api
+```
+
+নতুন টেবিল (`SecuritySettings`) `redeploy.sh`-এর `prisma db push` নিজে বানায়।

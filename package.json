@@ -1,28 +1,22 @@
 {
-  "name": "amarpin",
+  "name": "uniqpay",
   "version": "0.1.0",
   "private": true,
-  "description": "AuGetway storefront and API (Next.js 16 + NestJS 11 + Prisma 7)",
+  "description": "AU-Getway — merchant checkout desk (Next.js 16 + NestJS 11 + Prisma 7)",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @amarpin/web --filter @amarpin/api dev",
-    "dev:web": "pnpm --filter @amarpin/web dev",
-    "dev:api": "pnpm --filter @amarpin/api dev",
-    "dev:mobile": "pnpm --filter @amarpin/mobile start",
-    "dev:mobile:uniqbd": "pnpm --filter @amarpin/mobile start:uniqbd",
-    "build": "pnpm run guard:versions && pnpm --filter @amarpin/api prisma:generate && turbo run build",
-    "lint": "turbo run lint",
-    "typecheck": "pnpm --filter @amarpin/api prisma:generate && turbo run typecheck",
-    "test": "turbo run test --filter=@amarpin/api",
-    "guard:versions": "node scripts/guard-versions.mjs",
-    "dev:env-check": "node scripts/dev-env-check.mjs",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md}\""
+    "dev": "pnpm -r --parallel --filter @uniqpay/web --filter @uniqpay/api dev",
+    "dev:web": "pnpm --filter @uniqpay/web dev",
+    "dev:api": "pnpm --filter @uniqpay/api dev",
+    "dev:mobile": "pnpm --filter @uniqpay/mobile start",
+    "db:local": "pnpm --filter @uniqpay/api db:local",
+    "db:push": "pnpm --filter @uniqpay/api db:push",
+    "build": "pnpm --filter @uniqpay/api prisma:generate && pnpm -r --filter @uniqpay/api --filter @uniqpay/web build"
   },
   "devDependencies": {
-    "prettier": "3.6.2",
     "turbo": "2.11.10",
     "typescript": "5.9.3"
   }

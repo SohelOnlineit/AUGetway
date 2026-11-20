@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Write production env files. PostgreSQL is Neon; pass DATABASE_URL in the environment.
-# Usage: sudo bash deploy/ubuntu/prepare-env.sh [main-domain] [api-domain]
-# Defaults: amarpin.com and api.amarpin.com from site.env.sh
+# Write production env files. PostgreSQL is Neon. Pass DATABASE_URL in the environment.
+# Usage: DATABASE_URL='postgresql://...' sudo -E bash deploy/ubuntu/prepare-env.sh
 set -euo pipefail
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -40,50 +39,39 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-ACCESS="$(openssl rand -base64 48 | tr -d '\n')"
-REFRESH="$(openssl rand -base64 48 | tr -d '\n')"
-DATA_KEY="$(openssl rand -base64 48 | tr -d '\n')"
+# node-pg does not support channel_binding. The app keeps sslmode=require.
+DATABASE_URL="$(node -e 'const u=new URL(process.argv[1]); u.searchParams.delete("channel_binding"); process.stdout.write(u.toString())' "${DATABASE_URL}")"
+
+JWT_SECRET="$(openssl rand -hex 32)"
+ADMIN_PASSWORD="$(openssl rand -hex 18)"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@pay.uniqbd.com}"
 
 umask 077
 cat > "${ENV_FILE}" <<EOF
 NODE_ENV=production
-HOST=127.0.0.1
 PORT=${API_PORT}
-LOG_LEVEL=info
-CORS_ORIGIN=https://${MAIN},https://www.${MAIN}
+WEB_ORIGIN=https://${MAIN},https://www.${MAIN}
 API_PUBLIC_URL=https://${API_HOST}/api
-APP_PUBLIC_URL=https://${MAIN}
 DATABASE_URL="${DATABASE_URL}"
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
-REDIS_KEY_PREFIX=${REDIS_PREFIX}
-JWT_ACCESS_SECRET=${ACCESS}
-JWT_REFRESH_SECRET=${REFRESH}
-DATA_ENCRYPTION_KEY=${DATA_KEY}
-THROTTLE_TTL_MS=60000
-THROTTLE_LIMIT=120
-UPLOADS_DIR=../../uploads
-MAIL_PROVIDER=noop
-PAYMENT_SANDBOX_ENABLED=false
-ALLOW_ADMIN_SEED=false
+JWT_SECRET=${JWT_SECRET}
+ADMIN_EMAIL=${ADMIN_EMAIL}
+ADMIN_PASSWORD=${ADMIN_PASSWORD}
+NEXT_PUBLIC_API_URL=https://${API_HOST}/api
 EOF
 
 install -d -o "${APP_USER}" -g "${APP_USER}" "${ROOT}/apps/web"
 cat > "${WEB_ENV}" <<EOF
 NEXT_PUBLIC_API_URL=https://${API_HOST}/api
-NEXT_PUBLIC_WS_URL=https://${API_HOST}
-NEXT_PUBLIC_SITE_URL=https://${MAIN}
-INTERNAL_API_URL=http://127.0.0.1:${API_PORT}/api
-AUTH_JWT_ACCESS_SECRET=${ACCESS}
 EOF
 
 chown "${APP_USER}:${APP_USER}" "${ENV_FILE}" "${WEB_ENV}"
 chmod 600 "${ENV_FILE}" "${WEB_ENV}"
-unset ACCESS REFRESH DATA_KEY DATABASE_URL
 
 echo "Wrote ${ENV_FILE} and ${WEB_ENV}"
 echo "  Site:  https://${MAIN}"
 echo "  API:   https://${API_HOST}/api"
+echo "  Desk login: ${ADMIN_EMAIL}"
+echo "  Desk password: ${ADMIN_PASSWORD}"
+echo "Save that password now. It is only in the server .env, not in git."
 echo "Next: sudo bash deploy/ubuntu/redeploy.sh"
+unset JWT_SECRET ADMIN_PASSWORD DATABASE_URL

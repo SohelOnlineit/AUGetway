@@ -1,528 +1,320 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import type { AdminCustomerDetail, AdminCustomerListItem, AdminCustomerListPage } from "@amarpin/types";
-import { CustomerEditor } from "@/components/admin/CustomerEditor";
-import { AdminShell } from "@/components/admin/AdminShell";
-import { FilterMenu } from "@/components/ui/FilterMenu";
-import { useAdminSession } from "@/hooks/useAdminSession";
-import { adminFetch, can } from "@/lib/admin/api";
-import { formatBangladeshDate, isBangladeshToday } from "@/lib/datetime";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/api";
 
-type StatusFilter = "" | "ACTIVE" | "PENDING" | "SUSPENDED";
-type BalanceFilter = "" | "with" | "zero";
-type AccountKind = "customer" | "administrator";
+type Customer = { id: string; name: string; email: string | null; phone: string | null };
+type Admin = { id: string; name: string; email: string };
+type Tab = "customers" | "admins";
 
-export default function AdminCustomersPage() {
-  const { permissions, error: sessionError, loading } = useAdminSession();
-  const canAddAdmin = can(permissions, "admin:users:write");
-  const [page, setPage] = useState<AdminCustomerListPage | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [search, setSearch] = useState("");
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0] || "?").slice(0, 2).toUpperCase();
+}
+
+export default function CustomersPage() {
+  const [rows, setRows] = useState<Customer[]>([]);
+  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [canOpen, setCanOpen] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("");
-  const [joinedToday, setJoinedToday] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [editing, setEditing] = useState<AdminCustomerDetail | null>(null);
-  const [suspendId, setSuspendId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
-  const [adding, setAdding] = useState(false);
-  const [kind, setKind] = useState<AccountKind>("customer");
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<Tab>("customers");
+  const [creating, setCreating] = useState(false);
+  const [opening, setOpening] = useState<Customer | "new" | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function load() {
+    api<Customer[]>("/desk/customers")
+      .then((list) => {
+        setRows(list);
+        setReady(true);
+      })
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load"));
+    api<Admin[]>("/desk/admins")
+      .then((list) => {
+        setAdmins(list);
+        setCanOpen(true);
+      })
+      .catch(() => setCanOpen(false));
+  }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setQuery(search.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+    if (new URLSearchParams(window.location.search).get("tab") === "admins") setTab("admins");
+    load();
+  }, []);
 
-  useEffect(() => {
-    if (loading || sessionError) return;
-    let cancelled = false;
-    void (async () => {
-      const params = new URLSearchParams({ page: String(pageNumber), pageSize: "20" });
-      if (query) params.set("q", query);
-      const result = await adminFetch<AdminCustomerListPage>(`/customers?${params.toString()}`);
-      if (cancelled) return;
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      setPage(result.data);
-      setError(null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, pageNumber, query, reloadToken, sessionError]);
-
-  const rows = useMemo(() => {
-    const items = page?.items ?? [];
-    return items.filter((row) => {
-      if (statusFilter && row.status !== statusFilter) return false;
-      if (roleFilter && !row.roles.includes(roleFilter)) return false;
-      if (balanceFilter === "with" && row.walletBalanceMinor <= 0) return false;
-      if (balanceFilter === "zero" && row.walletBalanceMinor > 0) return false;
-      if (joinedToday && !isBangladeshToday(row.createdAt)) return false;
-      return true;
-    });
-  }, [balanceFilter, joinedToday, page, roleFilter, statusFilter]);
-
-  const stats = page?.stats;
-  const from = page && page.total > 0 ? (page.page - 1) * page.pageSize + 1 : 0;
-  const to = page ? Math.min(page.page * page.pageSize, page.total) : 0;
-  const allChecked = rows.length > 0 && rows.every((row) => selected.includes(row.id));
-
-  async function openEdit(id: string) {
-    const result = await adminFetch<AdminCustomerDetail>(`/customers/${id}`);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setEditing(result.data);
+  function show(next: Tab) {
+    const view = next === "admins" && canOpen ? "admins" : "customers";
+    setTab(view);
+    setQuery("");
+    setError("");
+    const url = view === "admins" ? "/admin/customers?tab=admins" : "/admin/customers";
+    window.history.replaceState(null, "", url);
   }
 
-  async function deleteCustomer(id: string) {
-    const result = await adminFetch(`/customers/${id}`, { method: "DELETE" });
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setNotice("Customer deleted.");
-    setSelected((current) => current.filter((item) => item !== id));
-    setReloadToken((value) => value + 1);
-  }
+  const view: Tab = canOpen && tab === "admins" ? "admins" : "customers";
+  const adminEmails = new Set(admins.map((row) => row.email.toLowerCase()));
+  const needle = query.trim().toLowerCase();
+  const customers = useMemo(() => {
+    if (!needle) return rows;
+    return rows.filter((row) => [row.name, row.email ?? "", row.phone ?? ""].some((value) => value.toLowerCase().includes(needle)));
+  }, [rows, needle]);
+  const deskAdmins = useMemo(() => {
+    if (!needle) return admins;
+    return admins.filter((row) => [row.name, row.email].some((value) => value.toLowerCase().includes(needle)));
+  }, [admins, needle]);
 
-  async function setStatus(row: AdminCustomerListItem, status: string) {
-    const result = await adminFetch<AdminCustomerDetail>(`/customers/${row.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReloadToken((value) => value + 1);
-  }
-
-  async function createAccount(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
-    setNotice(null);
-    const body = JSON.stringify({
-      displayName: displayName.trim() || undefined,
-      email,
-      password,
-    });
-    const result = await adminFetch<{ email: string }>(kind === "administrator" ? "/staff" : "/customers", {
-      method: "POST",
-      body,
-    });
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const phone = String(form.get("phone") ?? "").trim();
+    setBusy(true);
+    setError("");
+    try {
+      await api("/desk/customers", {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(form.get("name") ?? ""),
+          ...(email ? { email } : {}),
+          ...(phone ? { phone } : {}),
+        }),
+      });
+      setCreating(false);
+      setNote("Customer saved.");
+      show("customers");
+      load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save");
+    } finally {
+      setBusy(false);
     }
-    setDisplayName("");
-    setEmail("");
-    setPassword("");
-    setKind("customer");
-    setAdding(false);
-    setError(null);
-    setNotice(
-      kind === "administrator"
-        ? `${result.data.email} can sign in as an administrator.`
-        : `${result.data.email} can sign in as a customer.`,
-    );
-    setPageNumber(1);
-    setReloadToken((value) => value + 1);
   }
 
-  function toggleStat(next: StatusFilter, balance: BalanceFilter = "", today = false) {
-    const same = statusFilter === next && balanceFilter === balance && joinedToday === today;
-    setStatusFilter(same ? "" : next);
-    setBalanceFilter(same ? "" : balance);
-    setJoinedToday(same ? false : today);
+  async function removeAdmin(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/desk/admins/${id}`, { method: "DELETE" });
+      setAdmins((current) => current.filter((row) => row.id !== id));
+      setNote("Admin account removed.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not remove the account");
+    } finally {
+      setBusy(false);
+    }
   }
 
+  async function openAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!opening) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    setNote("");
+    try {
+      await api("/desk/admins", {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(form.get("name") ?? ""),
+          email: String(form.get("email") ?? ""),
+          password: String(form.get("password") ?? ""),
+        }),
+      });
+      setOpening(null);
+      setNote("Admin account opened. They can sign in with that email.");
+      setTab("admins");
+      window.history.replaceState(null, "", "/admin/customers?tab=admins");
+      load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not open the account");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const shown = view === "customers" ? customers.length : deskAdmins.length;
   return (
-    <AdminShell title="Customers" permissions={permissions} bare>
-      <div className="customers-page">
-        {sessionError || error ? <p className="form-error">{sessionError || error}</p> : null}
-        {notice ? <p className="customers-notice">{notice}</p> : null}
-        <section className="customers-card">
-          <header className="customers-head">
-            <div className="customers-head-copy">
-              <span>
-                <UsersIcon />
-              </span>
-              <div>
-                <h1>Customer list</h1>
-                <p>{page ? `Showing ${from}–${to} of ${page.total} customers` : "Loading customers…"}</p>
-              </div>
-            </div>
-            <button type="button" className="customers-add" onClick={() => { setAdding(true); setError(null); }}>
-              Add account
-            </button>
-          </header>
+    <div className="people-page">
+      <header className="people-hero">
+        <div>
+          <p className="keys-crumb">Desk <span>›</span> Customers</p>
+          <h2>Customers</h2>
+          <p className="muted">People who pay through this desk, and the admins who sign in to it.</p>
+        </div>
+        <div className="people-actions">
+          {canOpen ? <button className="people-ghost" type="button" onClick={() => { setOpening("new"); setError(""); }}>Open admin</button> : null}
+          <button className="people-new" type="button" onClick={() => { setCreating(true); setError(""); }}>New customer</button>
+        </div>
+      </header>
+      {note ? <p className="people-note">{note}</p> : null}
+      {!creating && !opening && error ? <p className="error">{error}</p> : null}
 
-          {stats ? (
-            <div className="customers-stats">
-              <Stat label="Total customers" value={String(stats.total)} meta="Registered accounts" tone="brand" on={statusFilter === "" && !joinedToday && balanceFilter === ""} onClick={() => toggleStat("")} icon={<UsersIcon />} />
-              <Stat label="Active" value={String(stats.active)} meta="Verified & enabled" tone="success" on={statusFilter === "ACTIVE"} onClick={() => toggleStat("ACTIVE")} icon={<CheckIcon />} />
-              <Stat label="Pending" value={String(stats.pending)} meta="Awaiting verification" tone="amber" on={statusFilter === "PENDING"} onClick={() => toggleStat("PENDING")} icon={<PulseIcon />} />
-              <Stat label="With balance" value={String(stats.withBalance)} meta={`${taka(stats.walletMinor)} total wallet`} tone="brand" on={balanceFilter === "with"} onClick={() => toggleStat("", "with")} icon={<WalletIcon />} />
-              <Stat label="Banned" value={String(stats.suspended)} meta="Blocked from storefront" tone="brand" on={statusFilter === "SUSPENDED"} onClick={() => toggleStat("SUSPENDED")} icon={<ShieldIcon />} />
-              <Stat label="Joined today" value={String(stats.joinedToday)} meta="New registrations" tone="brand" on={joinedToday} onClick={() => toggleStat("", "", true)} icon={<GridIcon />} />
-            </div>
-          ) : null}
-
-          <div className="customers-filters">
-            <label>
-              <span><SearchIcon /> Search</span>
-              <input value={search} placeholder="Email, name or phone..." onChange={(event) => { setSearch(event.target.value); setPageNumber(1); }} />
-            </label>
-            <label>
-              Status
-              <FilterMenu
-                label="Status"
-                value={statusFilter}
-                onChange={(value) => setStatusFilter(value as StatusFilter)}
-                options={[
-                  { value: "", label: "All statuses" },
-                  { value: "ACTIVE", label: "Active" },
-                  { value: "PENDING", label: "Pending" },
-                  { value: "SUSPENDED", label: "Suspended" },
-                ]}
-              />
-            </label>
-            <label>
-              Role
-              <FilterMenu
-                label="Role"
-                value={roleFilter}
-                onChange={setRoleFilter}
-                options={[
-                  { value: "", label: "All roles" },
-                  { value: "CUSTOMER", label: "Customer" },
-                  { value: "VIP", label: "VIP" },
-                  { value: "RESELLER", label: "Reseller" },
-                  { value: "AFFILIATE", label: "Affiliate" },
-                  { value: "SUPPLIER", label: "Supplier" },
-                  { value: "EDITOR", label: "Editor" },
-                  { value: "ADMINISTRATOR", label: "Administrator" },
-                ]}
-              />
-            </label>
-            <label>
-              Balance
-              <FilterMenu
-                label="Balance"
-                value={balanceFilter}
-                onChange={(value) => setBalanceFilter(value as BalanceFilter)}
-                options={[
-                  { value: "", label: "All balances" },
-                  { value: "with", label: "With balance" },
-                  { value: "zero", label: "Zero balance" },
-                ]}
-              />
-            </label>
-          </div>
-
-          <div className="customers-table-wrap">
-            <table className="customers-table">
-              <thead>
-                <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      checked={allChecked}
-                      onChange={() => setSelected(allChecked ? [] : rows.map((row) => row.id))}
-                      aria-label="Select customers on this page"
-                    />
-                  </th>
-                  <th>Customer</th>
-                  <th>Roles</th>
-                  <th>Status</th>
-                  <th>Verified</th>
-                  <th>Balance</th>
-                  <th>Joined</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(row.id)}
-                        onChange={() =>
-                          setSelected((current) =>
-                            current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id],
-                          )
-                        }
-                        aria-label={`Select ${row.email}`}
-                      />
-                    </td>
-                    <td>
-                      <strong>{row.displayName?.trim() || row.email.split("@")[0]}</strong>
-                      <small>{row.email}</small>
-                      <em>{(row.roles[0] ?? "CUSTOMER").toLowerCase()}</em>
-                    </td>
-                    <td>{roleLabel(row.roles[0])}</td>
-                    <td>
-                      <select
-                        className={`customers-status customers-status--${row.status.toLowerCase()}`}
-                        value={row.status === "DELETED" ? "SUSPENDED" : row.status}
-                        onChange={(event) => void setStatus(row, event.target.value)}
-                      >
-                        <option value="ACTIVE">Active</option>
-                        <option value="PENDING">Pending</option>
-                        <option value="SUSPENDED">Suspended</option>
-                      </select>
-                    </td>
-                    <td>{row.emailVerified ? "Yes" : "No"}</td>
-                    <td>{taka(row.walletBalanceMinor)}</td>
-                    <td>{formatBangladeshDate(row.createdAt, true)}</td>
-                    <td className="customers-actions">
-                      <button type="button" onClick={() => void openEdit(row.id)}>
-                        Edit
-                      </button>
-                      <button type="button" className="is-danger" onClick={() => setSuspendId(row.id)}>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {page && page.total > page.pageSize ? (
-            <div className="customers-pager">
-              <button type="button" disabled={page.page <= 1} onClick={() => setPageNumber((value) => value - 1)}>
-                Previous
-              </button>
-              <span>
-                Page {page.page} of {Math.ceil(page.total / page.pageSize)}
-              </span>
-              <button
-                type="button"
-                disabled={page.page * page.pageSize >= page.total}
-                onClick={() => setPageNumber((value) => value + 1)}
-              >
-                Next
-              </button>
-            </div>
-          ) : null}
-        </section>
+      <div className="people-stats">
+        <button type="button" className={view === "customers" ? "people-stat on" : "people-stat"} onClick={() => show("customers")}>
+          <span className="people-stat-ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.5 1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.5 19c.4-2.4 2.2-4 4.5-4s4.1 1.6 4.5 4M16 15.2c1.7.3 3.1 1.4 3.6 3.3" /></svg>
+          </span>
+          <span>
+            <strong>{ready ? rows.length : "—"}</strong>
+            <small>Customers</small>
+          </span>
+        </button>
+        {canOpen ? (
+          <button type="button" className={view === "admins" ? "people-stat on" : "people-stat"} onClick={() => show("admins")}>
+            <span className="people-stat-ico admin" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 3 5 6v5c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
+            </span>
+            <span>
+              <strong>{admins.length}</strong>
+              <small>Admins</small>
+            </span>
+          </button>
+        ) : null}
       </div>
 
-      {adding ? (
-        <div className="customer-modal" role="presentation" onClick={() => setAdding(false)}>
-          <form
-            className="customers-create"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Add account"
-            onClick={(event) => event.stopPropagation()}
-            onSubmit={(event) => void createAccount(event)}
-          >
-            <h2>Add account</h2>
-            <p>The password is set here and is not shown again. The account can sign in right away.</p>
-            <div className="customers-kind" role="tablist" aria-label="Account type">
-              <button type="button" className={kind === "customer" ? "is-on" : ""} onClick={() => setKind("customer")}>
-                Customer
-              </button>
-              {canAddAdmin ? (
-                <button type="button" className={kind === "administrator" ? "is-on" : ""} onClick={() => setKind("administrator")}>
-                  Administrator
-                </button>
-              ) : null}
+      <section className="people-board">
+        <div className="people-bar">
+          {canOpen ? (
+            <div className={`people-switch${view === "admins" ? " admins" : ""}`} role="tablist" aria-label="Account list">
+              <i />
+              <button type="button" role="tab" aria-selected={view === "customers"} onClick={() => show("customers")}>Customers</button>
+              <button type="button" role="tab" aria-selected={view === "admins"} onClick={() => show("admins")}>Admins</button>
             </div>
-            <label>
-              Name
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Sohel" maxLength={80} />
-            </label>
-            <label>
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@gmail.com" required autoComplete="off" />
-            </label>
-            <label>
-              Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" required minLength={8} autoComplete="new-password" />
-            </label>
-            <div className="customers-create-actions">
-              <button type="button" onClick={() => setAdding(false)}>Cancel</button>
-              <button type="submit" className="customers-add" disabled={saving}>
-                {saving ? "Saving…" : kind === "administrator" ? "Add administrator" : "Add customer"}
-              </button>
+          ) : <span className="people-switch-label">Directory</span>}
+          <label className="keys-search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+            <input value={query} placeholder={view === "admins" ? "Search admins" : "Search name, email, or phone"} aria-label="Search" onChange={(event) => setQuery(event.target.value)} />
+          </label>
+          <span className="people-count">{shown} shown</span>
+        </div>
+
+        {view === "customers" ? (
+          <div className="people-list" key="customers">
+            {customers.map((row, index) => {
+              const opened = Boolean(row.email && adminEmails.has(row.email.toLowerCase()));
+              return (
+                <article className="people-row" key={row.id} style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}>
+                  <span className="people-avatar" aria-hidden="true">{initials(row.name)}</span>
+                  <div className="people-id">
+                    <strong>{row.name}</strong>
+                    <p>
+                      <span>{row.email || "No email"}</span>
+                      {row.phone ? <span>{row.phone}</span> : null}
+                    </p>
+                  </div>
+                  {canOpen ? (
+                    opened ? <span className="people-chip">Admin open</span> : (
+                      <button className="people-open" type="button" onClick={() => { setOpening(row); setError(""); }}>Open admin</button>
+                    )
+                  ) : <span className="people-chip quiet">Customer</span>}
+                </article>
+              );
+            })}
+            {ready && customers.length === 0 ? (
+              <div className="people-empty">
+                <span className="people-empty-mark" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.5 1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.5 19c.4-2.4 2.2-4 4.5-4s4.1 1.6 4.5 4" /></svg>
+                </span>
+                <strong>{needle ? "No matches" : "No customers yet"}</strong>
+                <p>{needle ? "Nothing in this list matches that search." : "Add the first customer with the button above."}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="people-list" key="admins">
+            {deskAdmins.map((row, index) => (
+              <article className="people-row admin" key={row.id} style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}>
+                <span className="people-avatar admin" aria-hidden="true">{initials(row.name)}</span>
+                <div className="people-id">
+                  <strong>{row.name}</strong>
+                  <p><span>{row.email}</span></p>
+                </div>
+                <button className="people-remove" type="button" disabled={busy} onClick={() => void removeAdmin(row.id)}>Remove</button>
+              </article>
+            ))}
+            {deskAdmins.length === 0 ? (
+              <div className="people-empty">
+                <span className="people-empty-mark" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 12a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM5.5 19.2c.5-2.6 2.8-4.2 6.5-4.2s6 1.6 6.5 4.2" /></svg>
+                </span>
+                <strong>{needle ? "No matches" : "No admin accounts yet"}</strong>
+                <p>{needle ? "Nothing in this list matches that search." : "An admin signs in to this same desk and sees the same payments."}</p>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      {creating ? (
+        <div className="modal-back people-shade" onClick={() => setCreating(false)}>
+          <form className="modal dev-modal people-dialog" onClick={(event) => event.stopPropagation()} onSubmit={onSubmit}>
+            <div className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Customers</p>
+                <h2>New customer</h2>
+              </div>
+            </div>
+            <div className="dev-modal-body">
+              <label>
+                <span>Name</span>
+                <input name="name" required minLength={2} maxLength={80} />
+              </label>
+              <label>
+                <span>Email address</span>
+                <input name="email" type="email" maxLength={120} />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" maxLength={20} />
+              </label>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
+            <div className="dev-modal-actions">
+              <button className="btn ghost" type="button" onClick={() => setCreating(false)}>Cancel</button>
+              <button className="btn" type="submit" disabled={busy}>Create</button>
             </div>
           </form>
         </div>
       ) : null}
-
-      {editing ? (
-        <div className="customer-modal" role="presentation" onClick={onClose}>
-          <div role="dialog" aria-modal="true" aria-label="Edit customer" onClick={(event) => event.stopPropagation()}>
-            <CustomerEditor
-              customer={editing}
-              onClose={() => setEditing(null)}
-              onSaved={() => setReloadToken((value) => value + 1)}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {suspendId ? (
-        <div className="customer-modal" role="presentation" onClick={() => setSuspendId(null)}>
-          <div className="customer-warn" role="alertdialog" aria-modal="true" aria-label="Delete customer" onClick={(event) => event.stopPropagation()}>
-            <h2>Delete this customer?</h2>
-            <p>The account leaves this list and can no longer sign in. Past orders stay in order history.</p>
-            <div>
-              <button type="button" onClick={() => setSuspendId(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="is-danger"
-                onClick={() => {
-                  const id = suspendId;
-                  setSuspendId(null);
-                  void deleteCustomer(id);
-                }}
-              >
-                Delete
-              </button>
+      {opening ? (
+        <div className="modal-back people-shade" onClick={() => setOpening(null)}>
+          <form className="modal dev-modal people-dialog" onClick={(event) => event.stopPropagation()} onSubmit={openAdmin}>
+            <div className="dev-modal-head">
+              <div>
+                <p className="keys-crumb">Desk admin</p>
+                <h2>Open admin account</h2>
+              </div>
             </div>
-          </div>
+            <div className="dev-modal-body">
+              <p className="muted">They sign in to this same desk and see the same payments.</p>
+              <label>
+                <span>Name</span>
+                <input name="name" required minLength={2} maxLength={80} defaultValue={opening === "new" ? "" : opening.name} />
+              </label>
+              <label>
+                <span>Email</span>
+                <input name="email" type="email" required maxLength={120} defaultValue={opening === "new" ? "" : opening.email ?? ""} autoComplete="off" />
+              </label>
+              <label>
+                <span>Password</span>
+                <input name="password" type="password" required minLength={8} maxLength={80} autoComplete="new-password" />
+              </label>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
+            <div className="dev-modal-actions">
+              <button className="btn ghost" type="button" onClick={() => setOpening(null)}>Cancel</button>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Opening…" : "Open account"}</button>
+            </div>
+          </form>
         </div>
       ) : null}
-    </AdminShell>
-  );
-
-  function onClose() {
-    setEditing(null);
-  }
-}
-
-function Stat({
-  label,
-  value,
-  meta,
-  tone,
-  on,
-  onClick,
-  icon,
-}: {
-  label: string;
-  value: string;
-  meta: string;
-  tone: "brand" | "success" | "amber";
-  on: boolean;
-  onClick: () => void;
-  icon: ReactNode;
-}) {
-  return (
-    <button type="button" className={`customers-stat customers-stat--${tone}${on ? " is-on" : ""}`} onClick={onClick}>
-      <span>{icon}</span>
-      <div>
-        <p>{label}</p>
-        <strong>{value}</strong>
-        <small>{meta}</small>
-      </div>
-    </button>
-  );
-}
-
-function roleLabel(role: string | undefined) {
-  const labels: Record<string, string> = {
-    CUSTOMER: "Customer",
-    VIP: "VIP",
-    RESELLER: "Reseller",
-    AFFILIATE: "Affiliate",
-    SUPPLIER: "Supplier",
-    EDITOR: "Editor",
-    ADMINISTRATOR: "Administrator",
-  };
-  return labels[role ?? "CUSTOMER"] ?? role;
-}
-
-function taka(minor: number) {
-  const major = minor / 100;
-  const text = Number.isInteger(major)
-    ? major.toLocaleString("en-US")
-    : major.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${text}৳`;
-}
-
-function UsersIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <circle cx="9" cy="8" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M4.5 17.5c.8-2.2 2.5-3.3 4.5-3.3s3.7 1.1 4.5 3.3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <circle cx="16" cy="8.5" r="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M16 14.2c1.7.2 3 1.2 3.6 3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="m8.2 12.2 2.4 2.4 5.2-5.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function PulseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M3 12h4l2-5 3 10 2-5h7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function WalletIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <rect x="3.5" y="6.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M3.5 10h17M15.5 14.2h2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M12 3.5 19 6.2v5.4c0 4.2-2.8 6.8-7 8.4-4.2-1.6-7-4.2-7-8.4V6.2L12 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
-  );
-}
-
-function GridIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <rect x="4" y="4" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <rect x="14" y="4" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <rect x="4" y="14" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <rect x="14" y="14" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="m16 16 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
+    </div>
   );
 }
