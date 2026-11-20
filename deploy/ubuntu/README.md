@@ -1,6 +1,6 @@
 # AU-Getway হোস্ট করা
 
-Git: https://github.com/SohelOnlineit/Payment-Getway.git
+Git: https://github.com/SohelOnlineit/AUGetway.git
 
 aaPanel শুধু Nginx আর SSL। Node, PostgreSQL 18, আর অ্যাপ systemd দিয়ে চলে। Neon ব্যবহার হয় না। `apt install nginx` চালাবেন না। পোর্ট 3100, 4100, 5432 ফায়ারওয়ালে খুলবেন না।
 
@@ -34,7 +34,7 @@ sudo -u postgres /usr/lib/postgresql/18/bin/createdb -O uniqpay uniqpay
 ইউজারনেম `sohelonlineit`। পাসওয়ার্ডের জায়গায় GitHub token দিন। `git config` চালাবেন না।
 
 ```bash
-sudo git clone https://github.com/SohelOnlineit/Payment-Getway.git /var/www/pay.uniqbd.com
+sudo git clone https://github.com/SohelOnlineit/AUGetway.git /var/www/pay.uniqbd.com
 ```
 
 ## 3. স্ট্যাক
@@ -84,15 +84,53 @@ nginx -t && nginx -s reload
 
 একই `server_name` দুই ফাইলে থাকলে Nginx একটাকে বাদ দেয়। বাকি ফাইল সরিয়ে আবার রিলোড দিন।
 
-## পরে আপডেট
+## পরে আপডেট (এক কমান্ড)
+
+কম্পিউটার থেকে `git push` করার পর সার্ভারে SSH করে শুধু এটা চালান। স্ক্রিপ্ট GitHub থেকে নতুন কোড আনে, তারপর `redeploy.sh` দিয়ে ইনস্টল, ডাটাবেস স্কিমা, বিল্ড, রিস্টার্ট ও চেক করে। `.env`, ডাটাবেসের ডেটা আর `backups` ফোল্ডার ছোঁয় না।
 
 ```bash
-sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com pull
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh
+```
+
+GitHub ইউজারনেম আর পাসওয়ার্ড চাইলে ইউজারনেম `sohelonlineit`, পাসওয়ার্ডের জায়গায় GitHub token দিন।
+
+শুরুতেই স্ক্রিপ্ট দেখে নেয় `.env`-এর `JWT_SECRET` কমপক্ষে ৩২ অক্ষরের কি না। না হলে কিছু বদলানোর আগেই থেমে যায়, কারণ নতুন API এমন secret নিয়ে চালু হয় না। বদলানোর কমান্ড: `openssl rand -hex 32` (বদলালে সবাই সাইন-আউট হবে)।
+
+### রিপোজিটরি সরানোর পর প্রথমবার (একবারই)
+
+কোড এখন `AUGetway` রিপোজিটরিতে। সার্ভারের পুরনো কপির ইতিহাস আলাদা, তাই স্ক্রিপ্ট প্রথমবার থেমে গিয়ে একটা কমান্ড দেখাবে। সার্ভারে কোডে নিজে কোনো এডিট না থাকলে সেটাই চালান, তারপর আবার `update.sh`:
+
+```bash
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com reset --hard origin/main
+```
+
+```bash
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh
+```
+
+এটা শুধু কোডের ফাইল (git-এ থাকা) বদলায়। `.env`, `backups` আর ডাটাবেস নিরাপদ থাকে।
+
+### আপডেট ঠিক হলো কি না
+
+```bash
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com log -1 --oneline
+```
+
+আর `verify-live: OK` ও https://pay.uniqbd.com/api/health দেখুন।
+
+### কিছু ভাঙলে আগের কোডে ফেরা
+
+আপডেটের আগের commit-এর নাম (স্ক্রিপ্টের `Code আগের -> পরের` লাইনে দেখায়) দিয়ে:
+
+```bash
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com reset --hard আগের_commit
 ```
 
 ```bash
 sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/redeploy.sh
 ```
+
+ডাটাবেসে শুধু নতুন টেবিল/কলাম যোগ হয় (`prisma db push`), কিছু মোছা হয় না, তাই আগের কোডে ফেরা নিরাপদ।
 
 ## চেক
 
