@@ -46,9 +46,6 @@ Before the first deploy of the security update, `.env` on the server must have d
 - Requests other than image uploads are limited to 1 MB.
 - The web app and API send HSTS and CSP headers; nginx examples in `deploy/` include HSTS.
 
-Live store: **https://amarpin.com**  
-API: **https://api.amarpin.com**
-
 ## Multi-storefront (one database)
 
 Two public websites, one backend:
