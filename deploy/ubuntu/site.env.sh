@@ -1,9 +1,14 @@
-# Shared production paths for the same Ubuntu + aaPanel server as amarpin.com.
-# AmarPin keeps ports 3000 and 4000. UniqBD Pay uses 3100 and 4100.
+# Shared production paths and hostnames for the AuGetway shop on pay.uniqbd.com.
+# This copy runs beside the existing amarpin.com site. Do not reuse its ports or database.
 
-APP_USER="uniqpay"
+APP_USER="payuniqbd"
 APP_ROOT="/var/www/pay.uniqbd.com"
 MAIN_DOMAIN="pay.uniqbd.com"
-API_DOMAIN="api.pay.uniqbd.com"
-WEB_PORT="3100"
-API_PORT="4100"
+API_DOMAIN="api.uniqbd.com"
+DB_USER="payuniqbd"
+DB_NAME="payuniqbd"
+REDIS_PREFIX="payuniqbd:"
+API_PORT="4001"
+WEB_PORT="3001"
+API_SERVICE="payuniqbd-api"
+WEB_SERVICE="payuniqbd-web"

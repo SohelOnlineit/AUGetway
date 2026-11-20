@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "originChannel" TEXT NOT NULL DEFAULT 'DIRECT';

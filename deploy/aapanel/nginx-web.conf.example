@@ -1,0 +1,51 @@
+# Do not use this file. One domain and its SSL stay in aaPanel.
+# Proxy snippet: deploy/ubuntu/nginx-site-snippet.conf
+# Replace YOUR_DOMAIN with the real apex domain when applying on the server.
+# TLS: terminate with aaPanel Let's Encrypt; keep these as HTTPS server blocks.
+
+upstream amarpin_web {
+  server 127.0.0.1:3000;
+  keepalive 16;
+}
+
+# HTTP → HTTPS redirect (placeholder)
+server {
+  listen 80;
+  listen [::]:80;
+  server_name YOUR_DOMAIN www.YOUR_DOMAIN;
+  return 301 https://YOUR_DOMAIN$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name YOUR_DOMAIN www.YOUR_DOMAIN;
+
+  # aaPanel / Let's Encrypt paths (adjust if your panel uses different locations)
+  ssl_certificate     /www/server/panel/vhost/cert/YOUR_DOMAIN/fullchain.pem;
+  ssl_certificate_key /www/server/panel/vhost/cert/YOUR_DOMAIN/privkey.pem;
+
+  client_max_body_size 8m;
+
+  # Security headers (tune CSP later with the storefront)
+  add_header X-Content-Type-Options nosniff always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  add_header X-Frame-Options SAMEORIGIN always;
+
+  location / {
+    proxy_pass http://amarpin_web;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+}
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=AmarPin web
+After=network-online.target amarpin-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=amarpin
+Group=amarpin
+WorkingDirectory=/var/www/amarpin.com/apps/web
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/amarpin.com/apps/web/.env.production.local
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start --port 3000 --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

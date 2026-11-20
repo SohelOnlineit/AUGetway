@@ -1,0 +1,12 @@
+# Install on Ubuntu as /etc/logrotate.d/amarpin (example only).
+
+/var/www/amarpin.com/deploy/aapanel/logs/*.log {
+  weekly
+  rotate 8
+  compress
+  delaycompress
+  missingok
+  notifempty
+  copytruncate
+  create 0640 www www
+}

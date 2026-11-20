@@ -1,0 +1,21 @@
+[Unit]
+Description=AuGetway API
+After=network-online.target redis-server.service
+Wants=network-online.target redis-server.service
+
+[Service]
+Type=simple
+User=payuniqbd
+Group=payuniqbd
+WorkingDirectory=/var/www/pay.uniqbd.com/apps/api
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=4001
+EnvironmentFile=/var/www/pay.uniqbd.com/.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

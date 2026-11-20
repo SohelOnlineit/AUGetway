@@ -1,68 +1,132 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { api } from "@/lib/api";
-import { applySiteChrome, type PublicSite } from "@/lib/site";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import type { PublicProductSummary } from "@amarpin/types";
+import { HomePosterSlider } from "@/components/storefront/HomePosterSlider";
+import { HomeProductCard } from "@/components/storefront/HomeProductCard";
+import { StorefrontShell } from "@/components/storefront/StorefrontShell";
+import {
+  CatalogApiError,
+  fetchHomepage,
+  fetchSiteContent,
+} from "@/lib/catalog/api";
+import {
+  jsonLdHtml,
+  metadataForFixedRoute,
+  organizationJsonLd,
+  publicAssetUrl,
+  resolveSiteOrigin,
+  websiteJsonLd,
+} from "@/lib/catalog/seo";
+
+export const revalidate = 60;
+
+function sectionHref(products: PublicProductSummary[]) {
+  const slugs = new Set(products.map((product) => product.category.slug));
+  if (slugs.size === 1) {
+    const slug = products[0]?.category.slug;
+    if (slug) return `/category/${slug}`;
+  }
+  return "/products";
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const site = await fetchSiteContent();
+  return metadataForFixedRoute(site, "HOME", {
+    title: site.defaultSeoTitle || site.siteName,
+    description:
+      site.defaultSeoDescription || site.tagline || "Browse published digital products on AuGetway.",
+    path: "/",
+  });
+}
 
 export default function HomePage() {
-  const [site, setSite] = useState<PublicSite | null>(null);
-  useEffect(() => {
-    api<PublicSite>("/public/site").then(setSite).catch(() => undefined);
-  }, []);
-  useEffect(() => {
-    applySiteChrome(site, { layout: true });
-  }, [site]);
-  const brand = !site?.brandName || site.brandName === "UniqBD Pay" ? "AU-Getway" : site.brandName;
   return (
-    <main className="wrap">
-      <header className="top">
-        <Link href="/" className="brand">
-          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : <span className="mark">{brand.slice(0, 1)}</span>}
-          {brand}
-        </Link>
-        <nav className="nav">
-          <a href="#flow">How it works</a>
-          <ThemeToggle />
-        </nav>
-      </header>
-      <section className="hero">
-        <div>
-          <p className="kicker">Pay desk for AU-Getway</p>
-          <h1>Collect a payment without handing over your store.</h1>
-          <p className="lede">
-            Create a checkout, send the customer a link, and confirm it from the desk or from the AU-Getway app on your own Android phone.
-          </p>
-          <div className="row">
-            <a href="#flow" className="btn">See the flow</a>
-          </div>
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="storefront">
+      <div className="storefront-main">
+        <div className="home-hero home-skeleton-pulse" aria-hidden />
+        <div className="home-product-row">
+          {Array.from({ length: 12 }, (_, index) => (
+            <div key={index} className="catalog-tile home-skeleton-card home-skeleton-pulse" />
+          ))}
         </div>
-        <aside className="receipt">
-          <header>
-            <span>{brand}</span>
-            <span>Checkout</span>
-          </header>
-          <div className="amount">৳ 1,250.00</div>
-          <p className="muted">Reference · store order</p>
-          <div className="rule" />
-          <p>Customer pays the number you publish. You confirm the wallet reference. The order is marked paid on this desk.</p>
-        </aside>
-      </section>
-      <section className="steps" id="flow">
-        <article className="card">
-          <strong>1. Open a checkout</strong>
-          <p>Set the amount and reference from the desk, a bill, a payment link, or your own server key.</p>
-        </article>
-        <article className="card">
-          <strong>2. Customer pays</strong>
-          <p>They pick a wallet method, send the exact payable amount, and type the transaction reference.</p>
-        </article>
-        <article className="card">
-          <strong>3. You confirm</strong>
-          <p>Mark it paid on the desk, or paste the payment message from your own phone in the handset app.</p>
-        </article>
-      </section>
-    </main>
+      </div>
+    </div>
+  );
+}
+
+async function HomeContent() {
+  const sitePromise = fetchSiteContent();
+  let data: Awaited<ReturnType<typeof fetchHomepage>> | null = null;
+  let loadError: string | null = null;
+
+  try {
+    data = await fetchHomepage();
+  } catch (error) {
+    loadError =
+      error instanceof CatalogApiError
+        ? "Catalog API is unavailable right now."
+        : "Unable to load homepage.";
+  }
+  const site = data?.site ?? (await sitePromise);
+
+  if (!data) {
+    return (
+      <StorefrontShell site={site}>
+        <section className="card">
+          <h1>{site.siteName}</h1>
+          <p className="lead">{loadError}</p>
+          <p className="auth-links">
+            <Link href="/products">Try products</Link>
+          </p>
+        </section>
+      </StorefrontShell>
+    );
+  }
+
+  const origin = resolveSiteOrigin(data.site);
+  const org = organizationJsonLd({
+    siteName: data.site.siteName,
+    description: data.site.defaultSeoDescription || data.site.tagline,
+    origin,
+    sameAs: data.site.sameAs,
+    logo: publicAssetUrl(origin, data.site.defaultOgImageUrl),
+  });
+  const website = websiteJsonLd({ siteName: data.site.siteName, origin });
+
+  return (
+    <StorefrontShell site={data.site}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(org) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(website) }}
+      />
+      <HomePosterSlider slides={data.slides} />
+
+      {data.sections.map((section) => (
+        <section key={section.id} className="home-section">
+          <div className="home-section-head">
+            <h2>{section.title}</h2>
+            <Link href={sectionHref(section.products)}>All</Link>
+          </div>
+          <div className="home-product-row">
+            {section.products.map((product) => (
+              <HomeProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </StorefrontShell>
   );
 }

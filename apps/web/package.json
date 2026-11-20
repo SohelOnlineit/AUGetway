@@ -1,22 +1,30 @@
 {
-  "name": "@uniqpay/web",
+  "name": "@amarpin/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3100 --hostname 127.0.0.1",
+    "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "build": "next build",
-    "start": "next start --port 3100 --hostname 127.0.0.1"
+    "start": "next start --port 3000 --hostname 127.0.0.1",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@uniqpay/types": "workspace:*",
+    "@amarpin/types": "workspace:*",
+    "jose": "5.10.0",
     "next": "16.4.3",
     "react": "19.2.9",
-    "react-dom": "19.2.9"
+    "react-dom": "19.2.9",
+    "socket.io-client": "4.8.4"
   },
   "devDependencies": {
     "@types/node": "22.18.6",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "typescript": "5.9.3"
+    "@amarpin/config-ts": "workspace:*",
+    "eslint": "9.36.0",
+    "eslint-config-next": "16.4.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.44.1"
   }
 }

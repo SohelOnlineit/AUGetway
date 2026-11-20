@@ -1,16 +1,41 @@
-node_modules
-dist
-.next
+# dependencies
+node_modules/
+.pnpm-store/
+
+# env / secrets
 .env
-.env.local
-.pgdata
-apps/api/.pgdata
-apps/api/src/generated
+.env.*
+!.env.example
+!**/.env.example
+!**/*.env.example
+
+# builds
+dist/
+.next/
+.turbo/
+out/
+coverage/
+*.tsbuildinfo
+
+# prisma generated client
+apps/api/src/generated/
+
+# logs / OS
 *.log
-.turbo
-.expo
-apps/mobile/.expo
-apps/mobile/android
-apps/mobile/signing
-apps/mobile/modules/**/build
-*.apk
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Redis database dumps
+*.rdb
+dump.rdb
+
+# uploads (keep folder structure via .gitkeep)
+uploads/**
+!uploads/**/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp

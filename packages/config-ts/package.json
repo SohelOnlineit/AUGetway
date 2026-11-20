@@ -1,0 +1,11 @@
+{
+  "name": "@amarpin/config-ts",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["base.json", "nestjs.json", "nextjs.json"],
+  "scripts": {
+    "build": "echo \"@amarpin/config-ts: no build\"",
+    "typecheck": "echo \"@amarpin/config-ts: no typecheck\"",
+    "lint": "echo \"@amarpin/config-ts: no lint\""
+  }
+}

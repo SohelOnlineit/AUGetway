@@ -1,0 +1,69 @@
+# Do not use this file. The API stays on 127.0.0.1:4000.
+# Live chat is proxied on the same site: deploy/ubuntu/nginx-site-snippet.conf
+# Replace YOUR_API_DOMAIN (e.g. api.YOUR_DOMAIN). No Docker.
+
+upstream amarpin_api {
+  server 127.0.0.1:4000;
+  keepalive 32;
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+  server_name YOUR_API_DOMAIN;
+  return 301 https://YOUR_API_DOMAIN$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name YOUR_API_DOMAIN;
+
+  ssl_certificate     /www/server/panel/vhost/cert/YOUR_API_DOMAIN/fullchain.pem;
+  ssl_certificate_key /www/server/panel/vhost/cert/YOUR_API_DOMAIN/privkey.pem;
+
+  client_max_body_size 12m;
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  # REST under /api (Nest global prefix)
+  location /api/ {
+    proxy_pass http://amarpin_api;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # Socket.IO — Engine.IO + WebSocket upgrade (namespaces /events, /chat)
+  location /socket.io/ {
+    proxy_pass http://amarpin_api;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 86400;
+  }
+
+  # Public product media only — never expose private chat/KYC paths
+  location /uploads/ {
+    alias /www/wwwroot/amarpin/uploads/;
+    autoindex off;
+    # Block private trees if created later
+    location ~* ^/uploads/(avatars|live-chat|kyc)/ {
+      deny all;
+      return 404;
+    }
+  }
+}
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}
