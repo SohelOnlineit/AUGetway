@@ -15,4 +15,4 @@ apps/mobile/signing
 apps/mobile/modules/**/build
 *.apk
 
-backups
+/backups/
