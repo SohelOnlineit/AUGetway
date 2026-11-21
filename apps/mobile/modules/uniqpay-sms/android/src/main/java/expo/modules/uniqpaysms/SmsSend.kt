@@ -33,7 +33,9 @@ object SmsSend {
     if (text.length !in 1..320) throw IllegalStateException("Message must be 1 to 320 characters")
     if (Looper.myLooper() == delivery.looper) throw IllegalStateException("Could not send the SMS")
     val manager = manager(context, if (slot == 1) 1 else 0)
-    val parts = if (text.length <= 160) listOf(text) else manager.divideMessage(text)
+    // Bengali uses 70 characters per SMS, English uses 160. divideMessage splits either kind.
+    val parts = manager.divideMessage(text)
+    if (parts.isEmpty()) throw IllegalStateException("Could not send the SMS")
     val app = context.applicationContext
     val results = arrayOfNulls<String>(parts.size)
     val latch = CountDownLatch(parts.size)
