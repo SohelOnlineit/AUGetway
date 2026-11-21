@@ -26,10 +26,6 @@ type GatewayDetail = {
   uniqueSlots: number;
   uniqueKind: string;
   acceptProof: boolean;
-  holdUnmatched: boolean;
-  holdAbove: string;
-  underTolerance: string;
-  overTolerance: string;
 };
 
 type FormState = {
@@ -52,10 +48,6 @@ type FormState = {
   uniqueSlots: string;
   uniqueKind: string;
   acceptProof: boolean;
-  holdUnmatched: boolean;
-  holdAbove: string;
-  underTolerance: string;
-  overTolerance: string;
 };
 
 function plain(value: string | number) {
@@ -100,10 +92,6 @@ function fromDetail(row: GatewayDetail): FormState {
     uniqueSlots: String(row.uniqueSlots),
     uniqueKind: row.uniqueKind,
     acceptProof: row.acceptProof,
-    holdUnmatched: row.holdUnmatched,
-    holdAbove: plain(row.holdAbove),
-    underTolerance: plain(row.underTolerance),
-    overTolerance: plain(row.overTolerance),
   };
 }
 
@@ -111,7 +99,7 @@ export default function EditGatewayPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [form, setForm] = useState<FormState | null>(null);
-  const [tab, setTab] = useState<"account" | "verification" | "advanced">("account");
+  const [tab, setTab] = useState<"account" | "verification">("account");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -171,10 +159,6 @@ export default function EditGatewayPage() {
           checkBalance: form.checkBalance,
           payWindow: Number(form.payWindow),
           acceptProof: form.acceptProof,
-          holdUnmatched: form.holdUnmatched,
-          holdAbove: Number(form.holdAbove || 0),
-          underTolerance: Number(form.underTolerance || 0),
-          overTolerance: Number(form.overTolerance || 0),
         }),
       });
       router.push("/admin/gateways/manual");
@@ -299,10 +283,6 @@ export default function EditGatewayPage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>
             Verification
           </button>
-          <button className={tab === "advanced" ? "on" : ""} type="button" onClick={() => setTab("advanced")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="8" cy="7" r="2" fill="currentColor" /><circle cx="15" cy="12" r="2" fill="currentColor" /><circle cx="10" cy="17" r="2" fill="currentColor" /></svg>
-            Advanced
-          </button>
         </div>
         {tab === "account" ? (
             <label>
@@ -346,34 +326,6 @@ export default function EditGatewayPage() {
                 <option value="enable">Enable</option>
               </select>
               <p className="gw-help">Off unless you enable it. Enable to let the customer upload a receipt image on the checkout. Disable hides that file field.</p>
-            </label>
-          </div>
-        ) : null}
-        {tab === "advanced" ? (
-          <div className="gw-grid">
-            <label>
-              <span className="gw-label">Enable Pending Payment</span>
-              <select value={form.holdUnmatched ? "enable" : "disable"} onChange={(event) => patch({ holdUnmatched: event.target.value === "enable" })}>
-                <option value="" disabled>Select an option</option>
-                <option value="disable">Disable</option>
-                <option value="enable">Enable</option>
-              </select>
-              <p className="gw-help">What to do when a customer submits a transaction ID that matches none of your recorded SMS. Enable to keep the ID and hold the payment as Pending for you to check; disable to tell the customer it was not found.</p>
-            </label>
-            <label>
-              <span className="gw-label">Auto-Pending Above Amount</span>
-              <input type="number" min={0} step="0.01" placeholder="" value={Number(form.holdAbove) === 0 ? "" : form.holdAbove} onChange={(event) => patch({ holdAbove: event.target.value })} />
-              <p className="gw-help">Hold payments larger than this for your approval instead of completing them at once. Leave at 0 to complete every matched payment.</p>
-            </label>
-            <label>
-              <span className="gw-label">Underpaid Tolerance</span>
-              <input type="number" min={0} step="0.01" value={Number(form.underTolerance) === 0 ? "" : form.underTolerance} onChange={(event) => patch({ underTolerance: event.target.value })} />
-              <p className="gw-help">How much less than the invoice you will still accept. Leave at 0 to refuse any shortfall.</p>
-            </label>
-            <label>
-              <span className="gw-label">Overpaid Tolerance</span>
-              <input type="number" min={0} step="0.01" value={Number(form.overTolerance) === 0 ? "" : form.overTolerance} onChange={(event) => patch({ overTolerance: event.target.value })} />
-              <p className="gw-help">How much more than the invoice you will still accept. Unlike the field beside it, 0 means no limit — any overpayment is accepted.</p>
             </label>
           </div>
         ) : null}
