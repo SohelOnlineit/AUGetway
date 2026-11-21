@@ -99,7 +99,6 @@ export default function EditGatewayPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [form, setForm] = useState<FormState | null>(null);
-  const [tab, setTab] = useState<"account" | "verification">("account");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -132,7 +131,6 @@ export default function EditGatewayPage() {
     event.preventDefault();
     if (!form) return;
     if (form.accountNumber.split(/[\s,;]+/).filter(Boolean).length === 0) {
-      setTab("account");
       setError("Add at least one account number");
       return;
     }
@@ -274,25 +272,12 @@ export default function EditGatewayPage() {
           <p className="sub">Gateway-specific configuration parameters</p>
         </div>
         <div className="gw-box">
-        <div className="gw-tabs">
-          <button className={tab === "account" ? "on" : ""} type="button" onClick={() => setTab("account")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></svg>
-            Account
-          </button>
-          <button className={tab === "verification" ? "on" : ""} type="button" onClick={() => setTab("verification")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>
-            Verification
-          </button>
-        </div>
-        {tab === "account" ? (
-            <label>
+          <div className="gw-grid">
+            <label className="wide">
               <span className="gw-label">Account Numbers<i>*</i></span>
               <input required placeholder="01XXXXXXXXX" value={form.accountNumber} onChange={(event) => patch({ accountNumber: event.target.value })} />
               <p className="gw-help">The wallet numbers customers send money to. Add more than one and each checkout is given one of them in turn, spreading payments across your accounts.</p>
             </label>
-        ) : null}
-        {tab === "verification" ? (
-          <div className="gw-grid">
             <label>
               <span className="gw-label">Verification Method<i>*</i></span>
               <input value="Transaction ID" readOnly />
@@ -328,7 +313,6 @@ export default function EditGatewayPage() {
               <p className="gw-help">Off unless you enable it. Enable to let the customer upload a receipt image on the checkout. Disable hides that file field.</p>
             </label>
           </div>
-        ) : null}
         </div>
       </section>
 
