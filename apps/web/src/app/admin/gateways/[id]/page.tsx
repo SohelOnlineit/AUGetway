@@ -345,7 +345,7 @@ export default function EditGatewayPage() {
                 <option value="enable">Enable</option>
                 <option value="disable">Disable</option>
               </select>
-              <p className="gw-help">On: a payment is approved only when the transaction ID matches, the sender number matches, and the SMS balance equals the saved balance plus the payment. Off: the balance check is skipped. The transaction ID is still required.</p>
+              <p className="gw-help">On: the website reads the payment SMS and approves it only when the balance in that SMS equals the balance saved on the server plus this payment. The phone only delivers the SMS. Off: the balance check is skipped. The transaction ID is still required.</p>
             </label>
             <label>
               <span className="gw-label">Payment Window (Minutes)<i>*</i></span>

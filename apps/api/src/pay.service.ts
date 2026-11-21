@@ -360,7 +360,7 @@ function digits(value: string) {
 
 function smsStillDecides(method: { label?: string; verifyBy?: string } | null | undefined) {
   const verifyBy = method?.verifyBy ?? "transaction_id";
-  if (verifyBy === "sender_number" || verifyBy === "unique_amount") return true;
+  if (verifyBy === "transaction_id" || verifyBy === "sender_number" || verifyBy === "unique_amount") return true;
   return walletService(method?.label ?? "") === "";
 }
 
@@ -2031,9 +2031,6 @@ export class PayService implements OnModuleInit {
     await this.reserveReference(row.ownerId, row.id, providerRef);
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const service = walletService(row.method?.label ?? "");
-    if (service && verifyBy === "transaction_id") {
-      return this.queueBalanceCheck(row, providerRef, payerAccount, service);
-    }
     if (service && verifyBy === "unique_amount") {
       const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { status: true } });
       if (queued?.status === "verified") return this.publicPay(row.publicId);
@@ -2640,56 +2637,6 @@ export class PayService implements OnModuleInit {
     return this.prisma.handset.findFirst({ where: { ownerId }, orderBy: { lastSeenAt: "desc" } });
   }
 
-  private async queueBalanceCheck(
-    row: { id: string; publicId: string; ownerId: string; payable: { toString(): string }; reference: string; shopOrder: string },
-    providerRef: string,
-    payerAccount: string,
-    service: "bkash" | "nagad" | "rocket" | "upay",
-  ) {
-    const amountCents = takaCents(row.payable);
-    if (amountCents === null) throw new BadRequestException("Amount cannot be sent to the phone");
-    const handset = await this.pickHandset(row.ownerId);
-    if (!handset) throw new BadRequestException("No phone is registered on this desk");
-    const existing = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id } });
-    if (existing?.status === "verified") return this.publicPay(row.publicId);
-    await this.prisma.$transaction(async (tx) => {
-      const saved = await tx.checkout.updateMany({
-        where: { id: row.id, status: { in: ["waiting", "pending"] } },
-        data: { status: "pending", providerRef, ...(payerAccount ? { payerAccount } : {}) },
-      });
-      if (saved.count !== 1) throw new BadRequestException("This checkout can no longer be changed");
-      if (existing) {
-        await tx.verifyOrder.update({
-          where: { id: existing.id },
-          data: {
-            handsetId: handset.id,
-            service,
-            trxId: providerRef,
-            amountCents,
-            customerRef: row.shopOrder || row.reference,
-            status: "pending",
-            note: "",
-            decidedAt: null,
-          },
-        });
-        return;
-      }
-      await tx.verifyOrder.create({
-        data: {
-          ownerId: row.ownerId,
-          checkoutId: row.id,
-          handsetId: handset.id,
-          service,
-          orderPublicId: row.publicId,
-          customerRef: row.shopOrder || row.reference,
-          trxId: providerRef,
-          amountCents,
-        },
-      });
-    });
-    return this.publicPay(row.publicId);
-  }
-
   private async queueUniqueBalance(checkoutId: string, service: "bkash" | "nagad" | "rocket" | "upay") {
     const saved = await this.prisma.checkout.findUnique({ where: { id: checkoutId } });
     if (!saved) return;
@@ -2851,7 +2798,7 @@ export class PayService implements OnModuleInit {
     const trxId = input.trxId.trim().toUpperCase();
     if (input.decision === "rejected") {
       const preview = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
-      if (preview?.method?.checkBalance === false && /balance/i.test(input.note || "")) {
+      if (preview?.method?.checkBalance !== false && /balance/i.test(input.note || "")) {
         return { ok: true as const, status: "pending" as const, balanceCents: input.balanceCents };
       }
       await this.prisma.verifyOrder.updateMany({
@@ -2890,10 +2837,12 @@ export class PayService implements OnModuleInit {
         throw new BadRequestException("Sender number does not match the payment SMS");
       }
     }
+    const smsText = (input.smsBody ?? "").trim() || (await this.noticeBody(userId, trxId));
+    const smsCents = smsBalanceCents(smsText);
     if (checkoutPreview?.method?.checkBalance !== false && (await this.balanceCheckOn(userId))) {
       const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
       const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
-      if (expectedBalance === null || expectedBalance > 100_000_000 || input.balanceCents !== expectedBalance) {
+      if (expectedBalance === null || smsCents === null || expectedBalance > 100_000_000 || smsCents !== expectedBalance) {
         throw new BadRequestException("SMS balance does not match the saved wallet balance");
       }
     }
@@ -2932,17 +2881,18 @@ export class PayService implements OnModuleInit {
         where: { id: job.id },
         data: { status: "verified", decidedAt: new Date(), trxId, smsKey, note: smsNote },
       });
+      const savedBalance = smsCents ?? input.balanceCents;
       await tx.walletLedger.upsert({
         where: { ownerId_service: { ownerId: userId, service: job.service } },
-        create: { ownerId: userId, service: job.service, balanceCents: input.balanceCents },
-        update: { balanceCents: input.balanceCents },
+        create: { ownerId: userId, service: job.service, balanceCents: savedBalance },
+        update: { balanceCents: savedBalance },
       });
       await tx.ledgerEvent.create({
         data: {
           ownerId: userId,
           service: job.service,
           kind: "verified",
-          balanceCents: input.balanceCents,
+          balanceCents: savedBalance,
           amountCents: job.amountCents,
           trxId,
           orderId: job.orderPublicId,
