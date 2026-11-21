@@ -97,6 +97,7 @@ model Checkout {
   status       String        @default("open")
   payerAccount String?
   providerRef  String?
+  proofTries   Int           @default(0)
   payTo        String     @default("")
   receipt      String     @default("")
   successUrl   String?

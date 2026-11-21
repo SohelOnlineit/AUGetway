@@ -229,8 +229,16 @@ export default function PayPage() {
       setPicking(false);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Could not submit";
+      const missed = /^TRX_MISS:(\d+)$/.exec(message);
       if (message.includes("TRX_USED") || /already used/i.test(message)) setTrxWarn(true);
-      else setError(message);
+      else if (missed) {
+        const left = Number(missed[1]);
+        setError(text(
+          lang,
+          `Transaction ID does not match the payment. ${left} ${left === 1 ? "try" : "tries"} left.`,
+          `ট্রানজেকশন আইডি পেমেন্টের সাথে মেলেনি। আর ${left} বার চেষ্টা করা যাবে।`,
+        ));
+      } else setError(message);
     } finally {
       setPending(false);
       // A Cloudflare token works once, so every try needs a fresh one.

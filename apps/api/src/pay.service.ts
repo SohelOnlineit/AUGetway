@@ -11,6 +11,7 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { paidFitsCheckout, pickUniqueAmount } from "./amount-window";
+import { attemptsLeft, unmatchedAttempt } from "./proof-attempt";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { matchWithoutWaitingForSnapshot } from "./payment-security";
@@ -1962,6 +1963,7 @@ export class PayService implements OnModuleInit {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
     if (providerRef && (row.providerRef ?? "").toUpperCase() === providerRef) {
+      if (row.status === "pending") return this.publicPay(id);
       throw new BadRequestException("TRX_USED");
     }
     if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
@@ -2059,6 +2061,28 @@ export class PayService implements OnModuleInit {
       if (paid === null) return false;
       return paidFitsCheckout(paid, expected, base, under, over, verifyBy);
     });
+    const senderBlocked = Boolean(fit && row.method?.askPayerNumber !== false && senderNumberOk(payerAccount) && !senderInNotice(payerAccount, fit.body));
+    const balanceOn = row.method?.checkBalance !== false;
+    const balanceBlocked = Boolean(
+      fit
+      && service
+      && balanceOn
+      && (verifyBy === "unique_amount" || verifyBy === "transaction_id")
+      && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body)),
+    );
+    const matched = Boolean(fit) && !senderBlocked && !balanceBlocked;
+    if (verifyBy === "transaction_id" && !matched) {
+      const updated = await this.prisma.checkout.update({
+        where: { id: row.id },
+        data: { proofTries: { increment: 1 } },
+        select: { proofTries: true },
+      });
+      if (unmatchedAttempt(updated.proofTries) === "retry") {
+        throw new BadRequestException(`TRX_MISS:${attemptsLeft(updated.proofTries)}`);
+      }
+      await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
+      return this.publicPay(row.publicId);
+    }
     if (!fit) {
       if (hits.length > 0) {
         throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
@@ -2072,11 +2096,10 @@ export class PayService implements OnModuleInit {
       }
       throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
-    if (row.method?.askPayerNumber !== false && senderNumberOk(payerAccount) && !senderInNotice(payerAccount, fit.body)) {
+    if (senderBlocked) {
       throw new BadRequestException("Sender number does not match the payment SMS");
     }
-    const balanceOn = row.method?.checkBalance !== false;
-    if (service && balanceOn && (verifyBy === "unique_amount" || verifyBy === "transaction_id") && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body))) {
+    if (balanceBlocked) {
       await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
       return this.publicPay(row.publicId);
     }
@@ -2107,7 +2130,7 @@ export class PayService implements OnModuleInit {
     if (paidNow) {
       const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id } });
       if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
-      if (service && verifyBy === "unique_amount") {
+      if (service && (verifyBy === "unique_amount" || verifyBy === "transaction_id")) {
         await this.recordUniquePaid({
           ownerId: row.ownerId,
           checkoutId: row.id,
