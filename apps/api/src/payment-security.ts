@@ -100,9 +100,6 @@ export function classifyNotice(input: NoticeWatch): SecurityEventDraft[] {
   }
 
   const prior = input.openBefore.find((row) => row.providerRef.trim().toUpperCase() === trxId && trxId);
-  const matched = input.matchedPublicId
-    ? input.openAfter.find((row) => row.publicId === input.matchedPublicId) ?? null
-    : null;
   if (prior && prior.publicId !== input.matchedPublicId) {
     events.push({
       kind: "repeated_trx",
@@ -120,24 +117,6 @@ export function classifyNotice(input: NoticeWatch): SecurityEventDraft[] {
       trxId,
       checkoutId: "",
       detail: `This handset saved ${input.recentNoticeCount} payment SMS in ${HANDSET_BURST_WINDOW_MS / 60000} minutes. ${NOT_PROOF}`,
-    });
-  }
-
-  const before = matched ? input.openBefore.find((row) => row.id === matched.id) : undefined;
-  if (
-    before
-    && matched
-    && before.verifyBy === "unique_amount"
-    && !before.providerRef.trim()
-    && before.status !== matched.status
-    && (matched.status === "paid" || matched.status === "pending")
-  ) {
-    events.push({
-      kind: "unique_amount_without_ref",
-      sender,
-      trxId,
-      checkoutId: matched.id,
-      detail: `A unique-amount checkout was approved with no providerRef stored beforehand. ${NOT_PROOF}`,
     });
   }
 

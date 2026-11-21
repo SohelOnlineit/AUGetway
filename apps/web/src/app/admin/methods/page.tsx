@@ -100,7 +100,6 @@ function payload(draft: Draft) {
     percentageCharge: Number(draft.percentageCharge || 0),
     fixedDiscount: Number(draft.fixedDiscount || 0),
     percentageDiscount: Number(draft.percentageDiscount || 0),
-    shiftAmount: draft.shiftAmount,
     active: draft.active,
   };
 }
@@ -411,7 +410,6 @@ export default function MethodsPage() {
               <label className="field"><span>Percentage discount</span><input type="number" min={0} max={100} step="0.01" value={draft.percentageDiscount} onChange={(event) => setDraft({ ...draft, percentageDiscount: event.target.value })} /></label>
             </div>
             <label className="field"><span>Instructions</span><textarea rows={3} value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /></label>
-            <label className="field"><span>Give each checkout its own payable amount</span><input type="checkbox" checked={draft.shiftAmount} onChange={(event) => setDraft({ ...draft, shiftAmount: event.target.checked })} /></label>
             <div className="row">
               <button className="btn" type="submit">Save</button>
               <button className="btn-line" type="button" onClick={() => setDraft(null)}>Cancel</button>

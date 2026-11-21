@@ -21,7 +21,6 @@ const KINDS = [
   ["suspicious_sender", "Suspicious Sender", "warn"],
   ["repeated_trx", "Repeated Transaction ID", "bad"],
   ["high_frequency", "High Frequency SMS", "warn"],
-  ["unique_amount_without_ref", "Unique Amount Without Reference", "warn"],
   ["unmatched_sms", "Unmatched SMS", "quiet"],
   ["duplicate_submission", "Duplicate Submission", "info"],
 ] as const;

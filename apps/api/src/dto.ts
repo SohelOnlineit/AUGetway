@@ -141,7 +141,7 @@ export class MethodDto {
   qrImage?: string;
 
   @IsOptional()
-  @IsIn(["transaction_id", "sender_number", "unique_amount"])
+  @IsIn(["transaction_id"])
   verifyBy?: string;
 
   @IsOptional()

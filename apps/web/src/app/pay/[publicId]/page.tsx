@@ -443,37 +443,15 @@ export default function PayPage() {
                 </div>
                 <CopyButton done={copied === "amt"} onClick={() => flashCopy("amt", amount)} />
               </div>
-              {card.method.verifyBy === "sender_number" ? (
+              <label className="ck-field">
+                <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
+                <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
+              </label>
+              {card.method.askPayerNumber !== false ? (
                 <label className="ck-field">
-                  <span>{text(lang, "Sender number", "যে নম্বর থেকে পাঠাবেন")}</span>
+                  <span>{text(lang, "Your wallet number", "আপনার ওয়ালেট নম্বর")}</span>
                   <input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" />
                 </label>
-              ) : null}
-              {card.method.verifyBy === "unique_amount" ? (
-                <>
-                  <div className="ck-wait-box">
-                    <p className="ck-wait"><i />{text(lang, "Waiting For Your Payment..", "পেমেন্টের জন্য অপেক্ষা করা হচ্ছে...")}</p>
-                    <p className="ck-note">{text(lang, "After Making Your Payment, Please Wait 10 Seconds For Automatic Verification. If Your Payment is Not Verified Automatically, Enter Your Transaction ID in The Box To Complete The Verification.", "পেমেন্টের পর ১০ সেকেন্ড অপেক্ষা করুন, অটো ভেরিফিকেশন না হলে ট্রানজেকশন বক্সে আপনার Transaction ID দিয়ে ভেরিফিকেশন সম্পন্ন করুন।")}</p>
-                  </div>
-                  <label className="ck-field">
-                    <span>{text(lang, "Enter Transaction ID", "ট্রানজেকশন আইডি লিখুন")}</span>
-                    <input className="ck-ref" name="providerRef" minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
-                  </label>
-                </>
-              ) : null}
-              {card.method.verifyBy !== "unique_amount" && card.method.verifyBy !== "sender_number" ? (
-                <>
-                  <label className="ck-field">
-                    <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
-                    <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
-                  </label>
-                  {card.method.askPayerNumber !== false ? (
-                    <label className="ck-field">
-                      <span>{text(lang, "Your wallet number", "আপনার ওয়ালেট নম্বর")}</span>
-                      <input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" />
-                    </label>
-                  ) : null}
-                </>
               ) : null}
               {card.method.acceptProof ? (
                 <label className="ck-field">
@@ -486,7 +464,7 @@ export default function PayPage() {
               <TurnstileField resetKey={captchaReset} onToken={setCaptchaToken} onRequired={setCaptchaRequired} />
               <div className="ck-pay-line">{expiryPill("pay")}{langButton(true)}</div>
               <button className="ck-pay on" disabled={pending || (captchaRequired && !captchaToken)} type="submit">
-                {text(lang, card.method.verifyBy === "unique_amount" ? "Submit" : "I have paid", card.method.verifyBy === "unique_amount" ? "সাবমিট করুন" : "পেমেন্ট যাচাই করুন")}
+                {text(lang, "I have paid", "পেমেন্ট যাচাই করুন")}
               </button>
             </form>
           ) : null}

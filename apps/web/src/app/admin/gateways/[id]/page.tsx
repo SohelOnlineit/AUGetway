@@ -79,11 +79,6 @@ function moneyText(value: string) {
   return amount.toLocaleString("en-US", { maximumFractionDigits: amount % 1 === 0 ? 0 : 2 });
 }
 
-function slotHelp() {
-  const sample = [0, 1, 2].map((index) => (100 + index * 0.01).toFixed(2)).join(", ");
-  return `The first checkout shows the invoice amount. Each later checkout of that same amount adds 0.01, up to 500 at once. Example: ${sample}.`;
-}
-
 function fromDetail(row: GatewayDetail): FormState {
   return {
     internalLabel: row.internalLabel,
@@ -171,12 +166,10 @@ export default function EditGatewayPage() {
           fixedCharge: Number(form.fixedCharge || 0),
           percentageCharge: Number(form.percentageCharge || 0),
           qrImage: form.qrImage,
-          verifyBy: form.verifyBy,
+          verifyBy: "transaction_id",
           askPayerNumber: form.askPayerNumber,
           checkBalance: form.checkBalance,
           payWindow: Number(form.payWindow),
-          uniqueSlots: Number(form.uniqueSlots),
-          uniqueKind: form.uniqueKind,
           acceptProof: form.acceptProof,
           holdUnmatched: form.holdUnmatched,
           holdAbove: Number(form.holdAbove || 0),
@@ -195,7 +188,7 @@ export default function EditGatewayPage() {
   if (!form) return error ? <p className="error">{error}</p> : null;
 
   const accounts = form.accountNumber.split(/[\s,;]+/).filter(Boolean).length;
-  const verify = form.verifyBy === "sender_number" ? "Sender number" : form.verifyBy === "unique_amount" ? "Unique amount" : "Transaction ID";
+  const verify = "Transaction ID";
 
   return (
     <form className="gw-edit" onSubmit={save}>
@@ -322,23 +315,17 @@ export default function EditGatewayPage() {
           <div className="gw-grid">
             <label>
               <span className="gw-label">Verification Method<i>*</i></span>
-              <select value={form.verifyBy} onChange={(event) => patch({ verifyBy: event.target.value })}>
-                <option value="transaction_id">Transaction ID</option>
-                <option value="sender_number">Sender number</option>
-                <option value="unique_amount">Unique amount</option>
-              </select>
-              <p className="gw-help">How the customer is matched to their deposit. Every option is matched against your recorded SMS automatically; they differ in what the customer gives you, and when.</p>
+              <input value="Transaction ID" readOnly />
+              <p className="gw-help">The customer enters the transaction ID from the payment SMS. The website matches that ID to the SMS, the amount, and the saved balance.</p>
             </label>
-            {form.verifyBy === "transaction_id" ? (
-              <label>
-                <span className="gw-label">Wallet number</span>
-                <select value={form.askPayerNumber ? "enable" : "disable"} onChange={(event) => patch({ askPayerNumber: event.target.value === "enable" })}>
-                  <option value="enable">Enable</option>
-                  <option value="disable">Disable</option>
-                </select>
-                <p className="gw-help">On asks the customer for the wallet number they paid from. That number must appear in the payment SMS. Off hides the box and skips the sender-number check.</p>
-              </label>
-            ) : null}
+            <label>
+              <span className="gw-label">Wallet number</span>
+              <select value={form.askPayerNumber ? "enable" : "disable"} onChange={(event) => patch({ askPayerNumber: event.target.value === "enable" })}>
+                <option value="enable">Enable</option>
+                <option value="disable">Disable</option>
+              </select>
+              <p className="gw-help">On asks the customer for the wallet number they paid from. That number must appear in the payment SMS. Off hides the box and skips that check.</p>
+            </label>
             <label>
               <span className="gw-label">Balance verify</span>
               <select value={form.checkBalance ? "enable" : "disable"} onChange={(event) => patch({ checkBalance: event.target.value === "enable" })}>
@@ -352,23 +339,6 @@ export default function EditGatewayPage() {
               <input required type="number" min={1} max={1440} value={form.payWindow} onChange={(event) => patch({ payWindow: event.target.value })} />
               <p className="gw-help">How long the customer has to pay while the page waits for their deposit. They see a countdown, and a deposit arriving after it is no longer matched to that checkout.</p>
             </label>
-            {form.verifyBy === "unique_amount" ? (
-              <>
-                <label>
-                  <span className="gw-label">Unique Amount Type<i>*</i></span>
-                  <select value={form.uniqueKind} onChange={(event) => patch({ uniqueKind: event.target.value })}>
-                    <option value="integer">Integer (e.g. 11)</option>
-                    <option value="decimal">Decimal (e.g. 100.04)</option>
-                  </select>
-                  <p className="gw-help">The first customer pays the invoice amount. Each later customer with the same amount pays 0.01 more, and the checkout verifies itself when an SMS arrives for that exact amount.</p>
-                </label>
-                <label>
-                  <span className="gw-label">Unique Amount Slots<i>*</i></span>
-                  <input required type="number" min={1} max={40} value={form.uniqueSlots} onChange={(event) => patch({ uniqueSlots: event.target.value })} />
-                  <p className="gw-help">{slotHelp()}</p>
-                </label>
-              </>
-            ) : null}
             <label>
               <span className="gw-label">Receipt image upload</span>
               <select value={form.acceptProof ? "enable" : "disable"} onChange={(event) => patch({ acceptProof: event.target.value === "enable" })}>

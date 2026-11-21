@@ -80,34 +80,6 @@ test("ten SMS from one handset in the window is a frequency log", () => {
   assert.deepEqual(events.map((event) => event.kind), ["high_frequency"]);
 });
 
-test("a unique-amount approval with no prior providerRef is logged", () => {
-  const events = classifyNotice({
-    sender: "bKash",
-    body: "You have received Tk 10.02. TrxID UNIQ1234.",
-    trxId: "UNIQ1234",
-    duplicate: false,
-    matchedPublicId: "pub_1",
-    recentNoticeCount: 1,
-    openBefore: [waiting({ verifyBy: "unique_amount", providerRef: "" })],
-    openAfter: [waiting({ verifyBy: "unique_amount", providerRef: "UNIQ1234", status: "paid" })],
-  });
-  assert.deepEqual(events.map((event) => event.kind), ["unique_amount_without_ref"]);
-});
-
-test("a unique-amount checkout that already had a providerRef is not that event", () => {
-  const events = classifyNotice({
-    sender: "bKash",
-    body: "You have received Tk 10.02. TrxID UNIQ1234.",
-    trxId: "UNIQ1234",
-    duplicate: false,
-    matchedPublicId: "pub_1",
-    recentNoticeCount: 1,
-    openBefore: [waiting({ verifyBy: "unique_amount", providerRef: "UNIQ1234", status: "pending" })],
-    openAfter: [waiting({ verifyBy: "unique_amount", providerRef: "UNIQ1234", status: "paid" })],
-  });
-  assert.equal(events.some((event) => event.kind === "unique_amount_without_ref"), false);
-});
-
 test("an unmatched saved SMS is logged", () => {
   const events = classifyNotice({
     sender: "bKash",
@@ -164,9 +136,9 @@ test("a slow security read does not delay payment matching", async () => {
   assert.equal(matched, "pub_1");
   assert.ok(Date.now() - started < 50);
   assert.equal(watched, null);
-  release([waiting({ verifyBy: "unique_amount", providerRef: "" })]);
+  release([waiting({ verifyBy: "transaction_id", providerRef: "TRX12345" })]);
   await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(watched?.[0]?.verifyBy, "unique_amount");
+  assert.equal(watched?.[0]?.verifyBy, "transaction_id");
 });
 
 test("a failed security read still returns the payment match", async () => {
@@ -183,15 +155,15 @@ test("a failed security read still returns the payment match", async () => {
   assert.deepEqual(watched, []);
 });
 
-test("available monitoring still records a unique-amount event after matching returns", async () => {
-  const before = [waiting({ verifyBy: "unique_amount", providerRef: "", status: "waiting" })];
-  const after = [waiting({ verifyBy: "unique_amount", providerRef: "UNIQ1234", status: "paid" })];
+test("available monitoring still records the match after payment returns", async () => {
+  const before = [waiting({ verifyBy: "transaction_id", providerRef: "TRX12345", status: "pending" })];
+  const after = [waiting({ verifyBy: "transaction_id", providerRef: "TRX12345", status: "paid" })];
   let recorded: string[] = [];
   const matched = await matchWithoutWaitingForSnapshot(Promise.resolve(before), async () => "pub_1", (result, openBefore) => {
     recorded = classifyNotice({
       sender: "bKash",
-      body: "You have received Tk 10.02. TrxID UNIQ1234.",
-      trxId: "UNIQ1234",
+      body: "You have received Tk 10.00. TrxID TRX12345.",
+      trxId: "TRX12345",
       duplicate: false,
       matchedPublicId: result,
       recentNoticeCount: 1,
@@ -201,5 +173,5 @@ test("available monitoring still records a unique-amount event after matching re
   });
   assert.equal(matched, "pub_1");
   await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.deepEqual(recorded, ["unique_amount_without_ref"]);
+  assert.deepEqual(recorded, []);
 });

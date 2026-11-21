@@ -9,8 +9,8 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
-import { createHash, randomBytes, randomInt } from "node:crypto";
-import { paidFitsCheckout, pickUniqueAmount } from "./amount-window";
+import { createHash, randomBytes } from "node:crypto";
+import { paidFitsCheckout } from "./amount-window";
 import { attemptsLeft, unmatchedAttempt } from "./proof-attempt";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
@@ -678,7 +678,7 @@ export class PayService implements OnModuleInit {
         fixedDiscount: input.fixedDiscount ?? 0,
         percentageDiscount: input.percentageDiscount ?? 0,
         qrImage: cleanQr(input.qrImage) ?? "",
-        verifyBy: input.verifyBy ?? "transaction_id",
+        verifyBy: "transaction_id",
         askPayerNumber: input.askPayerNumber !== false,
         checkBalance: input.checkBalance !== false,
         payWindow: input.payWindow ?? 15,
@@ -689,7 +689,7 @@ export class PayService implements OnModuleInit {
         holdAbove: input.holdAbove ?? 0,
         underTolerance: input.underTolerance ?? 0,
         overTolerance: input.overTolerance ?? 0,
-        shiftAmount: input.verifyBy === "unique_amount" || Boolean(input.shiftAmount),
+        shiftAmount: false,
         active: input.active !== false,
         sortOrder: (last._max.sortOrder ?? 0) + 1,
       },
@@ -749,7 +749,7 @@ export class PayService implements OnModuleInit {
         fixedDiscount: input.fixedDiscount,
         percentageDiscount: input.percentageDiscount,
         qrImage: cleanQr(input.qrImage),
-        verifyBy: input.verifyBy,
+        verifyBy: "transaction_id",
         askPayerNumber: input.askPayerNumber,
         checkBalance: input.checkBalance,
         payWindow: input.payWindow,
@@ -760,7 +760,7 @@ export class PayService implements OnModuleInit {
         holdAbove: input.holdAbove,
         underTolerance: input.underTolerance,
         overTolerance: input.overTolerance,
-        shiftAmount: input.verifyBy ? input.verifyBy === "unique_amount" : input.shiftAmount,
+        shiftAmount: false,
         active: input.active,
       },
     });
@@ -1887,7 +1887,7 @@ export class PayService implements OnModuleInit {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "expired" } });
       row.status = "expired";
     }
-    if (row.status === "waiting" && row.method && row.method.verifyBy !== "unique_amount" && !row.method.shiftAmount) {
+    if (row.status === "waiting" && row.method) {
       const priced = priceAmount(Number(row.amount), row.method);
       if (Math.abs(priced - Number(row.payable)) > 0.001) {
         const saved = await this.prisma.checkout.update({ where: { id: row.id }, data: { payable: priced }, include: { method: true } });
@@ -1915,15 +1915,13 @@ export class PayService implements OnModuleInit {
     const priced = priceAmount(amount, method);
     const accounts = accountList(method.accountNumber);
     const minutes = this.windowMinutes(method.payWindow);
-    const shifted = method.verifyBy === "unique_amount" || method.shiftAmount;
     await this.prisma.$transaction(async (tx) => {
-      if (shifted || accounts.length > 1) await this.lockKey(tx, `slot:${method.id}`);
+      if (accounts.length > 1) await this.lockKey(tx, `slot:${method.id}`);
       const current = accounts.length > 1
         ? await tx.walletMethod.findUnique({ where: { id: method.id }, select: { accountCursor: true } })
         : null;
       const cursor = current?.accountCursor ?? method.accountCursor;
       const payTo = accounts.length === 0 ? "" : accounts[cursor % accounts.length];
-      const payable = shifted ? await this.allocatePayable(tx, row.id, method, priced) : priced;
       if (accounts.length > 1) {
         await tx.walletMethod.update({
           where: { id: method.id },
@@ -1934,7 +1932,7 @@ export class PayService implements OnModuleInit {
         where: { id: row.id },
         data: {
           methodId: method.id,
-          payable,
+          payable: priced,
           payTo,
           providerRef: null,
           status: "waiting",
@@ -1942,8 +1940,6 @@ export class PayService implements OnModuleInit {
         },
       });
     });
-    const service = method.verifyBy === "unique_amount" ? walletService(method.label) : "";
-    if (service) await this.queueUniqueBalance(row.id, service);
     return this.publicPay(id);
   }
 
@@ -1954,9 +1950,8 @@ export class PayService implements OnModuleInit {
     if (row.expiresAt.getTime() < Date.now() && row.status !== "pending") {
       throw new BadRequestException("This checkout has expired");
     }
-    const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const providerRef = (input.providerRef ?? "").trim().toUpperCase();
-    const collectNumber = verifyBy !== "transaction_id" || row.method?.askPayerNumber !== false;
+    const collectNumber = row.method?.askPayerNumber !== false;
     const payerAccount = collectNumber ? (input.payerAccount ?? "").trim() : "";
     const receipt = input.receipt ? this.cleanReceipt(input.receipt) : "";
     if (providerRef && !trxRefOk(providerRef)) {
@@ -1966,14 +1961,11 @@ export class PayService implements OnModuleInit {
       if (row.status === "pending") return this.publicPay(id);
       throw new BadRequestException("TRX_USED");
     }
-    if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
+    if (!providerRef && !row.providerRef) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
-    if (verifyBy === "transaction_id" && row.method?.askPayerNumber !== false && !senderNumberOk(payerAccount || row.payerAccount || "")) {
+    if (row.method?.askPayerNumber !== false && !senderNumberOk(payerAccount || row.payerAccount || "")) {
       throw new BadRequestException("Enter the wallet number you paid from (01XXXXXXXXX).");
-    }
-    if (verifyBy === "sender_number" && !providerRef && !senderNumberOk(payerAccount || row.payerAccount || "")) {
-      throw new BadRequestException("Sender number must start with 01 and be exactly 11 digits (e.g. 01XXXXXXXXX).");
     }
     if (receipt && !row.method?.acceptProof) {
       throw new BadRequestException("This method does not accept a receipt");
@@ -2011,7 +2003,6 @@ export class PayService implements OnModuleInit {
       await this.prisma.checkout.update({ where: { id: row.id }, data: { status: "pending" } });
       return this.publicPay(id);
     }
-    if (verifyBy !== "transaction_id") return fresh;
     throw new BadRequestException("That payment was not found");
   }
 
@@ -2031,13 +2022,8 @@ export class PayService implements OnModuleInit {
     payerAccount: string,
   ) {
     await this.reserveReference(row.ownerId, row.id, providerRef);
-    const verifyBy = row.method?.verifyBy ?? "transaction_id";
+    const verifyBy = "transaction_id";
     const service = walletService(row.method?.label ?? "");
-    if (service && verifyBy === "unique_amount") {
-      const queued = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id }, select: { status: true } });
-      if (queued?.status === "verified") return this.publicPay(row.publicId);
-      if (queued) await this.attachUniqueTrx(row, providerRef, payerAccount, service);
-    }
     const notices = await this.prisma.inboxNotice.findMany({
       where: { handset: { ownerId: row.ownerId }, checkoutId: null },
       orderBy: { createdAt: "desc" },
@@ -2067,11 +2053,10 @@ export class PayService implements OnModuleInit {
       fit
       && service
       && balanceOn
-      && (verifyBy === "unique_amount" || verifyBy === "transaction_id")
       && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body)),
     );
     const matched = Boolean(fit) && !senderBlocked && !balanceBlocked;
-    if (verifyBy === "transaction_id" && !matched) {
+    if (!matched) {
       const updated = await this.prisma.checkout.update({
         where: { id: row.id },
         data: { proofTries: { increment: 1 } },
@@ -2083,26 +2068,7 @@ export class PayService implements OnModuleInit {
       await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
       return this.publicPay(row.publicId);
     }
-    if (!fit) {
-      if (hits.length > 0) {
-        throw new BadRequestException("Payment amount mismatch. The amount recorded for this Transaction ID does not match the required amount.");
-      }
-      if (service || row.method?.holdUnmatched) {
-        await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
-        return this.publicPay(row.publicId);
-      }
-      if (verifyBy === "unique_amount") {
-        await this.reserveReference(row.ownerId, row.id, providerRef, { payerAccount });
-      }
-      throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
-    }
-    if (senderBlocked) {
-      throw new BadRequestException("Sender number does not match the payment SMS");
-    }
-    if (balanceBlocked) {
-      await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
-      return this.publicPay(row.publicId);
-    }
+    if (!fit) throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     const held = Number(row.method?.holdAbove ?? 0) > 0 && expected + 0.001 >= Number(row.method?.holdAbove ?? 0);
     const paidNow = await this.prisma.$transaction(async (tx) => {
       await this.lockKey(tx, `${row.ownerId}:${providerRef}`);
@@ -2130,7 +2096,7 @@ export class PayService implements OnModuleInit {
     if (paidNow) {
       const fresh = await this.prisma.checkout.findUnique({ where: { id: row.id } });
       if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
-      if (service && (verifyBy === "unique_amount" || verifyBy === "transaction_id")) {
+      if (service) {
         await this.recordUniquePaid({
           ownerId: row.ownerId,
           checkoutId: row.id,
@@ -2506,7 +2472,7 @@ export class PayService implements OnModuleInit {
       code: row.code || row.label,
       accountNumber: row.accountNumber,
       instructions: row.instructions,
-      shiftAmount: row.shiftAmount,
+      shiftAmount: false,
       active: row.active,
       sortOrder: row.sortOrder,
       minAmount: money(row.minAmount),
@@ -2517,7 +2483,7 @@ export class PayService implements OnModuleInit {
       percentageDiscount: money(row.percentageDiscount),
       hasQr: Boolean(row.qrImage),
       qrImage: withImage ? row.qrImage : "",
-      verifyBy: row.verifyBy,
+      verifyBy: "transaction_id",
       askPayerNumber: row.askPayerNumber,
       checkBalance: row.checkBalance,
       payWindow: row.payWindow,
@@ -2606,117 +2572,6 @@ export class PayService implements OnModuleInit {
     return method;
   }
 
-  private async allocatePayable(
-    tx: { checkout: PrismaService["checkout"] },
-    checkoutId: string,
-    method: {
-      id: string;
-      ownerId: string;
-      verifyBy: string;
-      uniqueKind: string;
-      uniqueSlots: number;
-      fixedDiscount: { toString(): string };
-      percentageDiscount: { toString(): string };
-      fixedCharge: { toString(): string };
-      percentageCharge: { toString(): string };
-    },
-    amount: number,
-  ) {
-    const pending = await tx.checkout.findMany({
-      where: {
-        ownerId: method.ownerId,
-        id: { not: checkoutId },
-        status: { in: ["open", "waiting", "pending"] },
-        expiresAt: { gt: new Date() },
-      },
-      select: { amount: true, payable: true, methodId: true, status: true },
-    });
-    const unique = method.verifyBy === "unique_amount";
-    const slots = unique ? 499 : 400;
-    const taken = new Set<string>();
-    let same = 0;
-    for (const row of pending) {
-      if (unique && row.methodId !== method.id) continue;
-      taken.add(money(row.payable));
-      if (unique) taken.add(money(row.amount));
-      const sameBase = Math.abs(priceAmount(Number(row.amount), method) - amount) < 0.001 || Math.abs(Number(row.amount) - amount) < 0.001;
-      if (sameBase && row.methodId === method.id) same += 1;
-    }
-    if (unique && same > slots) {
-      throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
-    }
-    const picked = pickUniqueAmount(amount, "decimal", slots, taken);
-    if (picked) return Number(picked);
-    if (unique) throw new BadRequestException("Every amount slot is in use. Try again in a few minutes.");
-    return (Math.round(amount * 100) + randomInt(1, 400)) / 100;
-  }
-
-  private async pickHandset(ownerId: string) {
-    const senderId = await this.smsSenderId(ownerId);
-    if (senderId) {
-      const chosen = await this.prisma.handset.findFirst({ where: { id: senderId, ownerId } });
-      if (chosen) return chosen;
-    }
-    return this.prisma.handset.findFirst({ where: { ownerId }, orderBy: { lastSeenAt: "desc" } });
-  }
-
-  private async queueUniqueBalance(checkoutId: string, service: "bkash" | "nagad" | "rocket" | "upay") {
-    const saved = await this.prisma.checkout.findUnique({ where: { id: checkoutId } });
-    if (!saved) return;
-    const amountCents = takaCents(saved.payable);
-    const handset = await this.pickHandset(saved.ownerId);
-    if (amountCents === null || !handset) return;
-    const existing = await this.prisma.verifyOrder.findUnique({ where: { checkoutId } });
-    if (existing) return;
-    await this.prisma.verifyOrder.create({
-      data: {
-        ownerId: saved.ownerId,
-        checkoutId,
-        handsetId: handset.id,
-        service,
-        orderPublicId: saved.publicId,
-        customerRef: saved.shopOrder || saved.reference,
-        trxId: "",
-        amountCents,
-      },
-    });
-  }
-
-  private async attachUniqueTrx(
-    row: { id: string; publicId: string; ownerId: string; payable: { toString(): string }; reference: string; shopOrder: string },
-    providerRef: string,
-    payerAccount: string,
-    service: "bkash" | "nagad" | "rocket" | "upay",
-  ) {
-    const existing = await this.prisma.verifyOrder.findUnique({ where: { checkoutId: row.id } });
-    if (!existing || existing.status === "verified") return this.publicPay(row.publicId);
-    const amountCents = takaCents(row.payable);
-    if (amountCents === null) throw new BadRequestException("Amount cannot be sent to the phone");
-    const handset = await this.pickHandset(row.ownerId);
-    if (!handset) throw new BadRequestException("No phone is registered on this desk");
-    await this.prisma.$transaction(async (tx) => {
-      const saved = await tx.checkout.updateMany({
-        where: { id: row.id, status: { in: ["waiting", "pending"] } },
-        data: { status: "pending", providerRef, ...(payerAccount ? { payerAccount } : {}) },
-      });
-      if (saved.count !== 1) throw new BadRequestException("This checkout can no longer be changed");
-      await tx.verifyOrder.update({
-        where: { id: existing.id },
-        data: {
-          handsetId: handset.id,
-          service,
-          trxId: providerRef,
-          amountCents,
-          customerRef: row.shopOrder || row.reference,
-          status: "pending",
-          note: "",
-          decidedAt: null,
-        },
-      });
-    });
-    return this.publicPay(row.publicId);
-  }
-
   async handsetBalances(userId: string, uid: string) {
     await this.ownedHandset(userId, uid);
     const [ledgers, used] = await Promise.all([
@@ -2730,6 +2585,7 @@ export class PayService implements OnModuleInit {
     ]);
     const services = ["bkash", "nagad", "rocket", "upay"] as const;
     return {
+      balanceCheck: await this.balanceCheckOn(userId),
       services: Object.fromEntries(services.map((service) => {
         const row = ledgers.find((item) => item.service === service);
         return [service, {
@@ -2774,40 +2630,8 @@ export class PayService implements OnModuleInit {
   }
 
   async balanceJobs(userId: string, uid: string) {
-    const handset = await this.ownedHandset(userId, uid);
-    const [jobs, ledgers] = await Promise.all([
-      this.prisma.verifyOrder.findMany({
-        where: { handsetId: handset.id, status: "pending" },
-        orderBy: { createdAt: "asc" },
-        take: 20,
-      }),
-      this.prisma.walletLedger.findMany({ where: { ownerId: userId } }),
-    ]);
-    const checkouts = await this.prisma.checkout.findMany({
-      where: { id: { in: jobs.map((job) => job.checkoutId) } },
-      include: { method: true },
-    });
-    const balanceOn = await this.balanceCheckOn(userId);
-    const listed = jobs.map((job) => {
-        const checkout = checkouts.find((row) => row.id === job.checkoutId);
-        const askNumber = checkout?.method?.askPayerNumber !== false;
-        return {
-          id: job.id,
-          orderId: job.orderPublicId,
-          customerId: job.customerRef,
-          service: job.service,
-          trxId: job.trxId,
-          amountCents: job.amountCents,
-          reportedCents: ledgers.find((row) => row.service === job.service)?.balanceCents ?? null,
-          createdAt: job.createdAt.toISOString(),
-          payerAccount: askNumber ? checkout?.payerAccount ?? "" : "",
-          balanceCheck: balanceOn && checkout?.method?.checkBalance !== false,
-        };
-      });
-    return {
-      balanceCheck: listed.length === 0 ? balanceOn : listed.some((job) => job.balanceCheck),
-      jobs: listed,
-    };
+    await this.ownedHandset(userId, uid);
+    return { balanceCheck: await this.balanceCheckOn(userId), jobs: [] };
   }
 
   async decideBalance(userId: string, id: string, input: { uid: string; decision: "verified" | "rejected"; service: "bkash" | "nagad" | "rocket" | "upay"; trxId: string; amountCents: number; balanceCents: number; note?: string; smsKey?: string; smsSender?: string; smsAt?: string; smsBody?: string }) {
@@ -2818,133 +2642,12 @@ export class PayService implements OnModuleInit {
       const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
       return { ok: true as const, status: "verified" as const, balanceCents: ledger?.balanceCents ?? input.balanceCents };
     }
-    const trxId = input.trxId.trim().toUpperCase();
-    if (input.decision === "rejected") {
-      const preview = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
-      if (preview?.method?.checkBalance !== false && /balance/i.test(input.note || "")) {
-        return { ok: true as const, status: "pending" as const, balanceCents: input.balanceCents };
-      }
-      await this.prisma.verifyOrder.updateMany({
-        where: { id: job.id, status: "pending" },
-        data: { status: "rejected", note: (input.note || "Rejected on the phone").slice(0, 180), decidedAt: new Date() },
-      });
-      await this.prisma.ledgerEvent.create({
-        data: {
-          ownerId: userId,
-          service: job.service,
-          kind: "rejected",
-          balanceCents: input.balanceCents,
-          amountCents: job.amountCents,
-          trxId: job.trxId,
-          orderId: job.orderPublicId,
-          note: (input.note || "").slice(0, 180),
-        },
-      });
-      return { ok: true as const, status: "rejected" as const, balanceCents: input.balanceCents };
-    }
-    const lockedTrx = job.trxId.trim().toUpperCase();
-    if ((lockedTrx && trxId !== lockedTrx) || (!lockedTrx && !trxRefOk(trxId)) || input.service !== job.service || input.amountCents !== job.amountCents) {
-      throw new BadRequestException("This decision does not match the pending order");
-    }
-    const smsKey = (input.smsKey ?? "").trim().slice(0, 80);
-    if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
-    const checkoutPreview = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
-    const payer = (checkoutPreview?.payerAccount ?? "").trim();
-    const needSender = checkoutPreview?.method?.verifyBy === "transaction_id" && checkoutPreview.method.askPayerNumber !== false;
-    if (needSender && !senderNumberOk(payer)) {
-      throw new BadRequestException("Enter the wallet number you paid from (01XXXXXXXXX).");
-    }
-    if (needSender) {
-      const smsBody = (input.smsBody ?? "").trim() || (await this.noticeBody(userId, trxId));
-      if (!smsBody || !bodyHasRef(smsBody, trxId) || !senderInNotice(payer, smsBody)) {
-        throw new BadRequestException("Sender number does not match the payment SMS");
-      }
-    }
-    const smsText = (input.smsBody ?? "").trim() || (await this.noticeBody(userId, trxId));
-    const smsCents = smsBalanceCents(smsText);
-    if (checkoutPreview?.method?.checkBalance !== false && (await this.balanceCheckOn(userId))) {
-      const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
-      const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
-      if (expectedBalance === null || smsCents === null || expectedBalance > 100_000_000 || smsCents !== expectedBalance) {
-        throw new BadRequestException("SMS balance does not match the saved wallet balance");
-      }
-    }
-    const smsNote = [input.smsSender, input.smsAt, smsKey].filter(Boolean).join(" ").slice(0, 180);
-    const paid = await this.prisma.$transaction(async (tx) => {
-      await this.lockKey(tx, `${userId}:${trxId}`);
-      const current = await tx.verifyOrder.findUnique({ where: { id: job.id } });
-      if (!current || current.status === "rejected") return "closed" as const;
-      if (current.status === "verified") return "verified" as const;
-      const used = await tx.verifyOrder.findFirst({
-        where: { ownerId: userId, trxId, status: "verified", id: { not: job.id } },
-        select: { id: true },
-      });
-      if (used) return "used" as const;
-      const smsUsed = await tx.verifyOrder.findFirst({
-        where: { ownerId: userId, smsKey, status: "verified", id: { not: job.id } },
-        select: { id: true },
-      });
-      if (smsUsed) return "used" as const;
-      const checkout = await tx.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
-      const storedRef = (checkout?.providerRef ?? "").trim().toUpperCase();
-      if (!checkout || (storedRef && storedRef !== trxId)) return "closed" as const;
-      const holdAbove = checkout.method ? Number(checkout.method.holdAbove) : 0;
-      const held = checkout.method?.verifyBy === "unique_amount" && holdAbove > 0 && Number(checkout.payable) + 0.001 >= holdAbove;
-      const saved = await tx.checkout.updateMany({
-        where: {
-          id: checkout.id,
-          status: { in: ["waiting", "pending"] },
-          ...(storedRef ? { providerRef: trxId } : { OR: [{ providerRef: null }, { providerRef: "" }] }),
-        },
-        data: { status: held ? "pending" : "paid", providerRef: trxId },
-      });
-      if (saved.count !== 1) return "closed" as const;
-      if (!held && checkout.billId) await tx.bill.update({ where: { id: checkout.billId }, data: { status: "paid" } });
-      await tx.verifyOrder.update({
-        where: { id: job.id },
-        data: { status: "verified", decidedAt: new Date(), trxId, smsKey, note: smsNote },
-      });
-      const savedBalance = smsCents ?? input.balanceCents;
-      await tx.walletLedger.upsert({
-        where: { ownerId_service: { ownerId: userId, service: job.service } },
-        create: { ownerId: userId, service: job.service, balanceCents: savedBalance },
-        update: { balanceCents: savedBalance },
-      });
-      await tx.ledgerEvent.create({
-        data: {
-          ownerId: userId,
-          service: job.service,
-          kind: "verified",
-          balanceCents: savedBalance,
-          amountCents: job.amountCents,
-          trxId,
-          orderId: job.orderPublicId,
-          note: smsNote,
-        },
-      });
-      return held ? "held" as const : "paid" as const;
-    });
-    if (paid === "used") throw new BadRequestException("This Transaction ID is already used on another order.");
-    if (paid === "paid" || paid === "held") {
-      if (paid === "paid") {
-        const fresh = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId } });
-        if (fresh) this.notifyGateway({ ...fresh, status: "paid" });
-      }
-      return { ok: true as const, status: "verified" as const, balanceCents: input.balanceCents };
-    }
-    if (paid === "verified") {
-      const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
-      return { ok: true as const, status: "verified" as const, balanceCents: ledger?.balanceCents ?? input.balanceCents };
-    }
-    return { ok: true as const, status: "closed" as const, balanceCents: input.balanceCents };
+    return { ok: true as const, status: "pending" as const, balanceCents: input.balanceCents };
   }
 
   private async matchOwner(ownerId: string, body: string, noticeId?: string, sender = "") {
     if (!isPaymentSender(sender) || isOtpMessage(body) || looksLikeDebit(body) || !isCreditMessage(body)) return null;
     const paidAmount = parsePaidAmount(body);
-    const noticedAt = noticeId
-      ? (await this.prisma.inboxNotice.findUnique({ where: { id: noticeId }, select: { createdAt: true } }))?.createdAt.getTime() ?? 0
-      : 0;
     const smsRef = readTrxId(body);
     const open = { status: { in: ["waiting", "pending"] }, expiresAt: { gt: new Date() } };
     const waiting = await this.prisma.checkout.findMany({
@@ -2972,11 +2675,8 @@ export class PayService implements OnModuleInit {
       const base = Number(named.amount);
       const under = Number(named.method?.underTolerance ?? 0);
       const over = Number(named.method?.overTolerance ?? 0);
-      const verifyBy = named.method?.verifyBy ?? "transaction_id";
-      if (verifyBy === "transaction_id" && named.method?.askPayerNumber !== false && senderNumberOk(named.payerAccount ?? "") && !senderInNotice(named.payerAccount ?? "", body)) return null;
-      const ok = paidAmount !== null && (verifyBy === "unique_amount"
-        ? amountFits(paidAmount, payable, under, over)
-        : paidFitsCheckout(paidAmount, payable, base, under, over, verifyBy));
+      if (named.method?.askPayerNumber !== false && senderNumberOk(named.payerAccount ?? "") && !senderInNotice(named.payerAccount ?? "", body)) return null;
+      const ok = paidAmount !== null && paidFitsCheckout(paidAmount, payable, base, under, over, "transaction_id");
       if (!ok) return null;
     }
     const fits = named ? [named] : waiting.filter((row) => {
@@ -2984,21 +2684,10 @@ export class PayService implements OnModuleInit {
       const payable = Number(row.payable);
       const under = method ? Number(method.underTolerance) : 0;
       const over = method ? Number(method.overTolerance) : 0;
-      const verifyBy = method?.verifyBy ?? "transaction_id";
       if (!smsStillDecides(method)) return false;
       if (!senderFitsMethod(sender, body, method?.label ?? "")) return false;
       const stored = (row.providerRef ?? "").toUpperCase();
       if (stored && smsRef && stored !== smsRef) return false;
-      if (verifyBy === "sender_number") {
-        if (!senderInNotice(row.payerAccount ?? "", body) || paidAmount === null) return false;
-        return paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);
-      }
-      if (verifyBy === "unique_amount") {
-        if (paidAmount === null) return false;
-        if (stored && smsRef && stored !== smsRef) return false;
-        if (noticedAt && row.createdAt.getTime() > noticedAt + 30_000) return false;
-        return paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);
-      }
       if (!stored || !bodyHasRef(body, stored) || claimed.has(stored)) return false;
       if (method?.askPayerNumber !== false && senderNumberOk(row.payerAccount ?? "") && !senderInNotice(row.payerAccount ?? "", body)) return false;
       return paidAmount !== null && amountFits(paidAmount, payable, under, over);
@@ -3011,8 +2700,7 @@ export class PayService implements OnModuleInit {
     if (!target) return null;
     const wallet = walletService(target.method?.label ?? "");
     const balanceOn = target.method?.checkBalance !== false;
-    const verifyBy = target.method?.verifyBy ?? "transaction_id";
-    if (wallet && balanceOn && (verifyBy === "unique_amount" || verifyBy === "transaction_id") && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
+    if (wallet && balanceOn && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
     if (!named && ranked[1] && paidAmount !== null) {
       const first = Math.abs(paidAmount - Number(ranked[0].payable));
       const second = Math.abs(paidAmount - Number(ranked[1].payable));
@@ -3055,7 +2743,7 @@ export class PayService implements OnModuleInit {
     if (outcome === "miss") return null;
     if (outcome === "paid") this.notifyGateway({ ...target, status: "paid" });
     const service = walletService(target.method?.label ?? "");
-    if (service && (verifyBy === "unique_amount" || verifyBy === "transaction_id")) {
+    if (service) {
       await this.recordUniquePaid({
         ownerId,
         checkoutId: target.id,
@@ -3298,7 +2986,7 @@ export class PayService implements OnModuleInit {
             accountNumber: shownAccount(row.payTo, row.method.accountNumber),
             instructions: row.method.instructions,
             qrImage: row.method.qrImage,
-            verifyBy: row.method.verifyBy,
+            verifyBy: "transaction_id",
             askPayerNumber: row.method.askPayerNumber,
             acceptProof: row.method.acceptProof,
           }

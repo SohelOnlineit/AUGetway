@@ -5,7 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import * as SecureStore from "expo-secure-store";
 import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, rememberSynced, setSmsSync, smsReady, startKeepAlive, stopKeepAlive, syncedKeys, type PaymentSms } from "uniqpay-sms";
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
-import { SERVICES, applyVerified, decideWithSms, emptyBooks, formatTaka, isService, logWait, mergeRemote, mergeSms, normalizeBook, parseTaka, readSmsPayment, setBalance, type Books, type Service, type SmsHit, type VerifyJob } from "./ledger";
+import { SERVICES, emptyBooks, formatTaka, mergeRemote, normalizeBook, parseTaka, setBalance, type Books, type Service } from "./ledger";
 
 const DESK = "https://pay.uniqbd.com/api";
 
@@ -152,7 +152,6 @@ function App() {
   const [books, setBooks] = useState<Books>(emptyBooks());
   const [amounts, setAmounts] = useState<Record<Service, string>>({ bkash: "", nagad: "", rocket: "", upay: "" });
   const booksRef = useRef<Books>(emptyBooks());
-  const smsCache = useRef<SmsHit[]>([]);
   const balancing = useRef(false);
   const [balanceOn, setBalanceOn] = useState(true);
   const checkRef = useRef(true);
@@ -371,7 +370,12 @@ function App() {
           return;
         }
         if (listed.ok) {
-          const data = (await listed.json()) as { services?: Record<string, { cents?: number | null; trx?: string[] }> };
+          const data = (await listed.json()) as { balanceCheck?: boolean; services?: Record<string, { cents?: number | null; trx?: string[] }> };
+          if (checkWrite.current === checkSeen.current && typeof data.balanceCheck === "boolean") {
+            checkRef.current = data.balanceCheck;
+            setBalanceOn(data.balanceCheck);
+            void writeStore("uniqpay_balance_check", data.balanceCheck ? "1" : "0");
+          }
           const remote: Partial<Record<Service, { cents: number | null; trx: string[] }>> = {};
           for (const service of SERVICES) {
             const row = data.services?.[service];
@@ -384,75 +388,6 @@ function App() {
           const merged = mergeRemote(booksRef.current, remote);
           if (JSON.stringify(merged) !== JSON.stringify(booksRef.current)) await storeBooks(merged);
         }
-        const response = await fetch(`${DESK}/handset/balance-jobs?uid=${encodeURIComponent(uid)}`, { headers });
-        if (response.status === 401) {
-          if (!stop) void signOut();
-          return;
-        }
-        const data = response.ok ? (await response.json()) as { jobs?: VerifyJob[]; balanceCheck?: boolean } : {};
-        const jobs = (data.jobs ?? []).filter((job): job is VerifyJob => Boolean(job) && isService(job.service) && typeof job.trxId === "string" && typeof job.amountCents === "number");
-        if (response.ok && checkWrite.current === checkSeen.current) {
-          const on = data.balanceCheck !== false;
-          checkRef.current = on;
-          setBalanceOn(on);
-          void writeStore("uniqpay_balance_check", on ? "1" : "0");
-        }
-        const balanceCheck = checkRef.current;
-        let messages = smsCache.current;
-        if (smsReady && jobs.length > 0) {
-          try {
-            const rows = await listRecentSms(80);
-            const found = rows.flatMap((row) => {
-              const item = {
-                key: `${row.receivedAt}:${row.address}:${row.body}`.slice(0, 80),
-                sender: row.address,
-                body: row.body,
-                receivedAt: row.receivedAt,
-              };
-              const hit = readSmsPayment(item);
-              return hit ? [hit] : [];
-            });
-            messages = mergeSms(smsCache.current, found);
-            smsCache.current = messages;
-          } catch {
-            // The saved SMS list is used until the inbox can be read again.
-          }
-        }
-        let current = booksRef.current;
-        for (const service of SERVICES) {
-          let checkReported = true;
-          for (const job of jobs.filter((item) => item.service === service)) {
-            const useBalance = job.balanceCheck === false ? false : balanceCheck;
-            const decision = decideWithSms(current[service], job, messages, checkReported, jobs, useBalance);
-            if (decision.type === "wait") {
-              current = { ...current, [service]: logWait(current[service], job, decision.reason, new Date().toISOString()) };
-              continue;
-            }
-            const trxId = decision.type === "verify" ? job.trxId.trim() || decision.sms.trxId : job.trxId;
-            const saved = await fetch(`${DESK}/handset/balance-jobs/${job.id}`, {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                uid,
-                decision: decision.type === "verify" ? "verified" : "rejected",
-                service,
-                trxId,
-                amountCents: job.amountCents,
-                balanceCents: decision.type === "verify" ? decision.nextCents : current[service].cents ?? 0,
-                ...(decision.type === "reject" ? { note: decision.reason } : {}),
-                ...(decision.type === "verify" ? { smsKey: decision.sms.key, smsSender: decision.sms.sender, smsAt: new Date(decision.sms.receivedAt).toISOString(), smsBody: decision.sms.body ?? "" } : {}),
-              }),
-            });
-            const result = (await saved.json().catch(() => ({}))) as { status?: string; balanceCents?: number };
-            if (!saved.ok) break;
-            if (decision.type === "verify" && result.status === "verified") {
-              const nextCents = typeof result.balanceCents === "number" ? result.balanceCents : decision.nextCents;
-              current = { ...current, [service]: applyVerified(current[service], job, nextCents, new Date().toISOString(), decision.sms.key, trxId) };
-              checkReported = false;
-            }
-          }
-        }
-        if (JSON.stringify(current) !== JSON.stringify(booksRef.current)) await storeBooks(current);
       } catch {
         // The next poll tries the same pending order again.
       } finally {
@@ -1002,7 +937,7 @@ function App() {
                   <Switch on={balanceOn} onPress={() => void toggleBalanceCheck()} />
                 </View>
               </View>
-              <Text style={styles.hint}>{balanceOn ? "On. The SMS balance must equal the saved balance plus the payment." : "Off. A payment can succeed without matching the saved balance."}</Text>
+              <Text style={styles.hint}>{balanceOn ? "On. The website approves a payment only when the SMS balance equals this saved balance plus the payment." : "Off. The website can approve a payment without matching the saved balance."}</Text>
               {note ? <Text style={styles.note}>{note}</Text> : null}
               {SERVICES.map((service) => (
                 <View key={service} style={styles.sms}>
