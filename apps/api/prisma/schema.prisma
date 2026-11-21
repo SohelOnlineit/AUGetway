@@ -50,6 +50,7 @@ model WalletMethod {
   percentageDiscount Decimal @default(0) @db.Decimal(8, 2)
   qrImage       String     @default("")
   verifyBy      String     @default("transaction_id")
+  askPayerNumber Boolean   @default(true)
   payWindow     Int        @default(15)
   uniqueSlots   Int        @default(3)
   uniqueKind    String     @default("integer")

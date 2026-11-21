@@ -145,6 +145,10 @@ export class MethodDto {
   verifyBy?: string;
 
   @IsOptional()
+  @IsBoolean()
+  askPayerNumber?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)

@@ -641,6 +641,7 @@ export class PayService implements OnModuleInit {
       percentageDiscount?: number;
       qrImage?: string;
       verifyBy?: string;
+      askPayerNumber?: boolean;
       payWindow?: number;
       uniqueSlots?: number;
       uniqueKind?: string;
@@ -672,6 +673,7 @@ export class PayService implements OnModuleInit {
         percentageDiscount: input.percentageDiscount ?? 0,
         qrImage: cleanQr(input.qrImage) ?? "",
         verifyBy: input.verifyBy ?? "transaction_id",
+        askPayerNumber: input.askPayerNumber !== false,
         payWindow: input.payWindow ?? 15,
         uniqueSlots: input.uniqueSlots ?? 3,
         uniqueKind: input.uniqueKind ?? "integer",
@@ -706,6 +708,7 @@ export class PayService implements OnModuleInit {
       percentageDiscount?: number;
       qrImage?: string;
       verifyBy?: string;
+      askPayerNumber?: boolean;
       payWindow?: number;
       uniqueSlots?: number;
       uniqueKind?: string;
@@ -739,6 +742,7 @@ export class PayService implements OnModuleInit {
         percentageDiscount: input.percentageDiscount,
         qrImage: cleanQr(input.qrImage),
         verifyBy: input.verifyBy,
+        askPayerNumber: input.askPayerNumber,
         payWindow: input.payWindow,
         uniqueSlots: input.uniqueSlots,
         uniqueKind: input.uniqueKind,
@@ -1943,7 +1947,8 @@ export class PayService implements OnModuleInit {
     }
     const verifyBy = row.method?.verifyBy ?? "transaction_id";
     const providerRef = (input.providerRef ?? "").trim().toUpperCase();
-    const payerAccount = (input.payerAccount ?? "").trim();
+    const collectNumber = verifyBy !== "transaction_id" || row.method?.askPayerNumber !== false;
+    const payerAccount = collectNumber ? (input.payerAccount ?? "").trim() : "";
     const receipt = input.receipt ? this.cleanReceipt(input.receipt) : "";
     if (providerRef && !trxRefOk(providerRef)) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
@@ -2445,6 +2450,7 @@ export class PayService implements OnModuleInit {
       percentageDiscount: MoneyRow;
       qrImage: string;
       verifyBy: string;
+      askPayerNumber: boolean;
       payWindow: number;
       uniqueSlots: number;
       uniqueKind: string;
@@ -2476,6 +2482,7 @@ export class PayService implements OnModuleInit {
       hasQr: Boolean(row.qrImage),
       qrImage: withImage ? row.qrImage : "",
       verifyBy: row.verifyBy,
+      askPayerNumber: row.askPayerNumber,
       payWindow: row.payWindow,
       uniqueSlots: row.uniqueSlots,
       uniqueKind: row.uniqueKind,
@@ -3219,6 +3226,7 @@ export class PayService implements OnModuleInit {
         instructions: string;
         qrImage: string;
         verifyBy: string;
+        askPayerNumber: boolean;
         acceptProof: boolean;
       } | null;
     },
@@ -3259,6 +3267,7 @@ export class PayService implements OnModuleInit {
             instructions: row.method.instructions,
             qrImage: row.method.qrImage,
             verifyBy: row.method.verifyBy,
+            askPayerNumber: row.method.askPayerNumber,
             acceptProof: row.method.acceptProof,
           }
         : null,

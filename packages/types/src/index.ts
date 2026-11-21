@@ -13,6 +13,7 @@ export type MethodCard = {
   instructions: string;
   qrImage?: string;
   verifyBy?: string;
+  askPayerNumber?: boolean;
   acceptProof?: boolean;
 };
 

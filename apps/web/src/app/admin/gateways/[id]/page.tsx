@@ -20,6 +20,7 @@ type GatewayDetail = {
   percentageDiscount: string;
   qrImage: string;
   verifyBy: string;
+  askPayerNumber: boolean;
   payWindow: number;
   uniqueSlots: number;
   uniqueKind: string;
@@ -44,6 +45,7 @@ type FormState = {
   accountNumber: string;
   instructions: string;
   verifyBy: string;
+  askPayerNumber: boolean;
   payWindow: string;
   uniqueSlots: string;
   uniqueKind: string;
@@ -95,6 +97,7 @@ function fromDetail(row: GatewayDetail): FormState {
     accountNumber: row.accountNumber,
     instructions: row.instructions,
     verifyBy: row.verifyBy,
+    askPayerNumber: row.askPayerNumber !== false,
     payWindow: String(row.payWindow),
     uniqueSlots: String(row.uniqueSlots),
     uniqueKind: row.uniqueKind,
@@ -166,6 +169,7 @@ export default function EditGatewayPage() {
           percentageCharge: Number(form.percentageCharge || 0),
           qrImage: form.qrImage,
           verifyBy: form.verifyBy,
+          askPayerNumber: form.askPayerNumber,
           payWindow: Number(form.payWindow),
           uniqueSlots: Number(form.uniqueSlots),
           uniqueKind: form.uniqueKind,
@@ -321,6 +325,16 @@ export default function EditGatewayPage() {
               </select>
               <p className="gw-help">How the customer is matched to their deposit. Every option is matched against your recorded SMS automatically; they differ in what the customer gives you, and when.</p>
             </label>
+            {form.verifyBy === "transaction_id" ? (
+              <label>
+                <span className="gw-label">Wallet number</span>
+                <select value={form.askPayerNumber ? "enable" : "disable"} onChange={(event) => patch({ askPayerNumber: event.target.value === "enable" })}>
+                  <option value="enable">Enable</option>
+                  <option value="disable">Disable</option>
+                </select>
+                <p className="gw-help">On asks the customer for the wallet number they paid from, next to the transaction ID. Off hides that box, so only the transaction ID is required.</p>
+              </label>
+            ) : null}
             <label>
               <span className="gw-label">Payment Window (Minutes)<i>*</i></span>
               <input required type="number" min={1} max={1440} value={form.payWindow} onChange={(event) => patch({ payWindow: event.target.value })} />
