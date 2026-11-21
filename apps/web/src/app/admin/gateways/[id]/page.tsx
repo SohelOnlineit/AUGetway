@@ -21,6 +21,7 @@ type GatewayDetail = {
   qrImage: string;
   verifyBy: string;
   askPayerNumber: boolean;
+  checkBalance: boolean;
   payWindow: number;
   uniqueSlots: number;
   uniqueKind: string;
@@ -46,6 +47,7 @@ type FormState = {
   instructions: string;
   verifyBy: string;
   askPayerNumber: boolean;
+  checkBalance: boolean;
   payWindow: string;
   uniqueSlots: string;
   uniqueKind: string;
@@ -98,6 +100,7 @@ function fromDetail(row: GatewayDetail): FormState {
     instructions: row.instructions,
     verifyBy: row.verifyBy,
     askPayerNumber: row.askPayerNumber !== false,
+    checkBalance: row.checkBalance !== false,
     payWindow: String(row.payWindow),
     uniqueSlots: String(row.uniqueSlots),
     uniqueKind: row.uniqueKind,
@@ -170,6 +173,7 @@ export default function EditGatewayPage() {
           qrImage: form.qrImage,
           verifyBy: form.verifyBy,
           askPayerNumber: form.askPayerNumber,
+          checkBalance: form.checkBalance,
           payWindow: Number(form.payWindow),
           uniqueSlots: Number(form.uniqueSlots),
           uniqueKind: form.uniqueKind,
@@ -332,9 +336,17 @@ export default function EditGatewayPage() {
                   <option value="enable">Enable</option>
                   <option value="disable">Disable</option>
                 </select>
-                <p className="gw-help">On asks the customer for the wallet number they paid from, next to the transaction ID. Off hides that box, so only the transaction ID is required.</p>
+                <p className="gw-help">On asks the customer for the wallet number they paid from. That number must appear in the payment SMS. Off hides the box and skips the sender-number check.</p>
               </label>
             ) : null}
+            <label>
+              <span className="gw-label">Balance verify</span>
+              <select value={form.checkBalance ? "enable" : "disable"} onChange={(event) => patch({ checkBalance: event.target.value === "enable" })}>
+                <option value="enable">Enable</option>
+                <option value="disable">Disable</option>
+              </select>
+              <p className="gw-help">On: a payment is approved only when the transaction ID matches, the sender number matches, and the SMS balance equals the saved balance plus the payment. Off: the balance check is skipped. The transaction ID is still required.</p>
+            </label>
             <label>
               <span className="gw-label">Payment Window (Minutes)<i>*</i></span>
               <input required type="number" min={1} max={1440} value={form.payWindow} onChange={(event) => patch({ payWindow: event.target.value })} />

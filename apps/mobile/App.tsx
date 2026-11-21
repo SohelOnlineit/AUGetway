@@ -422,7 +422,8 @@ function App() {
         for (const service of SERVICES) {
           let checkReported = true;
           for (const job of jobs.filter((item) => item.service === service)) {
-            const decision = decideWithSms(current[service], job, messages, checkReported, jobs, balanceCheck);
+            const useBalance = job.balanceCheck === false ? false : balanceCheck;
+            const decision = decideWithSms(current[service], job, messages, checkReported, jobs, useBalance);
             if (decision.type === "wait") {
               current = { ...current, [service]: logWait(current[service], job, decision.reason, new Date().toISOString()) };
               continue;
@@ -439,7 +440,7 @@ function App() {
                 amountCents: job.amountCents,
                 balanceCents: decision.type === "verify" ? decision.nextCents : current[service].cents ?? 0,
                 ...(decision.type === "reject" ? { note: decision.reason } : {}),
-                ...(decision.type === "verify" ? { smsKey: decision.sms.key, smsSender: decision.sms.sender, smsAt: new Date(decision.sms.receivedAt).toISOString() } : {}),
+                ...(decision.type === "verify" ? { smsKey: decision.sms.key, smsSender: decision.sms.sender, smsAt: new Date(decision.sms.receivedAt).toISOString(), smsBody: decision.sms.body ?? "" } : {}),
               }),
             });
             const result = (await saved.json().catch(() => ({}))) as { status?: string; balanceCents?: number };

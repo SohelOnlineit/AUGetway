@@ -51,6 +51,7 @@ model WalletMethod {
   qrImage       String     @default("")
   verifyBy      String     @default("transaction_id")
   askPayerNumber Boolean   @default(true)
+  checkBalance  Boolean    @default(true)
   payWindow     Int        @default(15)
   uniqueSlots   Int        @default(3)
   uniqueKind    String     @default("integer")

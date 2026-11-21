@@ -31,6 +31,8 @@ export type VerifyJob = {
   amountCents: number;
   reportedCents: number | null;
   createdAt: string;
+  payerAccount?: string;
+  balanceCheck?: boolean;
 };
 
 export type Decision =
@@ -154,6 +156,9 @@ export function decideWithSms(book: WalletBook, job: VerifyJob, messages: SmsHit
   if (book.trx.includes(trxId)) return { type: "reject" as const, reason: "Transaction ID already used" };
   const sms = matchJobSms(job, messages, book.sms);
   if (sms.type === "wait") return sms;
+  if (!payerShown(job.payerAccount, sms.sms.body ?? "")) {
+    return { type: "reject" as const, reason: "Sender number does not match" };
+  }
   if (!balanceCheck) {
     const nextCents = relaxedNext(book.cents, job.amountCents, sms.sms.balanceCents);
     if (nextCents === null) return { type: "reject" as const, reason: "Amount is not valid" };
@@ -208,6 +213,7 @@ export type SmsHit = {
   balanceCents: number | null;
   sender: string;
   receivedAt: number;
+  body?: string;
 };
 
 export type SmsBalance = {
@@ -305,7 +311,19 @@ export function readSmsPayment(row: InboxSms): SmsHit | null {
     balanceCents: balance && balance.service === service ? balance.balanceCents : null,
     sender: row.sender.trim().slice(0, 80),
     receivedAt: row.receivedAt,
+    body: row.body,
   };
+}
+
+function payerShown(payer: string | undefined, body: string) {
+  const tail = (payer ?? "").replace(/\D/g, "");
+  if (!/^01[3-9]\d{8}$/.test(tail)) return true;
+  if (body.replace(/\D/g, "").includes(tail)) return true;
+  const last4 = tail.slice(-4);
+  const last3 = tail.slice(-3);
+  if (body.includes(`***${last4}`) || body.includes(`***${last3}`)) return true;
+  const masked = (end: string) => new RegExp(`(?:\\*|x){2,}\\s*${end}(?!\\d)`, "i").test(body);
+  return masked(last4) || masked(last3);
 }
 
 function decideUniqueAmount(book: WalletBook, job: VerifyJob, messages: SmsHit[], peers: VerifyJob[], balanceCheck: boolean) {

@@ -149,6 +149,10 @@ export class MethodDto {
   askPayerNumber?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  checkBalance?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
@@ -1004,6 +1008,11 @@ export class BalanceDecisionDto {
   @IsString()
   @MaxLength(40)
   smsAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  smsBody?: string;
 }
 
 export class JobResultDto {

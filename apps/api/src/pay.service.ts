@@ -455,7 +455,11 @@ function senderInNotice(sender: string, body: string) {
   const tail = digits(sender);
   if (!senderNumberOk(tail)) return false;
   if (digits(body).includes(tail)) return true;
-  return body.includes(`***${tail.slice(-3)}`) || body.includes(`***${tail.slice(-4)}`);
+  const last4 = tail.slice(-4);
+  const last3 = tail.slice(-3);
+  if (body.includes(`***${last4}`) || body.includes(`***${last3}`)) return true;
+  const masked = (end: string) => new RegExp(`(?:\\*|x){2,}\\s*${end}(?!\\d)`, "i").test(body);
+  return masked(last4) || masked(last3);
 }
 
 function parsePaidAmount(body: string) {
@@ -642,6 +646,7 @@ export class PayService implements OnModuleInit {
       qrImage?: string;
       verifyBy?: string;
       askPayerNumber?: boolean;
+      checkBalance?: boolean;
       payWindow?: number;
       uniqueSlots?: number;
       uniqueKind?: string;
@@ -674,6 +679,7 @@ export class PayService implements OnModuleInit {
         qrImage: cleanQr(input.qrImage) ?? "",
         verifyBy: input.verifyBy ?? "transaction_id",
         askPayerNumber: input.askPayerNumber !== false,
+        checkBalance: input.checkBalance !== false,
         payWindow: input.payWindow ?? 15,
         uniqueSlots: input.uniqueSlots ?? 3,
         uniqueKind: input.uniqueKind ?? "integer",
@@ -709,6 +715,7 @@ export class PayService implements OnModuleInit {
       qrImage?: string;
       verifyBy?: string;
       askPayerNumber?: boolean;
+      checkBalance?: boolean;
       payWindow?: number;
       uniqueSlots?: number;
       uniqueKind?: string;
@@ -743,6 +750,7 @@ export class PayService implements OnModuleInit {
         qrImage: cleanQr(input.qrImage),
         verifyBy: input.verifyBy,
         askPayerNumber: input.askPayerNumber,
+        checkBalance: input.checkBalance,
         payWindow: input.payWindow,
         uniqueSlots: input.uniqueSlots,
         uniqueKind: input.uniqueKind,
@@ -1959,6 +1967,9 @@ export class PayService implements OnModuleInit {
     if (verifyBy === "transaction_id" && !providerRef && !row.providerRef) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
+    if (verifyBy === "transaction_id" && row.method?.askPayerNumber !== false && !senderNumberOk(payerAccount || row.payerAccount || "")) {
+      throw new BadRequestException("Enter the wallet number you paid from (01XXXXXXXXX).");
+    }
     if (verifyBy === "sender_number" && !providerRef && !senderNumberOk(payerAccount || row.payerAccount || "")) {
       throw new BadRequestException("Sender number must start with 01 and be exactly 11 digits (e.g. 01XXXXXXXXX).");
     }
@@ -2012,7 +2023,7 @@ export class PayService implements OnModuleInit {
       reference: string;
       shopOrder: string;
       billId: string | null;
-      method: { label: string; verifyBy: string; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
+      method: { label: string; verifyBy: string; askPayerNumber?: boolean; checkBalance?: boolean; underTolerance: unknown; overTolerance: unknown; holdAbove: unknown; holdUnmatched: boolean } | null;
     },
     providerRef: string,
     payerAccount: string,
@@ -2064,7 +2075,11 @@ export class PayService implements OnModuleInit {
       }
       throw new BadRequestException("Transaction ID not found in recorded SMS. Please ensure the payment has been completed and try again.");
     }
-    if (service && verifyBy === "unique_amount" && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body))) {
+    if (row.method?.askPayerNumber !== false && senderNumberOk(payerAccount) && !senderInNotice(payerAccount, fit.body)) {
+      throw new BadRequestException("Sender number does not match the payment SMS");
+    }
+    const balanceOn = row.method?.checkBalance !== false;
+    if (service && balanceOn && (verifyBy === "unique_amount" || verifyBy === "transaction_id") && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body))) {
       await this.reserveReference(row.ownerId, row.id, providerRef, { status: "pending", payerAccount });
       return this.publicPay(row.publicId);
     }
@@ -2451,6 +2466,7 @@ export class PayService implements OnModuleInit {
       qrImage: string;
       verifyBy: string;
       askPayerNumber: boolean;
+      checkBalance: boolean;
       payWindow: number;
       uniqueSlots: number;
       uniqueKind: string;
@@ -2483,6 +2499,7 @@ export class PayService implements OnModuleInit {
       qrImage: withImage ? row.qrImage : "",
       verifyBy: row.verifyBy,
       askPayerNumber: row.askPayerNumber,
+      checkBalance: row.checkBalance,
       payWindow: row.payWindow,
       uniqueSlots: row.uniqueSlots,
       uniqueKind: row.uniqueKind,
@@ -2796,22 +2813,34 @@ export class PayService implements OnModuleInit {
       }),
       this.prisma.walletLedger.findMany({ where: { ownerId: userId } }),
     ]);
+    const checkouts = await this.prisma.checkout.findMany({
+      where: { id: { in: jobs.map((job) => job.checkoutId) } },
+      include: { method: true },
+    });
+    const balanceOn = await this.balanceCheckOn(userId);
+    const listed = jobs.map((job) => {
+        const checkout = checkouts.find((row) => row.id === job.checkoutId);
+        const askNumber = checkout?.method?.askPayerNumber !== false;
+        return {
+          id: job.id,
+          orderId: job.orderPublicId,
+          customerId: job.customerRef,
+          service: job.service,
+          trxId: job.trxId,
+          amountCents: job.amountCents,
+          reportedCents: ledgers.find((row) => row.service === job.service)?.balanceCents ?? null,
+          createdAt: job.createdAt.toISOString(),
+          payerAccount: askNumber ? checkout?.payerAccount ?? "" : "",
+          balanceCheck: balanceOn && checkout?.method?.checkBalance !== false,
+        };
+      });
     return {
-      balanceCheck: await this.balanceCheckOn(userId),
-      jobs: jobs.map((job) => ({
-        id: job.id,
-        orderId: job.orderPublicId,
-        customerId: job.customerRef,
-        service: job.service,
-        trxId: job.trxId,
-        amountCents: job.amountCents,
-        reportedCents: ledgers.find((row) => row.service === job.service)?.balanceCents ?? null,
-        createdAt: job.createdAt.toISOString(),
-      })),
+      balanceCheck: listed.length === 0 ? balanceOn : listed.some((job) => job.balanceCheck),
+      jobs: listed,
     };
   }
 
-  async decideBalance(userId: string, id: string, input: { uid: string; decision: "verified" | "rejected"; service: "bkash" | "nagad" | "rocket" | "upay"; trxId: string; amountCents: number; balanceCents: number; note?: string; smsKey?: string; smsSender?: string; smsAt?: string }) {
+  async decideBalance(userId: string, id: string, input: { uid: string; decision: "verified" | "rejected"; service: "bkash" | "nagad" | "rocket" | "upay"; trxId: string; amountCents: number; balanceCents: number; note?: string; smsKey?: string; smsSender?: string; smsAt?: string; smsBody?: string }) {
     const handset = await this.ownedHandset(userId, input.uid);
     const job = await this.prisma.verifyOrder.findFirst({ where: { id, ownerId: userId, handsetId: handset.id } });
     if (!job) throw new NotFoundException("Verification not found");
@@ -2821,6 +2850,10 @@ export class PayService implements OnModuleInit {
     }
     const trxId = input.trxId.trim().toUpperCase();
     if (input.decision === "rejected") {
+      const preview = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
+      if (preview?.method?.checkBalance === false && /balance/i.test(input.note || "")) {
+        return { ok: true as const, status: "pending" as const, balanceCents: input.balanceCents };
+      }
       await this.prisma.verifyOrder.updateMany({
         where: { id: job.id, status: "pending" },
         data: { status: "rejected", note: (input.note || "Rejected on the phone").slice(0, 180), decidedAt: new Date() },
@@ -2845,7 +2878,19 @@ export class PayService implements OnModuleInit {
     }
     const smsKey = (input.smsKey ?? "").trim().slice(0, 80);
     if (smsKey.length < 4) throw new BadRequestException("A matching payment SMS is required");
-    if (await this.balanceCheckOn(userId)) {
+    const checkoutPreview = await this.prisma.checkout.findUnique({ where: { id: job.checkoutId }, include: { method: true } });
+    const payer = (checkoutPreview?.payerAccount ?? "").trim();
+    const needSender = checkoutPreview?.method?.verifyBy === "transaction_id" && checkoutPreview.method.askPayerNumber !== false;
+    if (needSender && !senderNumberOk(payer)) {
+      throw new BadRequestException("Enter the wallet number you paid from (01XXXXXXXXX).");
+    }
+    if (needSender) {
+      const smsBody = (input.smsBody ?? "").trim() || (await this.noticeBody(userId, trxId));
+      if (!smsBody || !bodyHasRef(smsBody, trxId) || !senderInNotice(payer, smsBody)) {
+        throw new BadRequestException("Sender number does not match the payment SMS");
+      }
+    }
+    if (checkoutPreview?.method?.checkBalance !== false && (await this.balanceCheckOn(userId))) {
       const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId: userId, service: job.service } } });
       const expectedBalance = ledger ? ledger.balanceCents + job.amountCents : null;
       if (expectedBalance === null || expectedBalance > 100_000_000 || input.balanceCents !== expectedBalance) {
@@ -2955,6 +3000,7 @@ export class PayService implements OnModuleInit {
       const under = Number(named.method?.underTolerance ?? 0);
       const over = Number(named.method?.overTolerance ?? 0);
       const verifyBy = named.method?.verifyBy ?? "transaction_id";
+      if (verifyBy === "transaction_id" && named.method?.askPayerNumber !== false && senderNumberOk(named.payerAccount ?? "") && !senderInNotice(named.payerAccount ?? "", body)) return null;
       const ok = paidAmount !== null && (verifyBy === "unique_amount"
         ? amountFits(paidAmount, payable, under, over)
         : paidFitsCheckout(paidAmount, payable, base, under, over, verifyBy));
@@ -2981,6 +3027,7 @@ export class PayService implements OnModuleInit {
         return paidFitsCheckout(paidAmount, payable, Number(row.amount), under, over, verifyBy);
       }
       if (!stored || !bodyHasRef(body, stored) || claimed.has(stored)) return false;
+      if (method?.askPayerNumber !== false && senderNumberOk(row.payerAccount ?? "") && !senderInNotice(row.payerAccount ?? "", body)) return false;
       return paidAmount !== null && amountFits(paidAmount, payable, under, over);
     });
     const ranked = fits.sort((left, right) => {
@@ -2990,7 +3037,9 @@ export class PayService implements OnModuleInit {
     const target = ranked[0];
     if (!target) return null;
     const wallet = walletService(target.method?.label ?? "");
-    if (wallet && target.method?.verifyBy === "unique_amount" && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
+    const balanceOn = target.method?.checkBalance !== false;
+    const verifyBy = target.method?.verifyBy ?? "transaction_id";
+    if (wallet && balanceOn && (verifyBy === "unique_amount" || verifyBy === "transaction_id") && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
     if (!named && ranked[1] && paidAmount !== null) {
       const first = Math.abs(paidAmount - Number(ranked[0].payable));
       const second = Math.abs(paidAmount - Number(ranked[1].payable));
@@ -3033,7 +3082,7 @@ export class PayService implements OnModuleInit {
     if (outcome === "miss") return null;
     if (outcome === "paid") this.notifyGateway({ ...target, status: "paid" });
     const service = walletService(target.method?.label ?? "");
-    if (service && target.method?.verifyBy === "unique_amount") {
+    if (service && (verifyBy === "unique_amount" || verifyBy === "transaction_id")) {
       await this.recordUniquePaid({
         ownerId,
         checkoutId: target.id,
@@ -3046,6 +3095,16 @@ export class PayService implements OnModuleInit {
       });
     }
     return target.publicId;
+  }
+
+  private async noticeBody(ownerId: string, trxId: string) {
+    const rows = await this.prisma.inboxNotice.findMany({
+      where: { handset: { ownerId } },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      select: { body: true },
+    });
+    return rows.find((row) => bodyHasRef(row.body, trxId))?.body ?? "";
   }
 
   private async balanceCheckOn(ownerId: string) {

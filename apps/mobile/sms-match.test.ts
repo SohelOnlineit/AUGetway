@@ -125,6 +125,21 @@ test("a unique amount order is paid from the matching SMS without a typed transa
   assert.equal(shared.type, "wait");
 });
 
+test("a given sender number must be the one in the payment SMS", () => {
+  const book = setBalance(emptyBook(), 10100, "initial", "2026-11-13T00:00:00.000Z");
+  assert.ok(book && sms);
+  assert.equal(decideWithSms(book, job({ payerAccount: "01800000000" }), [sms], true).type, "reject");
+  assert.equal(decideWithSms(book, job({ payerAccount: "01700000000" }), [sms], true).type, "verify");
+  const masked = readSmsPayment({
+    key: "sms-mask",
+    sender: "bKash",
+    body: "You have received Tk 100.00 from 017XXXX0000. Fee Tk 0.00. Balance Tk 201.00. TrxID ABC123XYZ",
+    receivedAt: 1_700_000_000_000,
+  });
+  assert.ok(masked);
+  assert.equal(decideWithSms(book, job({ payerAccount: "01700000000" }), [masked], true).type, "verify");
+});
+
 test("a saved balance of 5000 does not verify when the SMS balance is 31574.85", () => {
   const book = setBalance(emptyBook(), 500000, "manual", "2026-11-13T00:00:00.000Z");
   const text = "You have received payment Tk 2.00 from 01770000000. Fee Tk 0.00. Balance Tk 31,574.85. TrxID DKD4EW5O5Y at 13/11/2026 01:40";

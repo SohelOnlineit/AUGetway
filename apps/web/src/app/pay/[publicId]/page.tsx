@@ -462,7 +462,7 @@ export default function PayPage() {
                   {card.method.askPayerNumber !== false ? (
                     <label className="ck-field">
                       <span>{text(lang, "Your wallet number", "আপনার ওয়ালেট নম্বর")}</span>
-                      <input name="payerAccount" required minLength={6} />
+                      <input name="payerAccount" required inputMode="numeric" pattern="01[3-9][0-9]{8}" placeholder="01XXXXXXXXX" />
                     </label>
                   ) : null}
                 </>
