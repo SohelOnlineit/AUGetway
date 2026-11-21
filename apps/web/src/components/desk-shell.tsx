@@ -17,6 +17,7 @@ const main = [
   ["Transactions", "/admin/transactions", "swap"],
   ["Financial & Transaction Reports", "/admin/reports", "chart"],
   ["Brand & System Settings", "/admin/settings", "sliders"],
+  ["Database Backup", "/admin/backups", "archive"],
 ] as const;
 
 const smsGateway = [
@@ -30,7 +31,6 @@ const developers = [
   ["Api Keys", "/admin/api-keys", "key"],
   ["Integrations", "/admin/integrations", "puzzle"],
   ["API References", "/admin/api-references", "code"],
-  ["Backups", "/admin/backups", "archive"],
 ] as const;
 
 function Icon({ name }: { name: string }) {
@@ -64,6 +64,7 @@ function isActive(pathname: string, href: string) {
   if (href === "/admin/payment-links") return pathname.startsWith("/admin/payment-links");
   if (href === "/admin/api-keys") return pathname.startsWith("/admin/api-keys");
   if (href === "/admin/sms-gateway") return pathname === "/admin/sms-gateway";
+  if (href === "/admin/backups") return pathname.startsWith("/admin/backups");
   return pathname === href;
 }
 

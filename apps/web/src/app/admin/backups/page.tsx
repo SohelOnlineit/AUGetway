@@ -121,8 +121,8 @@ export default function BackupsPage() {
           </svg>
         </span>
         <div>
-          <p className="keys-crumb">Desk <span>›</span> Backups</p>
-          <h2>Database backups</h2>
+          <p className="keys-crumb">Desk <span>›</span> Database Backup</p>
+          <h2>Database Backup</h2>
           <p className="muted sec-note">
             A full database copy is saved every day at {status?.dailySave ?? "05:00 Asia/Dhaka"} and kept for {status?.keepDays ?? 60} days.
             Only the main admin can save, download, or delete a copy.
