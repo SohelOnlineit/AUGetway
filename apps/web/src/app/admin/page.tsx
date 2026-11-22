@@ -11,11 +11,16 @@ type Summary = {
   paid: number;
   methods: number;
   handsets: number;
+  customers: number;
+  bills: number;
+  links: number;
+  keys: number;
+  online: number;
   volume: string;
   currency: string;
+  recent: CheckoutCard[];
 };
 type Bucket = { amount: string; completed: number; total: number; successRate: number };
-type Handset = { lastSeenAt: string | null };
 
 const bars = [
   ["today", "Today"],
@@ -96,8 +101,6 @@ function Icon({ name }: { name: string }) {
 export default function OverviewPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [report, setReport] = useState<Record<string, Bucket> | null>(null);
-  const [payments, setPayments] = useState<CheckoutCard[]>([]);
-  const [counts, setCounts] = useState({ customers: 0, bills: 0, links: 0, keys: 0, online: 0 });
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
 
@@ -105,24 +108,10 @@ export default function OverviewPage() {
     Promise.all([
       api<Summary>("/desk/summary"),
       api<Record<string, Bucket>>("/desk/reports"),
-      api<CheckoutCard[]>("/desk/checkouts"),
-      api<{ id: string }[]>("/desk/customers"),
-      api<{ number: string }[]>("/desk/bills"),
-      api<{ id: string }[]>("/desk/links"),
-      api<{ id: string }[]>("/desk/keys"),
-      api<Handset[]>("/desk/handsets"),
     ])
-      .then(([nextSummary, nextReport, nextPayments, customers, bills, links, keys, handsets]) => {
+      .then(([nextSummary, nextReport]) => {
         setSummary(nextSummary);
         setReport(nextReport);
-        setPayments(nextPayments.slice(0, 6));
-        setCounts({
-          customers: customers.length,
-          bills: bills.length,
-          links: links.length,
-          keys: keys.length,
-          online: handsets.filter((row) => row.lastSeenAt).length,
-        });
         setReady(true);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load the dashboard"));
@@ -139,11 +128,11 @@ export default function OverviewPage() {
     ["Waiting", summary?.waiting ?? 0, "clock", "/admin/transactions"],
     ["Paid", summary?.paid ?? 0, "check", "/admin/transactions"],
     ["Gateways", summary?.methods ?? 0, "card", "/admin/gateways"],
-    ["Customers", counts.customers, "people", "/admin/customers"],
-    ["Invoices", counts.bills, "file", "/admin/invoices"],
-    ["Payment links", counts.links, "link", "/admin/payment-links"],
-    ["API keys", counts.keys, "key", "/admin/api-keys"],
-    ["Devices online", counts.online, "phone", "/admin/sms-gateway"],
+    ["Customers", summary?.customers ?? 0, "people", "/admin/customers"],
+    ["Invoices", summary?.bills ?? 0, "file", "/admin/invoices"],
+    ["Payment links", summary?.links ?? 0, "link", "/admin/payment-links"],
+    ["API keys", summary?.keys ?? 0, "key", "/admin/api-keys"],
+    ["Devices online", summary?.online ?? 0, "phone", "/admin/sms-gateway"],
   ] as const;
 
   return (
@@ -201,9 +190,9 @@ export default function OverviewPage() {
             <h3>Recent payments</h3>
             <Link href="/admin/transactions">View all</Link>
           </header>
-          {payments.length === 0 ? <p className="dash-empty">{ready ? "No payments yet" : "Loading payments"}</p> : (
+          {(summary?.recent.length ?? 0) === 0 ? <p className="dash-empty">{ready ? "No payments yet" : "Loading payments"}</p> : (
             <ul>
-              {payments.map((row) => (
+              {(summary?.recent ?? []).map((row) => (
                 <li key={row.publicId}>
                   <div>
                     <strong>{orderLabel(row)}</strong>

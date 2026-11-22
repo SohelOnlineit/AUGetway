@@ -118,7 +118,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       setUser({ name: detail.name, email: detail.email });
     }
     window.addEventListener("uniqpay-account", onAccount);
-    api<{ prefs: Record<string, string> }>("/desk/settings")
+    api<{ prefs: Record<string, string> }>("/desk/settings?light=1")
       .then((row) => setAdminMode(row.prefs.themeMode ?? ""))
       .catch(() => undefined);
     // The name, logo and colour of the address this desk was opened on (pay.uniqbd.com or pay.amarpin.com).

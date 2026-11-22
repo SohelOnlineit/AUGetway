@@ -35,8 +35,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/((?!_next/static|_next/image|icon.svg).*)",
+        source: "/((?!_next/static|_next/image|icon.svg|api/public/brand).*)",
         headers: [{ key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" }],
+      },
+      {
+        // Logo and favicon URLs change when the picture changes, so the browser can keep a copy.
+        source: "/api/public/brand/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
         source: "/:path*",

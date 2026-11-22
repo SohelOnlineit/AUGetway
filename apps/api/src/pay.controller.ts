@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
-import type { Request } from "express";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { DeskGuard, type DeskSession } from "./desk.guard";
 import {
   BillDto,
@@ -360,8 +360,8 @@ export class PayController {
 
   @Get("desk/settings")
   @UseGuards(DeskGuard)
-  settings(@Req() request: DeskRequest) {
-    return this.pay.settings(request.desk.sub);
+  settings(@Req() request: DeskRequest, @Query("light") light?: string) {
+    return this.pay.settings(request.desk.sub, light === "1");
   }
 
   @Post("desk/settings")
@@ -374,6 +374,21 @@ export class PayController {
   @RateLimit("public-read", 1200, 60)
   site() {
     return this.pay.publicSite();
+  }
+
+  @Get("public/brand/:kind")
+  @RateLimit("public-read", 1200, 60)
+  async brand(@Param("kind") kind: string, @Res() response: Response) {
+    const asset = await this.pay.publicBrand(kind);
+    if (!asset) {
+      response.status(404).end();
+      return;
+    }
+    response.status(200);
+    response.setHeader("Content-Type", asset.mime);
+    response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.end(asset.body);
   }
 
   @Get("public/pay/:id")

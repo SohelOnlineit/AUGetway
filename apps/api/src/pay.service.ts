@@ -26,6 +26,18 @@ import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sess
 
 type MoneyRow = { toString(): string };
 
+function brandAssetPath(kind: "logo" | "favicon", dataUrl: string) {
+  if (!dataUrl.startsWith("data:image/")) return "";
+  const stamp = createHash("sha256").update(dataUrl).digest("base64url").slice(0, 16);
+  return `/api/public/brand/${kind}?v=${stamp}`;
+}
+
+function decodeDataImage(dataUrl: string) {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+  if (!match) return null;
+  return { mime: match[1].toLowerCase(), body: Buffer.from(match[2], "base64") };
+}
+
 function shopOrderText(metadata: Record<string, unknown> | undefined, orderId: string) {
   const raw = metadata?.orderNumber ?? metadata?.order_number;
   if (typeof raw !== "string") return "";
@@ -672,17 +684,28 @@ export class PayService implements OnModuleInit {
   }
 
   async summary(ownerId: string) {
-    const [open, waiting, paid, methods, handsets] = await Promise.all([
+    const [open, waiting, paid, methods, handsets, customers, bills, links, keys, online, paidTotal, recent] = await Promise.all([
       this.prisma.checkout.count({ where: { ownerId, status: "open" } }),
       this.prisma.checkout.count({ where: { ownerId, status: { in: ["waiting", "pending"] } } }),
       this.prisma.checkout.count({ where: { ownerId, status: "paid" } }),
       this.prisma.walletMethod.count({ where: { ownerId, active: true } }),
       this.prisma.handset.count({ where: { ownerId } }),
+      this.prisma.customer.count({ where: { ownerId } }),
+      this.prisma.bill.count({ where: { ownerId } }),
+      this.prisma.payLink.count({ where: { ownerId } }),
+      this.prisma.merchantKey.count({ where: { ownerId } }),
+      this.prisma.handset.count({ where: { ownerId, lastSeenAt: { not: null } } }),
+      this.prisma.checkout.aggregate({
+        where: { ownerId, status: "paid" },
+        _sum: { payable: true },
+      }),
+      this.prisma.checkout.findMany({
+        where: { ownerId },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: { publicId: true, reference: true, shopOrder: true, payable: true, status: true, method: { select: { label: true } } },
+      }),
     ]);
-    const paidTotal = await this.prisma.checkout.aggregate({
-      where: { ownerId, status: "paid" },
-      _sum: { payable: true },
-    });
     const volume = Number(paidTotal._sum.payable ?? 0);
     return {
       open,
@@ -690,8 +713,21 @@ export class PayService implements OnModuleInit {
       paid,
       methods,
       handsets,
+      customers,
+      bills,
+      links,
+      keys,
+      online,
       volume: volume.toFixed(2),
       currency: "BDT",
+      recent: recent.map((row) => ({
+        publicId: row.publicId,
+        reference: row.reference,
+        shopOrder: row.shopOrder,
+        payable: money(row.payable),
+        status: row.status,
+        method: row.method ? { label: row.method.label } : null,
+      })),
     };
   }
 
@@ -961,16 +997,56 @@ export class PayService implements OnModuleInit {
       where: { ownerId, status: { in: ["open", "waiting"] }, expiresAt: { lt: new Date() } },
       data: { status: "expired" },
     });
-    const rows = await this.prisma.checkout.findMany({
-      where: { ownerId },
-      include: { method: true },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    });
-    const site = await this.siteView(ownerId);
-    // The list carries only hasReceipt. A receipt picture is up to 400 KB, so 500 rows could be 200 MB in one response.
-    // The desk opens one picture at a time with receiptFor().
-    return Promise.all(rows.map((row) => this.checkoutCard(row, false, false, site)));
+    // Receipt pictures and QR codes stay out of this query. One list used to pull every picture into memory.
+    const [rows, receipts] = await Promise.all([
+      this.prisma.checkout.findMany({
+        where: { ownerId },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        select: {
+          publicId: true,
+          reference: true,
+          shopOrder: true,
+          amount: true,
+          payable: true,
+          currency: true,
+          status: true,
+          payerAccount: true,
+          providerRef: true,
+          payTo: true,
+          expiresAt: true,
+          createdAt: true,
+          successUrl: true,
+          cancelUrl: true,
+          ownerId: true,
+          method: {
+            select: {
+              id: true,
+              label: true,
+              internalLabel: true,
+              logoCaption: true,
+              accountNumber: true,
+              instructions: true,
+              verifyBy: true,
+              askPayerNumber: true,
+              acceptProof: true,
+            },
+          },
+        },
+      }),
+      this.prisma.checkout.findMany({
+        where: { ownerId, NOT: { receipt: "" } },
+        select: { publicId: true },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      }),
+    ]);
+    const hasReceipt = new Set(receipts.map((row) => row.publicId));
+    return Promise.all(rows.map((row) => this.checkoutCard({
+      ...row,
+      receipt: hasReceipt.has(row.publicId) ? "1" : "",
+      method: row.method ? { ...row.method, qrImage: "" } : null,
+    }, false, false, undefined, false)));
   }
 
   async receiptFor(ownerId: string, publicId: string) {
@@ -1931,14 +2007,21 @@ export class PayService implements OnModuleInit {
     }));
   }
 
-  async settings(ownerId: string) {
+  async settings(ownerId: string, light = false) {
     const row = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
+    const prefs = maskPrefs(cleanPrefs(row?.prefs));
+    // The desk header only needs the theme. The logo and icon are large pictures and are not sent with every page.
+    if (light) {
+      delete prefs.brandLogo;
+      delete prefs.brandFavicon;
+      delete prefs.faqContent;
+    }
     return {
       brandName: row?.brandName && row.brandName !== "UniqBD Pay" ? row.brandName : "AU-Getway",
       supportEmail: row?.supportEmail ?? "",
       currency: row?.currency ?? "BDT",
       checkoutNote: row?.checkoutNote ?? "",
-      prefs: maskPrefs(cleanPrefs(row?.prefs)),
+      prefs,
     };
   }
 
@@ -2014,6 +2097,19 @@ export class PayService implements OnModuleInit {
     const owner = await this.prisma.deskUser.findFirst({ where: { deskId: null }, orderBy: { createdAt: "asc" } });
     if (!owner) return this.blankSite();
     return this.siteView(owner.id);
+  }
+
+  /** The logo or favicon for the address in this request, as bytes the browser can cache. */
+  async publicBrand(kind: string) {
+    if (kind !== "logo" && kind !== "favicon") return null;
+    const owner = await this.prisma.deskUser.findFirst({ where: { deskId: null }, orderBy: { createdAt: "asc" } });
+    if (!owner) return null;
+    const row = await this.settings(owner.id);
+    const domain = await this.domains.current(owner.id);
+    const data = kind === "logo"
+      ? domain?.brandLogo || row.prefs.brandLogo || ""
+      : domain?.brandFavicon || row.prefs.brandFavicon || "";
+    return decodeDataImage(data);
   }
 
   async publicPay(id: string) {
@@ -3056,8 +3152,8 @@ export class PayService implements OnModuleInit {
       currency: row.currency || "BDT",
       currencySymbol: row.prefs.currencySymbol ?? "",
       checkoutNote: domain?.checkoutNote || row.checkoutNote,
-      brandLogo: domain?.brandLogo || row.prefs.brandLogo || "",
-      brandFavicon: domain?.brandFavicon || row.prefs.brandFavicon || "",
+      brandLogo: brandAssetPath("logo", domain?.brandLogo || row.prefs.brandLogo || ""),
+      brandFavicon: brandAssetPath("favicon", domain?.brandFavicon || row.prefs.brandFavicon || ""),
       themeAccent: accentColor(domain?.themeAccent) || accentColor(row.prefs.themeAccent),
       checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
       methodTabs: row.prefs.methodTabs === "1" ? "1" : "",
@@ -3103,6 +3199,7 @@ export class PayService implements OnModuleInit {
     includeMethods: boolean,
     includeReceipt = false,
     site?: SiteCard,
+    includeSite = true,
   ) {
     const methods = includeMethods
       ? await this.prisma.walletMethod.findMany({
@@ -3135,14 +3232,14 @@ export class PayService implements OnModuleInit {
             logoCaption: row.method.logoCaption ?? "",
             accountNumber: shownAccount(row.payTo, row.method.accountNumber),
             instructions: row.method.instructions,
-            qrImage: row.method.qrImage,
+            qrImage: includeMethods ? row.method.qrImage : "",
             verifyBy: "transaction_id",
             askPayerNumber: row.method.askPayerNumber,
             acceptProof: row.method.acceptProof,
           }
         : null,
       methods,
-      site: site ?? (await this.siteView(row.ownerId)),
+      site: includeSite ? (site ?? (await this.siteView(row.ownerId))) : undefined,
     };
   }
 }
