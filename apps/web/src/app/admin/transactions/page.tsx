@@ -84,6 +84,7 @@ export default function TransactionsPage() {
   const [current, setCurrent] = useState<CheckoutCard | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
+  const [receipt, setReceipt] = useState<{ label: string; image: string } | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
 
   function load() {
@@ -186,6 +187,21 @@ export default function TransactionsPage() {
     }
   }
 
+  // The list only says that a receipt exists. The picture itself is loaded here, one at a time.
+  async function viewReceipt(row: CheckoutCard) {
+    setError("");
+    try {
+      const result = await api<{ receipt: string }>(`/desk/checkouts/${row.publicId}/receipt`);
+      if (!result.receipt) {
+        setError("This transaction has no receipt picture.");
+        return;
+      }
+      setReceipt({ label: row.shopOrder || row.reference, image: result.receipt });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load the receipt");
+    }
+  }
+
   async function createRow(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -280,6 +296,7 @@ export default function TransactionsPage() {
 
   async function removePicked() {
     if (!picked.length || busy) return;
+    if (!window.confirm(`Delete ${picked.length} selected transaction${picked.length === 1 ? "" : "s"} permanently? This cannot be undone.`)) return;
     setBusy(true);
     setError("");
     try {
@@ -477,6 +494,11 @@ export default function TransactionsPage() {
                     </td>
                     <td className="txn-actions">
                       <div className="txn-row-actions">
+                        {row.hasReceipt ? (
+                          <button type="button" className="txn-go" onClick={() => void viewReceipt(row)}>
+                            <ReceiptIcon /> Receipt
+                          </button>
+                        ) : null}
                         {canApprove(row.status) ? (
                           <button type="button" className="txn-go" onClick={() => { setCurrent(row); setError(""); setDialog("approve"); }}>
                             <CheckIcon /> Approve
@@ -575,6 +597,20 @@ export default function TransactionsPage() {
             <div className="dev-modal-actions">
               <button className="btn-line" type="button" onClick={closeDialog}>Cancel</button>
               <button className="txn-wipe" type="button" onClick={removeOne} disabled={busy}>Delete</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {receipt ? (
+        <div className="modal-back txn-shade" onClick={() => setReceipt(null)}>
+          <div className="modal dev-modal txn-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="dev-modal-head"><div><p className="txn-crumb">Transactions</p><h2>Receipt · {receipt.label}</h2></div></div>
+            <div className="dev-modal-body">
+              <img src={receipt.image} alt="Receipt uploaded by the customer" style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 12 }} />
+            </div>
+            <div className="dev-modal-actions">
+              <button className="btn-line" type="button" onClick={() => setReceipt(null)}>Close</button>
             </div>
           </div>
         </div>

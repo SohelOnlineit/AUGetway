@@ -130,6 +130,7 @@ export default function BillsPage() {
 
   async function removePicked() {
     if (!picked.length || busy) return;
+    if (!window.confirm(`Delete ${picked.length} selected invoice${picked.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
     setBusy(true);
     setError("");
     try {

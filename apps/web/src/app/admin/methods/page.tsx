@@ -226,6 +226,7 @@ export default function MethodsPage() {
 
   async function removeSelected() {
     if (picked.length === 0) return;
+    if (!window.confirm(`Delete ${picked.length} selected payment method${picked.length === 1 ? "" : "s"}? Customers will no longer see them at checkout.`)) return;
     setError("");
     try {
       await api("/desk/methods/bulk-delete", { method: "POST", body: JSON.stringify({ ids: picked }) });

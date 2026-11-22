@@ -36,18 +36,22 @@ export default function BillPage() {
     }
   }
 
+  // A paid or cancelled bill cannot be paid, so the pay button and the security check are hidden for it.
+  const payable = Boolean(bill && bill.status !== "paid" && bill.status !== "cancelled");
+
   return (
     <main className="pay-shell">
       <p className="kicker">Bill {bill?.number}</p>
       <article className="receipt">
         <h2>{bill?.title ?? "Bill"}</h2>
         <p className="muted">{bill?.customerName}</p>
-        <div className="amount">{bill ? `৳ ${Number(bill.total).toFixed(2)}` : "—"}</div>
+        <div className="amount">{bill ? `${bill.currency === "BDT" ? "৳" : bill.currency} ${Number(bill.total).toFixed(2)}` : "—"}</div>
         {bill?.note ? <p>{bill.note}</p> : null}
-        {bill && bill.status !== "paid" ? <TurnstileField resetKey={captchaReset} onToken={setCaptchaToken} onRequired={setCaptchaRequired} /> : null}
+        {payable ? <TurnstileField resetKey={captchaReset} onToken={setCaptchaToken} onRequired={setCaptchaRequired} /> : null}
         {error ? <p className="error">{error}</p> : null}
-        {bill && bill.status !== "paid" ? <button className="btn wide" disabled={captchaRequired && !captchaToken} onClick={pay}>Pay this bill</button> : null}
+        {payable ? <button className="btn wide" disabled={captchaRequired && !captchaToken} onClick={pay}>Pay this bill</button> : null}
         {bill?.status === "paid" ? <p>This bill is paid.</p> : null}
+        {bill?.status === "cancelled" ? <p>This bill was cancelled. Contact the shop if you think this is a mistake.</p> : null}
       </article>
     </main>
   );

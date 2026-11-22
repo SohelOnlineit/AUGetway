@@ -133,6 +133,7 @@ export default function LinksPage() {
 
   async function removePicked() {
     if (!picked.length || busy) return;
+    if (!window.confirm(`Delete ${picked.length} selected payment link${picked.length === 1 ? "" : "s"}? Customers who have the link will no longer open it.`)) return;
     setBusy(true);
     setError("");
     try {

@@ -4,24 +4,13 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import type { CheckoutCard } from "@uniqpay/types";
 import { api } from "@/lib/api";
+import { receiptDataUrl } from "@/lib/receipt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TurnstileField } from "@/components/turnstile-field";
 import { applySiteChrome, customBrand } from "@/lib/site";
 
 type Lang = "bn" | "en";
 type Filter = "all" | "mfs" | "bank";
-
-async function readReceipt(value: FormDataEntryValue | null) {
-  if (!(value instanceof File) || value.size === 0) return "";
-  if (!value.type.startsWith("image/")) throw new Error("Receipt must be an image");
-  if (value.size > 1_200_000) throw new Error("Receipt must be under 1.2 MB");
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read the receipt"));
-    reader.readAsDataURL(value);
-  });
-}
 
 function returnHref(url: string, invoiceId: string, paid = false) {
   let parsed: URL;
@@ -222,7 +211,7 @@ export default function PayPage() {
         body: JSON.stringify({
           providerRef: String(form.get("providerRef") ?? ""),
           payerAccount: String(form.get("payerAccount") ?? ""),
-          receipt: await readReceipt(form.get("receipt")),
+          receipt: await receiptDataUrl(form.get("receipt")),
           turnstileToken: captchaToken || undefined,
         }),
       }));

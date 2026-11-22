@@ -95,6 +95,7 @@ export default function CustomersPage() {
   }
 
   async function removeAdmin(id: string) {
+    if (!window.confirm("Remove this admin account? They will be signed out and cannot sign in again.")) return;
     setBusy(true);
     setError("");
     try {

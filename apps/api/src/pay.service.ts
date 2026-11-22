@@ -20,6 +20,7 @@ import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { matchWithoutWaitingForSnapshot } from "./payment-security";
 import { PaymentSecurityService } from "./payment-security.service";
 import { PrismaService } from "./prisma.service";
+import { reportBounds } from "./report-bounds";
 import { assertLoginOpen, clearLoginFailure, noteLoginFailure, paddingHash, sessionStamp } from "./session";
 
 type MoneyRow = { toString(): string };
@@ -122,6 +123,13 @@ function readOfficialSecrets(stored: string): OfficialSecrets {
     return empty;
   }
   return empty;
+}
+
+/** A gateway nobody filled in: switched off, with no credential saved. Only these may be cleaned up automatically. */
+function isUnconfiguredGateway(row: { active: boolean; secrets: string }) {
+  if (row.active) return false;
+  const s = readOfficialSecrets(row.secrets);
+  return !(s.username || s.password || s.appKey || s.appSecret || s.merchantId || s.merchantNumber || s.publicKey || s.privateKey);
 }
 
 function cleanOfficialSecrets(input: OfficialGatewayInput, previous: OfficialSecrets): OfficialSecrets {
@@ -272,41 +280,6 @@ function siteBase() {
 
 function httpUrl(value: string | undefined) {
   return browserHttpUrl(value);
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function reportBounds(now: Date) {
-  const today = startOfDay(now);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const weekDay = (today.getDay() + 6) % 7;
-  const thisWeek = new Date(today);
-  thisWeek.setDate(today.getDate() - weekDay);
-  const nextWeek = new Date(thisWeek);
-  nextWeek.setDate(thisWeek.getDate() + 7);
-  const lastWeek = new Date(thisWeek);
-  lastWeek.setDate(thisWeek.getDate() - 7);
-  const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const thisYear = new Date(today.getFullYear(), 0, 1);
-  const nextYear = new Date(today.getFullYear() + 1, 0, 1);
-  const lastYear = new Date(today.getFullYear() - 1, 0, 1);
-  return {
-    today: { start: today, end: tomorrow },
-    yesterday: { start: yesterday, end: today },
-    this_week: { start: thisWeek, end: nextWeek },
-    last_week: { start: lastWeek, end: thisWeek },
-    this_month: { start: thisMonth, end: nextMonth },
-    last_month: { start: lastMonth, end: thisMonth },
-    this_year: { start: thisYear, end: nextYear },
-    last_year: { start: lastYear, end: thisYear },
-  };
 }
 
 function priceAmount(
@@ -874,12 +847,17 @@ export class PayService implements OnModuleInit {
   }
 
   async listOfficialGateways(ownerId: string) {
-    await this.prisma.officialGateway.deleteMany({
+    // Old seeded rows that nobody ever filled in are cleaned up here. This used to delete every row with one of these
+    // names, so a bank gateway the owner had set up with real credentials under the name "City Bank" vanished the
+    // next time the page was opened. Only switched-off rows with no credential are removed now.
+    const legacy = await this.prisma.officialGateway.findMany({
       where: {
         ownerId,
         label: { in: ["bKash (EPS)", "bKash API (Checkout)", "Brac Bank", "City Bank", "Eastern Bank", "Islami Bank", "Dutch-Bangla Bank", "Dhaka Bank"] },
       },
     });
+    const empty = legacy.filter(isUnconfiguredGateway).map((row) => row.id);
+    if (empty.length) await this.prisma.officialGateway.deleteMany({ where: { ownerId, id: { in: empty } } });
     const named = await this.prisma.officialGateway.findMany({
       where: { ownerId, label: { in: officialRenames.map((item) => item[0]) } },
     });
@@ -974,7 +952,15 @@ export class PayService implements OnModuleInit {
       take: 500,
     });
     const site = await this.siteView(ownerId);
-    return Promise.all(rows.map((row) => this.checkoutCard(row, false, true, site)));
+    // The list carries only hasReceipt. A receipt picture is up to 400 KB, so 500 rows could be 200 MB in one response.
+    // The desk opens one picture at a time with receiptFor().
+    return Promise.all(rows.map((row) => this.checkoutCard(row, false, false, site)));
+  }
+
+  async receiptFor(ownerId: string, publicId: string) {
+    const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId }, select: { receipt: true } });
+    if (!row) throw new NotFoundException("Checkout not found");
+    return { receipt: row.receipt };
   }
 
   private windowMinutes(payWindow: number) {
@@ -1087,17 +1073,25 @@ export class PayService implements OnModuleInit {
     return this.checkoutCard(updated, false);
   }
 
-  async removeCheckouts(ownerId: string, publicIds: string[]) {
+  /**
+   * Deleting a paid transaction erases the record of a payment, which would also hide a staff member's theft.
+   * So only the main admin may delete paid ones. Staff can still delete open, failed and expired ones.
+   */
+  async removeCheckouts(ownerId: string, publicIds: string[], isMainAdmin: boolean) {
     const wanted = [...new Set(publicIds.map((id) => id.trim()).filter(Boolean))].slice(0, 500);
     if (!wanted.length) return { ok: true, removed: 0 };
     const rows = await this.prisma.checkout.findMany({
       where: { ownerId, publicId: { in: wanted } },
-      select: { id: true },
+      select: { id: true, status: true },
     });
+    if (!isMainAdmin && rows.some((row) => row.status === "paid")) {
+      throw new ForbiddenException("Only the main admin can delete paid transactions");
+    }
     return this.dropCheckouts(ownerId, rows.map((row) => row.id));
   }
 
-  async removeAllCheckouts(ownerId: string) {
+  async removeAllCheckouts(ownerId: string, isMainAdmin: boolean) {
+    if (!isMainAdmin) throw new ForbiddenException("Only the main admin can delete all transactions");
     const rows = await this.prisma.checkout.findMany({ where: { ownerId }, select: { id: true } });
     return this.dropCheckouts(ownerId, rows.map((row) => row.id));
   }
@@ -1364,6 +1358,8 @@ export class PayService implements OnModuleInit {
     const bill = await this.prisma.bill.findUnique({ where: { number } });
     if (!bill) throw new NotFoundException("Bill not found");
     if (bill.status === "paid") throw new BadRequestException("This bill is already paid");
+    // A cancelled bill used to open a checkout like any other, and the customer's payment then marked it paid.
+    if (bill.status === "cancelled") throw new BadRequestException("This bill was cancelled");
     const existing = await this.prisma.checkout.findFirst({
       where: { billId: bill.id, status: { in: ["open", "waiting", "pending"] }, expiresAt: { gt: new Date() } },
     });
@@ -1683,7 +1679,9 @@ export class PayService implements OnModuleInit {
     const webhookUrl = await publicHttpUrl(input.webhookUrl);
     let expiresAt: Date | null = null;
     if (input.expiresAt) {
-      expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59`);
+      // End of that day in Bangladesh time, the same way payment links expire. Without the offset the server's
+      // own clock (UTC) ended the key 6 hours into the next morning.
+      expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59+06:00`);
       if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException("Expiry date is not valid");
     }
     const pasted = input.generation === "custom" ? (input.token ?? "").trim() : "";
@@ -1768,7 +1766,7 @@ export class PayService implements OnModuleInit {
     if (input.expiresAt !== undefined) {
       if (!input.expiresAt) data.expiresAt = null;
       else {
-        const expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59`);
+        const expiresAt = new Date(`${input.expiresAt.slice(0, 10)}T23:59:59+06:00`);
         if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException("Expiry date is not valid");
         data.expiresAt = expiresAt;
       }
@@ -1972,13 +1970,11 @@ export class PayService implements OnModuleInit {
   }
 
   async reports(ownerId: string) {
-    const now = new Date();
-    const yearAgo = new Date(now.getFullYear() - 1, 0, 1);
+    const bounds = reportBounds(new Date());
     const rows = await this.prisma.checkout.findMany({
-      where: { ownerId, createdAt: { gte: yearAgo } },
+      where: { ownerId, createdAt: { gte: bounds.last_year.start } },
       select: { status: true, payable: true, createdAt: true },
     });
-    const bounds = reportBounds(now);
     return Object.fromEntries(
       Object.entries(bounds).map(([key, range]) => {
         const slice = rows.filter((row) => row.createdAt >= range.start && row.createdAt < range.end);
@@ -2675,7 +2671,9 @@ export class PayService implements OnModuleInit {
     const seen = new Set<string>();
     const extras: string[] = [];
     for (const row of [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
-      if (seen.has(row.label)) extras.push(row.id);
+      // Only an empty duplicate is dropped. A second gateway with the same name but real credentials is kept,
+      // because it used to be deleted silently the next time the list was opened.
+      if (seen.has(row.label) && isUnconfiguredGateway(row)) extras.push(row.id);
       else seen.add(row.label);
     }
     if (extras.length) {

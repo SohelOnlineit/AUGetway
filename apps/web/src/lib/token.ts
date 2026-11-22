@@ -19,4 +19,8 @@ export function saveToken(token: string) {
 export function clearToken() {
   localStorage.removeItem(KEY);
   sessionStorage.removeItem(KEY);
+  // API keys shown once after creation are kept in this tab only while someone is signed in.
+  // They must not stay behind for the next person who uses this browser.
+  sessionStorage.removeItem("uniqpay_fresh_key");
+  sessionStorage.removeItem("uniqpay_seen_keys");
 }

@@ -220,6 +220,7 @@ export default function OfficialGatewaysPage() {
 
   async function removeSelected() {
     if (picked.length === 0) return;
+    if (!window.confirm(`Delete ${picked.length} selected gateway${picked.length === 1 ? "" : "s"}? Their saved credentials are removed too.`)) return;
     setError("");
     try {
       await Promise.all(picked.map((id) => api(`/desk/official-gateways/${id}`, { method: "DELETE" })));

@@ -87,7 +87,8 @@ export default function BackupsPage() {
       link.href = url;
       link.download = name;
       link.click();
-      URL.revokeObjectURL(url);
+      // Freeing the address at once can cancel a large download in Firefox and Safari, so wait a little.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not download this copy");
     } finally {

@@ -39,6 +39,7 @@ import {
 } from "./dto";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
+import { isMainAdmin } from "./main-admin";
 import { clientAddress, RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
 
@@ -171,6 +172,12 @@ export class PayController {
     return this.pay.listCheckouts(request.desk.sub);
   }
 
+  @Get("desk/checkouts/:id/receipt")
+  @UseGuards(DeskGuard)
+  receipt(@Req() request: DeskRequest, @Param("id") id: string) {
+    return this.pay.receiptFor(request.desk.sub, id);
+  }
+
   @Post("desk/checkouts")
   @UseGuards(DeskGuard)
   addCheckout(@Req() request: DeskRequest, @Body() body: CheckoutDto) {
@@ -192,19 +199,19 @@ export class PayController {
   @Delete("desk/checkouts/:id")
   @UseGuards(DeskGuard)
   removeCheckout(@Req() request: DeskRequest, @Param("id") id: string) {
-    return this.pay.removeCheckouts(request.desk.sub, [id]);
+    return this.pay.removeCheckouts(request.desk.sub, [id], isMainAdmin(request));
   }
 
   @Post("desk/checkouts/bulk-delete")
   @UseGuards(DeskGuard)
   removeCheckouts(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
-    return this.pay.removeCheckouts(request.desk.sub, body.ids);
+    return this.pay.removeCheckouts(request.desk.sub, body.ids, isMainAdmin(request));
   }
 
   @Post("desk/checkouts/delete-all")
   @UseGuards(DeskGuard)
   removeAllCheckouts(@Req() request: DeskRequest) {
-    return this.pay.removeAllCheckouts(request.desk.sub);
+    return this.pay.removeAllCheckouts(request.desk.sub, isMainAdmin(request));
   }
 
   @Post("desk/checkouts/:id/fail")
