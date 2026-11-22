@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { applySiteChrome, type PublicSite } from "@/lib/site";
 
 /**
- * The name and logo of the address the visitor came in on (au.uniqbd.com or au.amarpin.com), shown at the top of the
+ * The name and logo of the address the visitor came in on (pay.uniqbd.com or pay.amarpin.com), shown at the top of the
  * public bill and payment link pages. It also sets the tab title, icon and colour for that address.
  */
 export function BrandBar() {

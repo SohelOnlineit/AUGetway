@@ -16,4 +16,4 @@ The owner allowed this permanently. Do not wait for a "push" reminder.
 - Do not force-push, rewrite published history, skip hooks, or change global git config.
 - If the push is rejected, `git pull --rebase origin <branch>`. On conflicts, stop and tell the owner.
 - On Windows pass `-c safe.directory=D:/AuGetway` if git says "dubious ownership". The commit author is `Sohel <sohelonlineit@gmail.com>`.
-- After pushing, say so in one line. The live server still needs `sudo bash /var/www/au.uniqbd.com/deploy/ubuntu/update.sh`.
+- After pushing, say so in one line. The live server still needs `sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh`.

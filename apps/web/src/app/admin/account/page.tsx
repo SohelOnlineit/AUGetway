@@ -151,7 +151,7 @@ export default function AccountPage() {
               </label>
               <label className="account-field">
                 <span className="account-label">Login email</span>
-                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={120} autoComplete="username" placeholder="name@au.uniqbd.com" />
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={120} autoComplete="username" placeholder="name@pay.uniqbd.com" />
               </label>
             </div>
           </section>

@@ -53,7 +53,7 @@ function cleanAccent(value: string | undefined) {
 
 /**
  * The website addresses this desk answers on. A visitor sees the name, logo and colour of the address they came in
- * on, so au.uniqbd.com and au.amarpin.com can look different while they share one desk, one set of payment methods
+ * on, so pay.uniqbd.com and pay.amarpin.com can look different while they share one desk, one set of payment methods
  * and one list of transactions.
  */
 @Injectable()
@@ -86,7 +86,7 @@ export class SiteDomainService {
     return null;
   }
 
-  /** "https://au.amarpin.com" for a visitor on au.amarpin.com or on api.au.amarpin.com. Empty when not registered. */
+  /** "https://pay.amarpin.com" for a visitor on pay.amarpin.com or on api.pay.amarpin.com. Empty when not registered. */
   async originForRequest(): Promise<string> {
     const info = currentRequest();
     const row = await this.current();
@@ -125,9 +125,9 @@ export class SiteDomainService {
 
   async create(ownerId: string, input: DomainInput) {
     const host = cleanSiteHost(input.host ?? "");
-    if (!isValidSiteHost(host)) throw new BadRequestException("Enter the website address, like au.amarpin.com");
+    if (!isValidSiteHost(host)) throw new BadRequestException("Enter the website address, like pay.amarpin.com");
     if (host.startsWith("api.") && host.split(".").length > 3) {
-      throw new BadRequestException("Add the website address (au.amarpin.com). Its api. address is understood automatically");
+      throw new BadRequestException("Add the website address (pay.amarpin.com). Its api. address is understood automatically");
     }
     if (await this.prisma.siteDomain.findUnique({ where: { host }, select: { id: true } })) {
       throw new BadRequestException("That address is already added");
@@ -145,7 +145,7 @@ export class SiteDomainService {
     const data: Record<string, unknown> = { ...this.fields(input) };
     if (input.host !== undefined) {
       const host = cleanSiteHost(input.host);
-      if (!isValidSiteHost(host)) throw new BadRequestException("Enter the website address, like au.amarpin.com");
+      if (!isValidSiteHost(host)) throw new BadRequestException("Enter the website address, like pay.amarpin.com");
       if (host !== row.host) {
         if (await this.prisma.siteDomain.findUnique({ where: { host }, select: { id: true } })) {
           throw new BadRequestException("That address is already added");

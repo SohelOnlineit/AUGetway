@@ -2,7 +2,7 @@
 # The shop keeps ports 3000 and 4000. AU-Getway uses 3100 and 4100.
 
 # APP_ROOT is the folder this repository is in, so the scripts work wherever the folder is
-# (/var/www/au.uniqbd.com, or an older /var/www/pay.uniqbd.com until it is moved).
+# (/var/www/pay.uniqbd.com).
 _site_env_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="${APP_ROOT:-$(cd "${_site_env_here}/../.." && pwd)}"
 unset _site_env_here
@@ -10,10 +10,10 @@ unset _site_env_here
 APP_USER="uniqpay"
 
 # One desk, several website addresses. Each address has its own api. address for shops and programs
-# (au.amarpin.com <-> api.au.amarpin.com). A visitor sees the name and logo of the address they came in on.
-SITE_DOMAINS="au.uniqbd.com au.amarpin.com"
+# (pay.amarpin.com <-> api.pay.amarpin.com). A visitor sees the name and logo of the address they came in on.
+SITE_DOMAINS="pay.uniqbd.com pay.amarpin.com"
 
-MAIN_DOMAIN="au.uniqbd.com"
-API_DOMAIN="api.au.uniqbd.com"
+MAIN_DOMAIN="pay.uniqbd.com"
+API_DOMAIN="api.pay.uniqbd.com"
 WEB_PORT="3100"
 API_PORT="4100"

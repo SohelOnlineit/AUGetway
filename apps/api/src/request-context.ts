@@ -42,8 +42,8 @@ export function describeRequest(hostHeader: string | undefined, protocol: string
 }
 
 /**
- * The names a request address could be registered under. `api.au.amarpin.com` is the program address of
- * `au.amarpin.com`, so both are tried, the exact one first.
+ * The names a request address could be registered under. `api.pay.amarpin.com` is the program address of
+ * `pay.amarpin.com`, so both are tried, the exact one first.
  */
 export function hostCandidates(host: string): string[] {
   const clean = host.trim().toLowerCase().replace(/:\d{1,5}$/, "").replace(/\.$/, "");

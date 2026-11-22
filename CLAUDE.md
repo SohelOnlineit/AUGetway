@@ -12,7 +12,7 @@ When you finish a task that changed files in this repo:
    - The only allowed remote is `origin` = `https://github.com/SohelOnlineit/AUGetway.git`.
    - Check `git remote get-url origin` first. If it points anywhere else, do not push; tell the owner.
 4. Tell the owner in one line that it was pushed (commit id), and that the live server still needs
-   `sudo bash /var/www/au.uniqbd.com/deploy/ubuntu/update.sh` to get it.
+   `sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh` to get it.
 
 Never:
 - Commit secrets or private data: `.env*` (except `.env.example`), passwords, tokens, API keys, `backups/`, `*.sql` dumps of real data, `*.apk`, `.pgdata`.

@@ -1,7 +1,7 @@
 import { clearToken, readToken } from "@/lib/token";
 
 /**
- * The website talks to the API on its own address: https://au.uniqbd.com/api, https://au.amarpin.com/api and so on.
+ * The website talks to the API on its own address: https://pay.uniqbd.com/api, https://pay.amarpin.com/api and so on.
  * nginx sends /api to the API on every address. That keeps one build working for every domain, needs no cross-site
  * permission, and lets the API see which address the visitor used, so it can answer with that address's brand.
  * (In local development Next.js forwards /api to the API, see next.config.ts.)

@@ -32,7 +32,7 @@ export default function IntegrationsPage() {
           <strong>Your store server</strong>
           <p>The same key also works with the header <span className="token">x-merchant-key</span>.</p>
           <p className="token">POST {api || "https://api.your-domain"}/api/v1/checkouts</p>
-          <p className="muted">The customer is sent to the address you called: a shop that uses the au.amarpin.com address gets payment links on au.amarpin.com.</p>
+          <p className="muted">The customer is sent to the address you called: a shop that uses the pay.amarpin.com address gets payment links on pay.amarpin.com.</p>
           <pre className="token">{`{
   "reference": "order-19",
   "amount": 250,

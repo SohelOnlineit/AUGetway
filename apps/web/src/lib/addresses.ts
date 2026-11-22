@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 /**
  * The address this page was opened on, and the matching api. address programs use
- * (au.amarpin.com and api.au.amarpin.com). Empty until the page is in the browser.
+ * (pay.amarpin.com and api.pay.amarpin.com). Empty until the page is in the browser.
  */
 export function useSiteAddresses() {
   const [addresses, setAddresses] = useState({ site: "", api: "", host: "" });

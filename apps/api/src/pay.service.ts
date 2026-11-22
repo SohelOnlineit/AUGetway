@@ -323,7 +323,7 @@ function accentColor(value: string | undefined) {
 }
 
 type SiteCard = {
-  /** The registered address this card was made for, like au.amarpin.com. Empty for an address nobody registered. */
+  /** The registered address this card was made for, like pay.amarpin.com. Empty for an address nobody registered. */
   host: string;
   brandName: string;
   supportEmail: string;
@@ -1154,7 +1154,7 @@ export class PayService implements OnModuleInit {
     });
     return {
       status: true,
-      // The shop called au.amarpin.com or api.au.amarpin.com, so the customer is sent to au.amarpin.com.
+      // The shop called pay.amarpin.com or api.pay.amarpin.com, so the customer is sent to pay.amarpin.com.
       payment_url: `${(await this.domains.originForRequest()) || siteBase()}/pay/${row.publicId}`,
       invoice_id: row.publicId,
     };
@@ -2498,7 +2498,7 @@ export class PayService implements OnModuleInit {
   }
 
   private async ensureOwner() {
-    const email = (process.env.ADMIN_EMAIL ?? "admin@au.uniqbd.com").toLowerCase();
+    const email = (process.env.ADMIN_EMAIL ?? "admin@pay.uniqbd.com").toLowerCase();
     const password = process.env.ADMIN_PASSWORD;
     const existing = await this.prisma.deskUser.findUnique({ where: { email } });
     if (existing) return existing;

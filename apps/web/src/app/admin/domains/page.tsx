@@ -139,7 +139,7 @@ export default function DomainsPage() {
           <p className="muted sec-note">
             One desk can answer on several website addresses. A visitor sees the name, logo and colour of the address they
             came in on, and payment links stay on that address. Payment methods, transactions and keys are shared. A field
-            left empty uses the name and logo from Brand &amp; System Settings. The api. address (for example api.au.amarpin.com)
+            left empty uses the name and logo from Brand &amp; System Settings. The api. address (for example api.pay.amarpin.com)
             is understood automatically. Only the main admin can change this page.
           </p>
         </div>
@@ -149,7 +149,7 @@ export default function DomainsPage() {
         <div className="item">
           <div>
             <strong>Add a website address</strong>
-            <p className="muted">Type it like au.amarpin.com. Its DNS and nginx must point at this server.</p>
+            <p className="muted">Type it like pay.amarpin.com. Its DNS and nginx must point at this server.</p>
           </div>
           <button className="btn" type="button" onClick={() => { setFormError(""); setDraft({ ...blank }); }}>Add address</button>
         </div>
@@ -195,7 +195,7 @@ export default function DomainsPage() {
           <div className="keys-empty">
             <div>
               <strong>No website address added yet</strong>
-              <p className="muted">Add au.uniqbd.com and au.amarpin.com, or set SITE_DOMAINS in the server .env and restart the API.</p>
+              <p className="muted">Add pay.uniqbd.com and pay.amarpin.com, or set SITE_DOMAINS in the server .env and restart the API.</p>
             </div>
           </div>
         ) : null}
@@ -207,7 +207,7 @@ export default function DomainsPage() {
             <h2>{draft.id ? `Edit ${draft.host}` : "Add a website address"}</h2>
             <label className="field">
               <span>Website address</span>
-              <input value={draft.host} onChange={(event) => patch({ host: event.target.value })} placeholder="au.amarpin.com" required maxLength={253} autoCapitalize="none" autoComplete="off" />
+              <input value={draft.host} onChange={(event) => patch({ host: event.target.value })} placeholder="pay.amarpin.com" required maxLength={253} autoCapitalize="none" autoComplete="off" />
               <p className="muted">Without https:// and without a path.</p>
             </label>
             <label className="field">

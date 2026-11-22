@@ -121,7 +121,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
     api<{ prefs: Record<string, string> }>("/desk/settings")
       .then((row) => setAdminMode(row.prefs.themeMode ?? ""))
       .catch(() => undefined);
-    // The name, logo and colour of the address this desk was opened on (au.uniqbd.com or au.amarpin.com).
+    // The name, logo and colour of the address this desk was opened on (pay.uniqbd.com or pay.amarpin.com).
     api<PublicSite>("/public/site")
       .then((card) => setSite({ ...card, checkoutTheme: "" }))
       .catch(() => undefined);

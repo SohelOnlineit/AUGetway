@@ -7,7 +7,7 @@ import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, r
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 import { SERVICES, emptyBooks, formatTaka, mergeRemote, normalizeBook, parseTaka, setBalance, type Books, type Service } from "./ledger";
 
-const DESK = "https://au.uniqbd.com/api";
+const DESK = "https://pay.uniqbd.com/api";
 
 function pulsePayload(uid: string, label: string) {
   const battery = batteryLevel();
@@ -988,7 +988,7 @@ function App() {
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
           {note ? <Text style={styles.note}>{note}</Text> : null}
-          <Text style={styles.hint}>This phone signs in only at au.uniqbd.com.</Text>
+          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
           <Text style={styles.label}>Phone name</Text>
           <Field scroll={loginScroll} style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>

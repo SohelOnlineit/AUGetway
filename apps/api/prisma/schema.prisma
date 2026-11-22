@@ -32,13 +32,13 @@ model DeskUser {
   domains      SiteDomain[]
 }
 
-/// One row per website address (for example au.uniqbd.com and au.amarpin.com). A visitor sees the name, logo and colour
+/// One row per website address (for example pay.uniqbd.com and pay.amarpin.com). A visitor sees the name, logo and colour
 /// of the address they came in on. An empty field falls back to the desk-wide brand in BrandSetting.
 model SiteDomain {
   id           String   @id @default(cuid())
   ownerId      String
   owner        DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  /// Lower case, no port, no "api." prefix. For example au.amarpin.com.
+  /// Lower case, no port, no "api." prefix. For example pay.amarpin.com.
   host         String   @unique
   brandName    String   @default("")
   brandLogo    String   @default("") @db.Text

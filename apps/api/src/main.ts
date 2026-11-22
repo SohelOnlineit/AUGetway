@@ -14,7 +14,7 @@ async function bootstrap() {
   // nginx is the only thing in front of this process. Trust exactly that one hop, so the visitor's
   // address comes from nginx and a forged X-Forwarded-For from the visitor is ignored.
   app.set("trust proxy", 1);
-  // Remember which website address this request came in on (au.uniqbd.com, au.amarpin.com, api.au.amarpin.com),
+  // Remember which website address this request came in on (pay.uniqbd.com, pay.amarpin.com, api.pay.amarpin.com),
   // so the brand and the payment links in the answer are those of that address. nginx sends the real Host header.
   app.use((request: Request, _response: Response, next: NextFunction) => {
     const address = pickHostHeader(request.headers.host, request.headers["x-forwarded-host"]);

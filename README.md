@@ -4,10 +4,10 @@
 
 | | |
 | --- | --- |
-| ওয়েবসাইট | https://au.uniqbd.com আর https://au.amarpin.com (একই ডেস্ক, প্রতি ঠিকানার নিজের নাম ও লোগো) |
-| API | `https://<ঠিকানা>/api`, শপের জন্য `https://api.au.uniqbd.com/api` আর `https://api.au.amarpin.com/api` |
+| ওয়েবসাইট | https://pay.uniqbd.com আর https://pay.amarpin.com (একই ডেস্ক, প্রতি ঠিকানার নিজের নাম ও লোগো) |
+| API | `https://<ঠিকানা>/api`, শপের জন্য `https://api.pay.uniqbd.com/api` আর `https://api.pay.amarpin.com/api` |
 | কোড | https://github.com/SohelOnlineit/AUGetway |
-| সার্ভারে কোডের ফোল্ডার | `/var/www/au.uniqbd.com` |
+| সার্ভারে কোডের ফোল্ডার | `/var/www/pay.uniqbd.com` |
 | সার্ভিস | `uniqpay-api` (`127.0.0.1:4100`), `uniqpay-web` (`127.0.0.1:3100`) |
 | ডাটাবেস | PostgreSQL 18, ইউজার `uniqpay`, `127.0.0.1:5432` |
 
@@ -33,13 +33,13 @@
 - **Cloudflare Turnstile** (Security Monitoring পেজ): লগইন ও পাবলিক পেমেন্ট পেজে বট ঠেকানো।
 - **Website Domains** (`/admin/domains`, শুধু মূল অ্যাডমিন): একাধিক ওয়েবসাইট ঠিকানা। নিচে "একাধিক ডোমেইন" দেখুন।
 
-## একাধিক ডোমেইন (au.uniqbd.com আর au.amarpin.com)
+## একাধিক ডোমেইন (pay.uniqbd.com আর pay.amarpin.com)
 
 একটাই অ্যাপ, একটাই ডেস্ক, একটাই ডাটাবেস। পেমেন্ট মেথড, ট্রানজেকশন, API key আর ফোন সবার জন্য এক। যে ঠিকানা দিয়ে ভিজিটর আসে, সে সেই ঠিকানার নাম, লোগো, ট্যাব আইকন, রঙ, সাপোর্ট ফোন/ইমেইল আর চেকআউট নোট দেখে।
 
-- ঠিকানা যোগ ও সাজানো: ডেস্কের **Website Domains** পেজে। কোনো ঘর খালি রাখলে **Brand & System Settings**-এর সাধারণ নাম/লোগো দেখায়। সার্ভারের `.env`-এ `SITE_DOMAINS=au.uniqbd.com,au.amarpin.com` লিখলে API চালু হওয়ার সময় ঠিকানাগুলো নিজে যোগ হয়ে যায়।
-- API ঠিকানা: `api.au.amarpin.com` মানে `au.amarpin.com`-এর API। আলাদা করে যোগ করতে হয় না, নিজে চিনে নেয়। শপ `https://api.au.amarpin.com/api/checkout-v2` কল করলে কাস্টমারের পেমেন্ট লিংক হয় `https://au.amarpin.com/pay/…`। `au.uniqbd.com`-এর ক্ষেত্রেও একই।
-- ওয়েবসাইট API-কে নিজের ঠিকানার `/api`-তে ডাকে (যেমন `https://au.amarpin.com/api`), তাই এক বিল্ড সব ডোমেইনে চলে, আলাদা CORS লাগে না। প্রতিটি ঠিকানার nginx-এ `/api/` লাইন লাগে (`deploy/ubuntu/nginx-site-snippet.conf`)।
+- ঠিকানা যোগ ও সাজানো: ডেস্কের **Website Domains** পেজে। কোনো ঘর খালি রাখলে **Brand & System Settings**-এর সাধারণ নাম/লোগো দেখায়। সার্ভারের `.env`-এ `SITE_DOMAINS=pay.uniqbd.com,pay.amarpin.com` লিখলে API চালু হওয়ার সময় ঠিকানাগুলো নিজে যোগ হয়ে যায়।
+- API ঠিকানা: `api.pay.amarpin.com` মানে `pay.amarpin.com`-এর API। আলাদা করে যোগ করতে হয় না, নিজে চিনে নেয়। শপ `https://api.pay.amarpin.com/api/checkout-v2` কল করলে কাস্টমারের পেমেন্ট লিংক হয় `https://pay.amarpin.com/pay/…`। `pay.uniqbd.com`-এর ক্ষেত্রেও একই।
+- ওয়েবসাইট API-কে নিজের ঠিকানার `/api`-তে ডাকে (যেমন `https://pay.amarpin.com/api`), তাই এক বিল্ড সব ডোমেইনে চলে, আলাদা CORS লাগে না। প্রতিটি ঠিকানার nginx-এ `/api/` লাইন লাগে (`deploy/ubuntu/nginx-site-snippet.conf`)।
 - নতুন ডোমেইনের জন্য: DNS → aaPanel-এ সাইট ও SSL → nginx snippet → Website Domains পেজে ঠিকানা যোগ। ধাপগুলো [`deploy/ubuntu/README.md`](./deploy/ubuntu/README.md)-এ।
 - যে ঠিকানা যোগ করা হয়নি (বা বন্ধ করা), সেখানে সাধারণ নাম ও লোগো দেখায় আর পেমেন্ট লিংক এই ঠিকানার নামে বানানো হয় না। তাই কেউ নিজের ডোমেইন দিয়ে লিংক বানাতে পারে না।
 - Cloudflare Turnstile widget-এ দুটো ডোমেইনই যোগ করতে হয়।
@@ -50,12 +50,12 @@ API একটাই (`127.0.0.1:4100`), আর সব ঠিকানার `/ap
 
 | কে ব্যবহার করে | কোন ঠিকানা |
 | --- | --- |
-| ওয়েবসাইট (ব্রাউজার) | নিজের ঠিকানার `/api`। `au.amarpin.com` খুললে `https://au.amarpin.com/api`। নিজে নিজে হয় |
-| ফোন অ্যাপ (২.৩২ থেকে) | `https://au.uniqbd.com/api`। অ্যাপের ভেতরে ঠিক করা, সব ফোন একই ঠিকানায় |
-| uniqbd.com-এর শপ | `https://api.au.uniqbd.com` (বা `https://au.uniqbd.com`) |
-| amarpin.com-এর শপ | `https://api.au.amarpin.com` (বা `https://au.amarpin.com`) |
+| ওয়েবসাইট (ব্রাউজার) | নিজের ঠিকানার `/api`। `pay.amarpin.com` খুললে `https://pay.amarpin.com/api`। নিজে নিজে হয় |
+| ফোন অ্যাপ (২.৩৩ থেকে) | `https://pay.uniqbd.com/api`। অ্যাপের ভেতরে ঠিক করা, সব ফোন একই ঠিকানায় |
+| uniqbd.com-এর শপ | `https://api.pay.uniqbd.com` (বা `https://pay.uniqbd.com`) |
+| amarpin.com-এর শপ | `https://api.pay.amarpin.com` (বা `https://pay.amarpin.com`) |
 
-`api.` ঠিকানা না বানালেও চলে। `https://au.amarpin.com/api/…` দিয়েই শপ কাজ করে।
+`api.` ঠিকানা না বানালেও চলে। `https://pay.amarpin.com/api/…` দিয়েই শপ কাজ করে।
 
 ### কোন শপের কাস্টমার কোন ঠিকানা দেখবে
 
@@ -63,19 +63,19 @@ API একটাই (`127.0.0.1:4100`), আর সব ঠিকানার `/ap
 
 ```
 uniqbd.com-এর কাস্টমার অর্ডার করে
-→ uniqbd.com-এর সার্ভার ডাকে  https://api.au.uniqbd.com/api/checkout-v2
-→ API লিংক দেয়              https://au.uniqbd.com/pay/xxxx
+→ uniqbd.com-এর সার্ভার ডাকে  https://api.pay.uniqbd.com/api/checkout-v2
+→ API লিংক দেয়              https://pay.uniqbd.com/pay/xxxx
 → কাস্টমার UniqBD-এর নাম, লোগো, রঙ দেখে
 
 amarpin.com-এর কাস্টমার অর্ডার করে
-→ amarpin.com-এর সার্ভার ডাকে https://api.au.amarpin.com/api/checkout-v2
-→ API লিংক দেয়               https://au.amarpin.com/pay/xxxx
+→ amarpin.com-এর সার্ভার ডাকে https://api.pay.amarpin.com/api/checkout-v2
+→ API লিংক দেয়               https://pay.amarpin.com/pay/xxxx
 → কাস্টমার AmarPin-এর নাম, লোগো, রঙ দেখে
 ```
 
 পেমেন্টের পর কাস্টমার শপের নিজের পেজে ফেরে। সেই লিংক শপই `redirect_url` দিয়ে পাঠায়।
 
-তাই প্রতিটি শপের পেমেন্ট গেটওয়ে সেটিংয়ে **Base URL নিজের ঠিকানা** দিতে হবে (ওপরের টেবিল)। amarpin.com-এর শপে ভুল করে `au.uniqbd.com` দিলে AmarPin-এর কাস্টমার UniqBD-এর লোগো দেখবে, কারণ API key এখনো কোনো ঠিকানার সাথে বাঁধা নয়। ডেস্কের **Integrations** পেজ যে ঠিকানায় খোলা, সেই ঠিকানা দেখায়।
+তাই প্রতিটি শপের পেমেন্ট গেটওয়ে সেটিংয়ে **Base URL নিজের ঠিকানা** দিতে হবে (ওপরের টেবিল)। amarpin.com-এর শপে ভুল করে `pay.uniqbd.com` দিলে AmarPin-এর কাস্টমার UniqBD-এর লোগো দেখবে, কারণ API key এখনো কোনো ঠিকানার সাথে বাঁধা নয়। ডেস্কের **Integrations** পেজ যে ঠিকানায় খোলা, সেই ঠিকানা দেখায়।
 
 ## প্রজেক্টের গঠন
 
@@ -122,7 +122,7 @@ pnpm dev
 | `NODE_ENV` | সার্ভারে `production` |
 | `PORT` | API পোর্ট (`4100`) |
 | `WEB_ORIGIN` | ওয়েবসাইটের ঠিকানা (CORS, আর ঠিকানা না চেনা গেলে পেমেন্ট লিংকের ডিফল্ট)। কমা দিয়ে একাধিক, প্রথমটাই ডিফল্ট |
-| `SITE_DOMAINS` | ডেস্ক যে ওয়েবসাইট ঠিকানাগুলোতে চলে, কমা দিয়ে (`au.uniqbd.com,au.amarpin.com`)। চালু হওয়ার সময় Website Domains পেজে যোগ হয় |
+| `SITE_DOMAINS` | ডেস্ক যে ওয়েবসাইট ঠিকানাগুলোতে চলে, কমা দিয়ে (`pay.uniqbd.com,pay.amarpin.com`)। চালু হওয়ার সময় Website Domains পেজে যোগ হয় |
 | `API_PUBLIC_URL` | API-র পাবলিক ঠিকানা (তথ্যের জন্য)। ওয়েবসাইট এখন নিজের ঠিকানার `/api` ব্যবহার করে, `NEXT_PUBLIC_API_URL` আর লাগে না |
 | `DATABASE_URL` | PostgreSQL সংযোগ |
 | `JWT_SECRET` | লগইন টোকেনের গোপন কী। **৩২+ অক্ষর, না থাকলে সার্ভারে API চালুই হয় না** |
@@ -149,17 +149,15 @@ pnpm dev
 কম্পিউটারে কোড বদলে GitHub-এ পুশ করার পর, সার্ভারে SSH করে **এই একটা কমান্ডই** চালান:
 
 ```bash
-sudo bash /var/www/au.uniqbd.com/deploy/ubuntu/update.sh
+sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh
 ```
-
-(কোডের ফোল্ডার যেখানেই থাক, স্ক্রিপ্ট নিজের জায়গা থেকে পথ বের করে। পুরনো `/var/www/pay.uniqbd.com` ফোল্ডার সরানো না হলে সেই পথেই চালান, আর ফোল্ডার সরানোর ধাপ `deploy/ubuntu/README.md`-এ আছে।)
 
 এটা নতুন কোড আনে, প্যাকেজ ইনস্টল করে, ডাটাবেসে নতুন টেবিল/কলাম যোগ করে (কিছু মোছে না), বিল্ড করে, দুটো সার্ভিস রিস্টার্ট করে এবং `verify-live: OK` দিয়ে চেক করে। `.env`, ডাটাবেসের ডেটা আর `backups` ছোঁয় না। GitHub পাসওয়ার্ড চাইলে ইউজারনেম `sohelonlineit` আর পাসওয়ার্ডের জায়গায় GitHub token দিন।
 
 **রিপোজিটরি সরানোর পর প্রথমবার:** সার্ভারের কোডের ইতিহাস GitHub-এর নতুন রিপোর সাথে মেলে না, তাই স্ক্রিপ্ট থেমে একটা কমান্ড দেখাবে। সার্ভারে কোডে নিজে এডিট না থাকলে সেটা একবার চালিয়ে আবার `update.sh`:
 
 ```bash
-sudo git -c safe.directory=/var/www/au.uniqbd.com -C /var/www/au.uniqbd.com reset --hard origin/main
+sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com reset --hard origin/main
 ```
 
 পুরো সার্ভার সেটআপ (নতুন VPS-এ), nginx, রোলব্যাক ও সমস্যার সমাধান: [`deploy/ubuntu/README.md`](./deploy/ubuntu/README.md)
@@ -168,7 +166,7 @@ sudo git -c safe.directory=/var/www/au.uniqbd.com -C /var/www/au.uniqbd.com rese
 
 ডেস্কের **Backups** পেজ (শুধু মূল অ্যাডমিন)।
 - প্রতিদিন ভোর ৫:০০টায় (Asia/Dhaka) অটো কপি। সার্ভার তখন বন্ধ থাকলে চালু হয়ে একবার সেভ করে।
-- ৬০ দিনের পুরনো কপি নিজে মুছে যায়। ফাইল: `/var/www/au.uniqbd.com/backups/augetway-database-…sql`।
+- ৬০ দিনের পুরনো কপি নিজে মুছে যায়। ফাইল: `/var/www/pay.uniqbd.com/backups/augetway-database-…sql`।
 - "Save a copy now" দিয়ে যেকোনো সময় কপি, আর Download দিয়ে নামানো যায়।
 - কপিতে পাসওয়ার্ড হ্যাশ ও গেটওয়ে ক্রেডেনশিয়ালসহ সব ডেটা থাকে। সার্ভারের বাইরেও নিরাপদ জায়গায় একটা কপি রাখুন।
 
@@ -177,7 +175,7 @@ sudo git -c safe.directory=/var/www/au.uniqbd.com -C /var/www/au.uniqbd.com rese
 ## Cloudflare Turnstile
 
 বট ঠেকাতে ডেস্ক লগইন এবং পাবলিক পেমেন্ট পেজে (পেমেন্ট লিংক, বিল, ট্রানজেকশন আইডি যাচাই) চালানো যায়। ফোন অ্যাপের লগইনে এটা চায় না।
-1. Cloudflare-এ Turnstile widget বানান, Domain-এ `au.uniqbd.com` আর `au.amarpin.com` দুটোই।
+1. Cloudflare-এ Turnstile widget বানান, Domain-এ `pay.uniqbd.com` আর `pay.amarpin.com` দুটোই।
 2. ডেস্কে **Security Monitoring** পেজের **Cloudflare Turnstile** কার্ডে Site key ও Secret key বসিয়ে **Save keys**।
 3. কার্ডের চেক সলভ করে **Test and turn on**। টেস্ট পাশ না করলে চালু হয় না, তাই ভুল key দিয়ে লগইন বন্ধ হয়ে যায় না।
 4. key বদলালে চেক নিজে বন্ধ হয়। **Turn off** দিলে key সেভ থাকে।
@@ -193,20 +191,20 @@ sudo git -c safe.directory=/var/www/au.uniqbd.com -C /var/www/au.uniqbd.com rese
 
 এরপর ওয়েবে ও ফোন অ্যাপে লগইনে পাসওয়ার্ডের পর কোড চায়। একই কোড দুইবার চলে না। ভুল কোড ভুল পাসওয়ার্ডের মতো গোনা হয়। বন্ধ করতে পাসওয়ার্ড ও নতুন কোড দুটোই লাগে, তাই চুরি যাওয়া লগইন টোকেন দিয়ে এটা বন্ধ করা যায় না। চালু করলে আগে থেকে লগইন থাকা ফোন/ব্রাউজার বের হয়ে যায় না।
 
-**আগে ফোন অ্যাপ আপডেট করুন।** কোড লেখার ঘর শুধু অ্যাপ ২.৩১ বা নতুনে আছে (এখনকার অ্যাপ ২.৩২, যেটা `au.uniqbd.com`-এ কথা বলে)। পুরোনো অ্যাপে নতুন করে লগইন করা যাবে না (আগের লগইন চলতে থাকে)। GitHub Releases থেকে সর্বশেষ `AU-Getway-v….apk` নামিয়ে ফোনে ইনস্টল করে লগইন চেক করুন। তারপর 2FA চালু করুন। নতুন APK বানাতে `apps/mobile/app.json`-এ `version` ও `versionCode` বাড়িয়ে, `apk-v2.33`-এর মতো tag বানিয়ে (`git tag apk-v2.33`) পুশ করুন (`git push origin apk-v2.33`)।
+**আগে ফোন অ্যাপ আপডেট করুন।** কোড লেখার ঘর শুধু অ্যাপ ২.৩১ বা নতুনে আছে (এখনকার অ্যাপ ২.৩৩, যেটা `pay.uniqbd.com`-এ কথা বলে)। পুরোনো অ্যাপে নতুন করে লগইন করা যাবে না (আগের লগইন চলতে থাকে)। GitHub Releases থেকে সর্বশেষ `AU-Getway-v….apk` নামিয়ে ফোনে ইনস্টল করে লগইন চেক করুন। তারপর 2FA চালু করুন। নতুন APK বানাতে `apps/mobile/app.json`-এ `version` ও `versionCode` বাড়িয়ে, `apk-v2.33`-এর মতো tag বানিয়ে (`git tag apk-v2.33`) পুশ করুন (`git push origin apk-v2.33`)।
 
 ফোন হারালে বা অ্যাপ মুছলে: সার্ভারের `.env`-এ `TWO_FACTOR_OFF=1` লিখে `sudo systemctl restart uniqpay-api`। পাসওয়ার্ড দিয়ে ঢুকে Account পেজে 2FA নতুন করে সেট করুন, তারপর লাইনটা মুছে আবার রিস্টার্ট দিন। এই লাইন থাকলে কারও জন্যই কোড চাওয়া হয় না, তাই কাজ শেষে অবশ্যই মুছুন (`audit-server.sh` মনে করিয়ে দেয়)।
 
 ## ফোন অ্যাপ (Android)
 
-`apps/mobile`। সাইন-ইন করে ডেস্কের ইমেইল ও পাসওয়ার্ড দিয়ে। অ্যাপ নিজেই `https://au.uniqbd.com/api`-এ কথা বলে। (অ্যাপ ২.৩২ থেকে। আগের অ্যাপ `pay.uniqbd.com`-এ কথা বলত, তাই ওই ঠিকানা কিছুদিন চালু রাখুন, যতক্ষণ না সব ফোনে নতুন অ্যাপ বসে।)
+`apps/mobile`। সাইন-ইন করে ডেস্কের ইমেইল ও পাসওয়ার্ড দিয়ে। অ্যাপ নিজেই `https://pay.uniqbd.com/api`-এ কথা বলে। (অ্যাপ ২.৩৩ থেকে।)
 - প্রথমবার **SMS পড়া, SMS পাঠানো, ফোন স্টেট** পারমিশন দিন, আর ব্যাটারি অপটিমাইজেশনে "Unrestricted"। নইলে ফোন স্ক্রিন বন্ধ করলে Android অ্যাপ থামিয়ে দিতে পারে এবং ওয়েবসাইটের SMS আটকে থাকে।
 - নোটিফিকেশনে "AU-Getway · Online" দেখা গেলে ফোন জুড়ে আছে। সমস্যা হলে সেখানে লাল বার্তা আসে।
 - বিল্ড (Android SDK লাগে): `pnpm install` তারপর `pnpm --filter @uniqpay/mobile android`। `.apk` ফাইল git-এ যায় না।
 
 ## API ব্যবহার (মার্চেন্টের সাইট থেকে)
 
-ডেস্কে **Api Keys** থেকে key বানান। Base URL হবে শপের নিজের ঠিকানা (যেমন `https://api.au.amarpin.com`), পাথ নিচের টেবিলের মতো। পেমেন্ট লিংক সেই ঠিকানাতেই হবে ("কোন শপের কাস্টমার কোন ঠিকানা দেখবে" দেখুন)। তারপর:
+ডেস্কে **Api Keys** থেকে key বানান। Base URL হবে শপের নিজের ঠিকানা (যেমন `https://api.pay.amarpin.com`), পাথ নিচের টেবিলের মতো। পেমেন্ট লিংক সেই ঠিকানাতেই হবে ("কোন শপের কাস্টমার কোন ঠিকানা দেখবে" দেখুন)। তারপর:
 
 | মেথড | পাথ | কাজ |
 | --- | --- | --- |
