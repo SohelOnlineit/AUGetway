@@ -94,7 +94,7 @@ export function browserHttpUrl(value: string | undefined) {
   return url.toString();
 }
 
-export async function postPublicJson(value: string, body: string) {
+export async function postPublicJson(value: string, body: string, extraHeaders: Record<string, string> = {}) {
   const target = await publicHttpUrl(value);
   if (!target) return;
   const url = new URL(target);
@@ -114,6 +114,7 @@ export async function postPublicJson(value: string, body: string) {
         method: "POST",
         path: `${url.pathname}${url.search}`,
         headers: {
+          ...extraHeaders,
           host: url.host,
           "content-type": "application/json",
           accept: "application/json",

@@ -15,6 +15,7 @@ export default function DeskGatePage() {
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaRequired, setCaptchaRequired] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
+  const [needCode, setNeedCode] = useState(false);
   const [site, setSite] = useState<PublicSite | null>(null);
 
   useEffect(() => {
@@ -43,12 +44,20 @@ export default function DeskGatePage() {
           email: String(form.get("email") ?? ""),
           password: String(form.get("password") ?? ""),
           turnstileToken: captchaToken || undefined,
+          code: String(form.get("code") ?? "").trim() || undefined,
         }),
       });
       saveToken(result.accessToken);
       router.push("/admin");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not sign in");
+      const message = cause instanceof Error ? cause.message : "Could not sign in";
+      if (message === "TWO_FACTOR_REQUIRED") {
+        // The password was right. This account also needs the code from its authenticator app.
+        setNeedCode(true);
+        setError("Enter the 6-digit code from your authenticator app.");
+      } else {
+        setError(message);
+      }
       // A Cloudflare token works once, so ask for a fresh one after a failed try.
       setCaptchaReset((value) => value + 1);
     } finally {
@@ -71,6 +80,12 @@ export default function DeskGatePage() {
           <span>Password</span>
           <input name="password" type="password" autoComplete="current-password" minLength={8} required />
         </label>
+        {needCode ? (
+          <label className="field">
+            <span>Authenticator code</span>
+            <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} placeholder="123456" autoFocus required />
+          </label>
+        ) : null}
         <TurnstileField resetKey={captchaReset} onToken={setCaptchaToken} onRequired={setCaptchaRequired} />
         {error ? <p className="error">{error}</p> : null}
         <button className="btn wide" disabled={pending || (captchaRequired && !captchaToken)} type="submit">

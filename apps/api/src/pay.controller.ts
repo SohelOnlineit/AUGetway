@@ -66,7 +66,7 @@ export class PayController {
     // The phone app cannot show the Cloudflare widget, so only its own client name skips the check.
     // Wrong-password attempts are still limited per address, per email and per pair for everyone.
     if (body.client !== "handset") await this.turnstile.assert(body.turnstileToken);
-    return this.pay.login(body.email, body.password, body.client, clientAddress(request));
+    return this.pay.login(body.email, body.password, body.client, clientAddress(request), body.code);
   }
 
   @Get("auth/me")

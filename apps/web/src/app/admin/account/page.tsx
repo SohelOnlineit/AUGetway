@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { saveToken } from "@/lib/token";
+import { TwoFactorBlock } from "@/components/two-factor-block";
 
-type Account = { name: string; email: string; role: string };
+type Account = { name: string; email: string; role: string; twoFactor?: boolean };
 
 function initials(name: string, email: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -75,7 +76,7 @@ export default function AccountPage() {
         body: JSON.stringify({ currentPassword, email: next, name: nextName, ...(newPassword ? { newPassword } : {}) }),
       });
       saveToken(result.accessToken);
-      setUser(result.user);
+      setUser({ ...result.user, twoFactor: user.twoFactor });
       setName(result.user.name);
       setEmail(result.user.email);
       window.dispatchEvent(new CustomEvent("uniqpay-account", { detail: result.user }));
@@ -129,6 +130,8 @@ export default function AccountPage() {
           <h2>Your account</h2>
           <p className="muted">Update the name, sign-in email, or password for this desk.</p>
         </header>
+
+        {user ? <TwoFactorBlock enabled={user.twoFactor === true} onChange={(on) => setUser({ ...user, twoFactor: on })} /> : null}
 
         <form className="account-form" onSubmit={(event) => void save(event)}>
           <section className="account-block">

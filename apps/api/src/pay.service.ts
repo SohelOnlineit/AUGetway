@@ -11,6 +11,9 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { paidFitsCheckout } from "./amount-window";
+import { SecretBox, secretBox } from "./secret-box";
+import { TwoFactorService } from "./two-factor.service";
+import { webhookHeaders } from "./webhook-sign";
 import { attemptsLeft, unmatchedAttempt } from "./proof-attempt";
 import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
@@ -85,7 +88,16 @@ function officialProvider(value: string): OfficialProvider {
   throw new BadRequestException("Choose an official gateway");
 }
 
-function readOfficialSecrets(raw: string): OfficialSecrets {
+// Gateway credentials are stored sealed (see secret-box.ts). Older rows saved as plain JSON still read fine
+// and are sealed at start-up and on the next save.
+const OFFICIAL_CONTEXT = "official-gateway";
+
+function sealOfficialSecrets(secrets: OfficialSecrets) {
+  return secretBox().seal(JSON.stringify(secrets), OFFICIAL_CONTEXT);
+}
+
+function readOfficialSecrets(stored: string): OfficialSecrets {
+  const raw = secretBox().open(stored, OFFICIAL_CONTEXT);
   const empty: OfficialSecrets = {
     username: "",
     password: "",
@@ -436,12 +448,43 @@ const PREF_KEYS = new Set([
   "metaTestCode",
 ]);
 
+// These settings are passwords or tokens. They are stored sealed (secret-box.ts) and the desk gets SECRET_MASK
+// instead of the value, so reading the settings page, a stolen sign-in token or a copied backup does not leak them.
+const SECRET_PREFS: ReadonlySet<string> = new Set(["webhookSecret", "mailPassword", "telegramToken", "metaCapiToken"]);
+const SECRET_MASK = "********";
+
+function prefContext(key: string) {
+  return `pref:${key}`;
+}
+
+/** Replaces every saved secret with the mask. Empty ones stay empty so the form can tell "not set". */
+function maskPrefs(prefs: Record<string, string>) {
+  const shown = { ...prefs };
+  for (const key of SECRET_PREFS) if (shown[key]) shown[key] = SECRET_MASK;
+  return shown;
+}
+
+/** Seals every secret that is still plain text. Already sealed values are left alone. */
+function sealPrefs(prefs: Record<string, string>) {
+  const stored = { ...prefs };
+  for (const key of SECRET_PREFS) {
+    const value = stored[key];
+    if (value && !SecretBox.isSealed(value)) stored[key] = secretBox().seal(value, prefContext(key));
+  }
+  return stored;
+}
+
 function cleanPrefs(value: unknown) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   const prefs: Record<string, string> = {};
   for (const [key, raw] of Object.entries(source)) {
     if (!PREF_KEYS.has(key) || typeof raw !== "string") continue;
     const text = raw.trim();
+    // A sealed secret is longer than the plain limit below. It must pass through whole or it would be cut and lost.
+    if (SECRET_PREFS.has(key) && SecretBox.isSealed(text) && text.length <= 8000) {
+      prefs[key] = text;
+      continue;
+    }
     if (key === "brandLogo" || key === "brandFavicon") {
       if (!text || (text.startsWith("data:image/") && text.length <= 1_200_000)) prefs[key] = text;
       continue;
@@ -479,6 +522,7 @@ export class PayService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly security: PaymentSecurityService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   async onModuleInit() {
@@ -488,9 +532,41 @@ export class PayService implements OnModuleInit {
       await this.applyReceiptDefault();
       await this.restoreBrandAccent(owner.id);
     }
+    await this.sealStoredSecrets();
   }
 
-  async login(email: string, password: string, client?: string, address = "") {
+  /**
+   * Secrets saved before encryption existed are plain text in the database. Seal them once, when the API starts.
+   * Safe to repeat: a value that is already sealed is skipped. A failure here never stops the API from starting.
+   */
+  private async sealStoredSecrets() {
+    try {
+      const gateways = await this.prisma.officialGateway.findMany({ select: { id: true, secrets: true } });
+      for (const row of gateways) {
+        if (!row.secrets || SecretBox.isSealed(row.secrets)) continue;
+        await this.prisma.officialGateway.update({
+          where: { id: row.id },
+          data: { secrets: sealOfficialSecrets(readOfficialSecrets(row.secrets)) },
+        });
+      }
+      const settings = await this.prisma.brandSetting.findMany({ select: { id: true, prefs: true } });
+      for (const row of settings) {
+        const prefs = cleanPrefs(row.prefs);
+        const needs = [...SECRET_PREFS].some((key) => prefs[key] && !SecretBox.isSealed(prefs[key]));
+        if (!needs) continue;
+        // Only the secret keys change. Every other value in the saved settings is kept exactly as it was.
+        const original = row.prefs && typeof row.prefs === "object" && !Array.isArray(row.prefs) ? (row.prefs as Record<string, unknown>) : {};
+        const sealed = sealPrefs(prefs);
+        const next: Record<string, unknown> = { ...original };
+        for (const key of SECRET_PREFS) if (sealed[key]) next[key] = sealed[key];
+        await this.prisma.brandSetting.update({ where: { id: row.id }, data: { prefs: next as Record<string, string> } });
+      }
+    } catch {
+      // Left as plain text this time. It is tried again at the next start.
+    }
+  }
+
+  async login(email: string, password: string, client?: string, address = "", code?: string) {
     const normalized = email.trim().toLowerCase();
     assertLoginOpen(normalized, address);
     const user = await this.prisma.deskUser.findUnique({ where: { email: normalized } });
@@ -498,6 +574,14 @@ export class PayService implements OnModuleInit {
     if (!user || !matches) {
       noteLoginFailure(normalized, address);
       throw new UnauthorizedException("Email or password is wrong");
+    }
+    // The second step only runs after the password is right, so it cannot be used to find out who has it turned on.
+    // A wrong code counts like a wrong password, so the code cannot be guessed without limit.
+    const second = await this.twoFactor.verifyLogin(user.id, code);
+    if (second === "missing") throw new UnauthorizedException("TWO_FACTOR_REQUIRED");
+    if (second === "wrong") {
+      noteLoginFailure(normalized, address);
+      throw new UnauthorizedException("That code is wrong or was already used. Wait for the next code and try again.");
     }
     clearLoginFailure(normalized, address);
     // The phone app cannot ask for a new sign-in while it runs in the background, so it keeps a long token.
@@ -508,7 +592,13 @@ export class PayService implements OnModuleInit {
   async me(userId: string) {
     const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException("Sign in required");
-    return { id: user.id, name: user.name, email: user.email, role: user.deskId ? "admin" : "owner" };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.deskId ? "admin" : "owner",
+      twoFactor: await this.twoFactor.enabled(user.id),
+    };
   }
 
   async updateAccount(
@@ -800,7 +890,7 @@ export class PayService implements OnModuleInit {
       secrets.code = next[1];
       await this.prisma.officialGateway.update({
         where: { id: row.id },
-        data: { label: next[1], secrets: JSON.stringify(secrets) },
+        data: { label: next[1], secrets: sealOfficialSecrets(secrets) },
       });
     }
     const existing = await this.prisma.officialGateway.count({ where: { ownerId } });
@@ -817,7 +907,7 @@ export class PayService implements OnModuleInit {
             label: item[0],
             mode: "live",
             active: false,
-            secrets: JSON.stringify(secrets),
+            secrets: sealOfficialSecrets(secrets),
           },
         });
       }
@@ -842,7 +932,7 @@ export class PayService implements OnModuleInit {
         label: input.label.trim(),
         mode: input.mode === "live" ? "live" : "sandbox",
         active: input.active === true,
-        secrets: JSON.stringify(secrets),
+        secrets: sealOfficialSecrets(secrets),
       },
     });
     return this.officialView(row);
@@ -860,7 +950,7 @@ export class PayService implements OnModuleInit {
         label: input.label.trim(),
         mode: input.mode === "live" ? "live" : "sandbox",
         active: input.active === true,
-        secrets: JSON.stringify(secrets),
+        secrets: sealOfficialSecrets(secrets),
       },
     });
     return this.officialView(row);
@@ -1073,7 +1163,7 @@ export class PayService implements OnModuleInit {
     };
   }
 
-  private notifyGateway(row: { publicId: string; reference: string; amount: MoneyRow | number | string; webhookUrl: string; status: string }) {
+  private notifyGateway(row: { ownerId: string; publicId: string; reference: string; amount: MoneyRow | number | string; webhookUrl: string; status: string }) {
     const url = row.webhookUrl.trim();
     if (!url) return;
     const status = row.status === "paid" ? "COMPLETED" : row.status === "failed" ? "FAILED" : "";
@@ -1084,7 +1174,12 @@ export class PayService implements OnModuleInit {
       amount: money(row.amount),
       metadata: { orderId: row.reference },
     });
-    void postPublicJson(url, body).catch(() => undefined);
+    // With a signing secret saved in Settings, the shop can prove the call came from here (see webhook-sign.ts).
+    // The shop should still confirm with verify-payment before it ships anything.
+    void this.webhookSecret(row.ownerId)
+      .catch(() => "")
+      .then((secret) => postPublicJson(url, body, webhookHeaders(secret, body)))
+      .catch(() => undefined);
   }
 
   async listBills(ownerId: string) {
@@ -1828,8 +1923,15 @@ export class PayService implements OnModuleInit {
       supportEmail: row?.supportEmail ?? "",
       currency: row?.currency ?? "BDT",
       checkoutNote: row?.checkoutNote ?? "",
-      prefs: cleanPrefs(row?.prefs),
+      prefs: maskPrefs(cleanPrefs(row?.prefs)),
     };
+  }
+
+  /** The webhook signing secret in plain text, for signing only. It never goes to the browser. */
+  private async webhookSecret(ownerId: string) {
+    const row = await this.prisma.brandSetting.findUnique({ where: { ownerId }, select: { prefs: true } });
+    const stored = cleanPrefs(row?.prefs).webhookSecret ?? "";
+    return secretBox().open(stored, prefContext("webhookSecret")).trim();
   }
 
   async saveSettings(
@@ -1837,12 +1939,23 @@ export class PayService implements OnModuleInit {
     input: { brandName: string; supportEmail?: string; currency?: string; checkoutNote?: string; prefs?: Record<string, string> },
   ) {
     const current = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
+    const stored = cleanPrefs(current?.prefs);
+    const incoming = cleanPrefs(input.prefs);
+    for (const key of SECRET_PREFS) {
+      if (!(key in incoming)) continue;
+      // The form sends the mask back for a secret the person did not touch, so the saved one stays.
+      // A value that already looks sealed did not come from the form, so it is never trusted as a real secret.
+      if (incoming[key] === SECRET_MASK || SecretBox.isSealed(incoming[key])) {
+        if (stored[key] !== undefined) incoming[key] = stored[key];
+        else delete incoming[key];
+      }
+    }
     const data = {
       brandName: input.brandName.trim(),
       supportEmail: input.supportEmail?.trim() ?? "",
       currency: (input.currency ?? "BDT").trim().toUpperCase(),
       checkoutNote: input.checkoutNote?.trim() ?? "",
-      prefs: { ...cleanPrefs(current?.prefs), ...cleanPrefs(input.prefs) },
+      prefs: sealPrefs({ ...stored, ...incoming }),
     };
     const row = await this.prisma.brandSetting.upsert({
       where: { ownerId },
@@ -1854,7 +1967,7 @@ export class PayService implements OnModuleInit {
       supportEmail: row.supportEmail,
       currency: row.currency,
       checkoutNote: row.checkoutNote,
-      prefs: cleanPrefs(row.prefs),
+      prefs: maskPrefs(cleanPrefs(row.prefs)),
     };
   }
 

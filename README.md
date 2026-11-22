@@ -136,6 +136,19 @@ sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com re
 
 লগইন আটকে গেলে: সার্ভারের `.env`-এ `TURNSTILE_OFF=1` লিখে `sudo systemctl restart uniqpay-api`। ঢুকে ঠিক করে লাইনটা মুছে আবার রিস্টার্ট দিন।
 
+## দুই-ধাপ লগইন (অথেন্টিকেটর কোড)
+
+পাসওয়ার্ড চুরি বা আন্দাজ হয়ে গেলেও যেন কেউ ঢুকতে না পারে। ডিফল্টে বন্ধ। প্রতিটি অ্যাডমিন নিজের অ্যাকাউন্টে নিজে চালু করে। মূল অ্যাডমিনের জন্য জোর সুপারিশ।
+1. ডেস্কের **Account** পেজে **Two-factor sign-in** কার্ডে বর্তমান পাসওয়ার্ড দিয়ে **Set up**।
+2. Google Authenticator, Authy বা Microsoft Authenticator-এ **Enter a setup key** (time based) দিয়ে দেখানো key বসান।
+3. অ্যাপের ৬ অঙ্কের কোড লিখে **Turn on**।
+
+এরপর ওয়েবে ও ফোন অ্যাপে লগইনে পাসওয়ার্ডের পর কোড চায়। একই কোড দুইবার চলে না। ভুল কোড ভুল পাসওয়ার্ডের মতো গোনা হয়। বন্ধ করতে পাসওয়ার্ড ও নতুন কোড দুটোই লাগে, তাই চুরি যাওয়া লগইন টোকেন দিয়ে এটা বন্ধ করা যায় না। চালু করলে আগে থেকে লগইন থাকা ফোন/ব্রাউজার বের হয়ে যায় না।
+
+**আগে ফোন অ্যাপ আপডেট করুন।** কোড লেখার ঘর শুধু অ্যাপ ২.৩১ বা নতুনে আছে। পুরোনো অ্যাপে নতুন করে লগইন করা যাবে না (আগের লগইন চলতে থাকে)। নতুন APK: `git tag apk-v2.31 && git push origin apk-v2.31`, তারপর GitHub Releases থেকে নামিয়ে ফোনে ইনস্টল করে লগইন চেক করুন। তারপর 2FA চালু করুন।
+
+ফোন হারালে বা অ্যাপ মুছলে: সার্ভারের `.env`-এ `TWO_FACTOR_OFF=1` লিখে `sudo systemctl restart uniqpay-api`। পাসওয়ার্ড দিয়ে ঢুকে Account পেজে 2FA নতুন করে সেট করুন, তারপর লাইনটা মুছে আবার রিস্টার্ট দিন। এই লাইন থাকলে কারও জন্যই কোড চাওয়া হয় না, তাই কাজ শেষে অবশ্যই মুছুন (`audit-server.sh` মনে করিয়ে দেয়)।
+
 ## ফোন অ্যাপ (Android)
 
 `apps/mobile`। সাইন-ইন করে ডেস্কের ইমেইল ও পাসওয়ার্ড দিয়ে। অ্যাপ নিজেই `https://api.uniqbd.com/api`-এ কথা বলে।
@@ -181,5 +194,8 @@ node --test apps/mobile/*.test.ts
 - API key ডাটাবেসে হ্যাশ করে রাখা হয়। নিজের দেওয়া (custom) key কমপক্ষে ১৬ অক্ষর।
 - সব `/desk/*` রুটে লগইন লাগে এবং প্রতিটি কোয়েরি নিজের ডেস্কের ডেটায় সীমিত।
 - ব্যাকআপ ও Turnstile সেটিংস শুধু মূল অ্যাডমিনের।
-- ওয়েব পেজে `Strict-Transport-Security` ও `Content-Security-Policy` (ফ্রেমিং, `<base>`, `<object>`, ফর্ম পোস্ট সীমিত) আছে। স্ক্রিপ্ট-সোর্স সীমিত করা হয়নি, কারণ Next.js-এর inline স্ক্রিপ্ট ও Cloudflare Turnstile লাগে।
+- ডেস্কের সেটিংসের পাসওয়ার্ড ও টোকেন (SMTP password, Telegram token, Meta token, webhook secret) আর অফিশিয়াল গেটওয়ের ক্রেডেনশিয়াল ডাটাবেসে এনক্রিপ্ট করে (AES-256-GCM) রাখা হয়। ডেস্কের সেটিংস পেজ এগুলো দেখায় `********` করে, আসল মান ব্রাউজারে যায় না। ফর্মে না ছুঁলে সেভ করলেও আসল মান থাকে। পুরোনো প্লেইন-টেক্সট মান API চালু হওয়ার সময় একবার এনক্রিপ্ট হয়ে যায়। কী আসে `.env`-এর `DATA_KEY` থেকে, না থাকলে `JWT_SECRET` থেকে। এর যেকোনো একটা বদলালে সেভ করা এই মানগুলো পড়া যায় না, আবার বসাতে হয়। তাই `JWT_SECRET` বদলানোর আগে মনে রাখুন।
+- Webhook-এ সেটিংসের **Global Webhook Signing Secret** বসানো থাকলে দুটো হেডার যায়: `X-Webhook-Timestamp` (সেকেন্ড) আর `X-Webhook-Signature: sha256=<hex>`, যেখানে hex = `HMAC-SHA256(secret, timestamp + "." + body)`। দোকানের সার্ভার মিলিয়ে দেখবে, আর timestamp ৫ মিনিটের বেশি পুরোনো হলে নেবে না (নমুনা: `apps/api/src/webhook-sign.ts` এর `webhookIsGenuine`)। secret না থাকলে আগের মতোই সাইন ছাড়া যায়। যাই হোক, মাল পাঠানোর আগে `verify-payment` দিয়ে আবার মিলিয়ে নিন।
+- ওয়েব পেজে `Strict-Transport-Security` ও `Content-Security-Policy` আছে। স্ক্রিপ্ট শুধু নিজের সাইট (আর Next.js-এর inline স্ক্রিপ্ট) ও Cloudflare Turnstile থেকে চলে। ব্রাউজার থেকে ডেটা শুধু নিজের সাইট, API ও Cloudflare-এ যেতে পারে। কেউ কোনোভাবে স্ক্রিপ্ট ঢুকিয়ে দিলেও সেটা অন্য সাইট থেকে কোড আনতে বা লগইন টোকেন অন্য সাইটে পাঠাতে পারবে না। `unsafe-inline` রাখতে হয়েছে কারণ Next.js নিজে ছোট inline স্ক্রিপ্ট লেখে।
+- সার্ভারের হাল দেখতে `sudo bash deploy/ubuntu/audit-server.sh` (কিছু বদলায় না, শুধু দেখায়): `.env`-এর পারমিশন, খোলা পোর্ট, ফায়ারওয়াল, SSH, fail2ban, সিকিউরিটি আপডেট, ব্যাকআপ ফোল্ডার, HTTPS, সার্টিফিকেটের মেয়াদ। প্রতিটা `WARN` ঠিক করে আবার চালান। aaPanel-এ দুই সাইটেই **Force HTTPS** চালু রাখুন, নইলে `http://` সরাসরি খোলে।
 - `update.sh` শুধু কোড টানে। `deploy/ubuntu/` এর nginx snippet ও systemd ফাইল বদলালে সার্ভারে আলাদা করে বসাতে হয়: nginx snippet aaPanel-এর সাইট কনফিগে বসিয়ে রিলোড, আর systemd ফাইল `sudo install -m 644 deploy/ubuntu/uniqpay-*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart uniqpay-api uniqpay-web`।

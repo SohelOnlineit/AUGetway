@@ -28,6 +28,20 @@ model DeskUser {
   handsets     Handset[]
   customers    Customer[]
   brand        BrandSetting?
+  twoFactor    TwoFactor?
+}
+
+/// Optional second sign-in step (authenticator app code). One row per desk user, in its own table.
+model TwoFactor {
+  userId    String   @id
+  user      DeskUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The base32 secret, sealed with SecretBox. Never sent to the browser after setup.
+  secret    String
+  /// False while the user has only started setup. The sign-in asks for a code only when this is true.
+  enabled   Boolean  @default(false)
+  /// The last 30-second step that was accepted, so one code cannot be used twice.
+  lastStep  Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model WalletMethod {

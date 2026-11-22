@@ -37,6 +37,36 @@ export class LoginDto {
   @IsString()
   @MaxLength(2048)
   turnstileToken?: string;
+
+  /** The 6-digit code from the authenticator app. Needed only for an account that turned two-factor on. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  code?: string;
+}
+
+export class TwoFactorSetupDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  currentPassword!: string;
+}
+
+export class TwoFactorCodeDto {
+  @IsString()
+  @MaxLength(12)
+  code!: string;
+}
+
+export class TwoFactorDisableDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  currentPassword!: string;
+
+  @IsString()
+  @MaxLength(12)
+  code!: string;
 }
 
 export class UpdateTurnstileDto {

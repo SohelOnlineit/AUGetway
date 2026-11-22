@@ -144,6 +144,9 @@ async function allowSms() {
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Shown only after the desk says this account also needs the code from an authenticator app.
+  const [code, setCode] = useState("");
+  const [needCode, setNeedCode] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [uid, setUid] = useState("");
   const [name, setName] = useState("UniqBD handset");
@@ -499,14 +502,21 @@ function App() {
       const response = await fetch(`${DESK}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, client: "handset" }),
+        body: JSON.stringify({ email: email.trim(), password, client: "handset", ...(code.trim() ? { code: code.trim() } : {}) }),
       });
       const data = (await response.json()) as { accessToken?: string; message?: string | string[] };
       if (!response.ok || !data.accessToken) {
+        if (data.message === "TWO_FACTOR_REQUIRED") {
+          setNeedCode(true);
+          setNote("Enter the 6-digit code from your authenticator app.");
+          return;
+        }
         setNote(problem(data, "Sign in failed"));
         return;
       }
       setPassword("");
+      setCode("");
+      setNeedCode(false);
       await writeStore("uniqpay_token", data.accessToken);
       await writeStore("uniqpay_name", name.trim() || "UniqBD handset");
       setToken(data.accessToken);
@@ -985,6 +995,12 @@ function App() {
           <Field scroll={loginScroll} style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Password</Text>
           <Field scroll={loginScroll} style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#94a3b8" />
+          {needCode ? (
+            <>
+              <Text style={styles.label}>Authenticator code</Text>
+              <Field scroll={loginScroll} style={styles.input} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={7} placeholder="123456" placeholderTextColor="#94a3b8" />
+            </>
+          ) : null}
           <Pressable style={[styles.button, busy && styles.disabled]} disabled={busy} onPress={() => void signIn()}>
             <Text style={styles.buttonText}>{busy ? "Signing in" : "Sign in"}</Text>
           </Pressable>

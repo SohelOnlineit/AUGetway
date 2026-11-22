@@ -12,6 +12,8 @@ import { PaymentSecurityService } from "./payment-security.service";
 import { RateLimitGuard } from "./rate-limit";
 import { TurnstileController } from "./turnstile.controller";
 import { TurnstileService } from "./turnstile.service";
+import { TwoFactorController } from "./two-factor.controller";
+import { TwoFactorService } from "./two-factor.service";
 
 const devSecret = "dev-only-secret-change-me-32-characters";
 
@@ -39,10 +41,11 @@ function jwtSecret() {
       verifyOptions: { algorithms: ["HS256"] },
     }),
   ],
-  controllers: [PayController, BackupController, TurnstileController],
+  controllers: [PayController, BackupController, TurnstileController, TwoFactorController],
   providers: [
     PrismaService,
     PayService,
+    TwoFactorService,
     PaymentSecurityService,
     BackupService,
     TurnstileService,
