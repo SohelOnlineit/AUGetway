@@ -19,8 +19,7 @@ export default function HomePage() {
     <main className="wrap">
       <header className="top">
         <Link href="/" className="brand">
-          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : <span className="mark">{brand.slice(0, 1)}</span>}
-          {brand}
+          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt={brand} /> : <><span className="mark">{brand.slice(0, 1)}</span>{brand}</>}
         </Link>
         <nav className="nav">
           <a href="#flow">How it works</a>

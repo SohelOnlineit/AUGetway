@@ -20,8 +20,7 @@ export function BrandBar() {
   return (
     <header className="top" style={{ marginBottom: 12 }}>
       <span className="brand">
-        {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : <span className="mark">{brand.slice(0, 1)}</span>}
-        {brand}
+        {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt={brand} /> : <><span className="mark">{brand.slice(0, 1)}</span>{brand}</>}
       </span>
     </header>
   );

@@ -185,8 +185,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           </svg>
         </button>
         <Link href="/admin" className="wordmark" aria-label={site?.brandName || "AU-Getway"}>
-          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
-          <span>{customBrand(site) ? site?.brandName : "AU-Getway"}</span>
+          {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : <span>{customBrand(site) ? site?.brandName : "AU-Getway"}</span>}
         </Link>
         <div className="top-tools">
           <div className="top-search">

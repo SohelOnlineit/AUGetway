@@ -69,8 +69,9 @@ export default function DeskGatePage() {
     <main className="pay-shell">
       <div className="row" style={{ justifyContent: "flex-end" }}><ThemeToggle /></div>
       <p className="kicker">Desk sign in</p>
-      {site?.brandLogo ? <img className="brand-logo" src={site.brandLogo} alt="" /> : null}
-      <h1 className="gate-title">{!site?.brandName || site.brandName === "UniqBD Pay" ? "AU-Getway" : site.brandName}</h1>
+      {site?.brandLogo
+        ? <img className="brand-logo" src={site.brandLogo} alt={!site.brandName || site.brandName === "UniqBD Pay" ? "AU-Getway" : site.brandName} />
+        : <h1 className="gate-title">{!site?.brandName || site.brandName === "UniqBD Pay" ? "AU-Getway" : site.brandName}</h1>}
       <form className="card" onSubmit={onSubmit}>
         <label className="field">
           <span>Email</span>
