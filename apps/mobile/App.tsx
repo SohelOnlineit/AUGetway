@@ -8,7 +8,7 @@ import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRule
 import { SERVICES, emptyBooks, formatTaka, mergeRemote, normalizeBook, parseTaka, setBalance, type Books, type Service } from "./ledger";
 
 const DESK = "https://pay.uniqbd.com/api";
-const APP = "AU-Getway/2.34";
+const APP = "AU-Getway/2.35";
 
 function pulsePayload(uid: string, label: string) {
   const battery = batteryLevel();
@@ -525,10 +525,6 @@ function App() {
         setNote(message || "Sign in failed");
         return;
       }
-      if (data.user?.role === "admin") {
-        setNote("Only the main admin can sign in on the payment phone.");
-        return;
-      }
       setPassword("");
       setCode("");
       setNeedCode(false);
@@ -1007,7 +1003,7 @@ function App() {
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
           {note ? <Text style={styles.warn}>{note}</Text> : null}
-          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com. Use the main admin email and password.</Text>
+          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
           <Text style={styles.label}>Phone name</Text>
           <Field scroll={loginScroll} style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>

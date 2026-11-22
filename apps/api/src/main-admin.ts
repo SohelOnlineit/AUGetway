@@ -15,8 +15,9 @@ export function requireMainAdmin(request: Request & { desk: DeskSession }, what 
 }
 
 /**
- * Payment messages are accepted only from the main admin's phone.
- * A website sign-in, and a staff account, cannot register a device or mark an order paid by sending a text.
+ * Payment messages are accepted only from the payment app.
+ * A website sign-in cannot register a device or mark an order paid by sending a text.
+ * A staff account may use the phone; the token still belongs to that desk, not to the website.
  */
 export function requireHandset(request: Request & { desk: DeskSession }) {
   // 401, not 403. The installed app treats 401 as "sign in again" and drops the saved token.
@@ -24,5 +25,4 @@ export function requireHandset(request: Request & { desk: DeskSession }) {
   if (request.desk.device !== "handset") {
     throw new UnauthorizedException("Sign in on the payment phone again");
   }
-  requireMainAdmin(request, "the payment phone");
 }
