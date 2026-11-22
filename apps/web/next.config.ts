@@ -2,15 +2,7 @@ import type { NextConfig } from "next";
 
 const dev = process.env.NODE_ENV !== "production";
 
-// Where this site's own pages may talk to. Only the API and Cloudflare Turnstile are outside the site itself.
-function apiOrigin() {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4100/api").origin;
-  } catch {
-    return "";
-  }
-}
-
+// 'self' means the address the visitor is on, so this one policy is right for every domain of the site.
 // Scripts and styles keep 'unsafe-inline' because Next.js writes small inline scripts for itself and the pages use
 // inline styles. Everything else is closed: no other script host, no other place to send data, no plugins, no
 // framing by other sites, forms post only to this site. If a script were ever injected, it could not load code
@@ -21,7 +13,8 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin()} https://challenges.cloudflare.com${dev ? " ws: wss:" : ""}`.replace(/\s+/g, " ").trim(),
+  // The pages call the API on their own address (/api), so 'self' covers it on every domain.
+  `connect-src 'self' https://challenges.cloudflare.com${dev ? " ws: wss:" : ""}`,
   "frame-src https://challenges.cloudflare.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

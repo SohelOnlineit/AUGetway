@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API, api } from "@/lib/api";
+import { api, apiBase } from "@/lib/api";
 import { readToken } from "@/lib/token";
 
 type BackupStatus = {
@@ -79,7 +79,7 @@ export default function BackupsPage() {
       const headers = new Headers();
       const token = readToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
-      const response = await fetch(`${API}/desk/backups/files/${encodeURIComponent(name)}`, { headers, cache: "no-store" });
+      const response = await fetch(`${apiBase()}/desk/backups/files/${encodeURIComponent(name)}`, { headers, cache: "no-store" });
       if (!response.ok) throw new Error("Could not download this copy");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

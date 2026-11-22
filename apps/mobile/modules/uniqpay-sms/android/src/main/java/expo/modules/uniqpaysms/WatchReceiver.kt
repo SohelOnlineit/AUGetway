@@ -14,7 +14,7 @@ class WatchReceiver : BroadcastReceiver() {
     val base = prefs.getString("base", null) ?: return
     val token = prefs.getString("token", null) ?: return
     val uid = prefs.getString("uid", null) ?: return
-    val label = prefs.getString("label", null) ?: "UniqBD handset"
+    val label = prefs.getString("label", null) ?: "AU-Getway phone"
     val pending = goAsync()
     Thread {
       try {

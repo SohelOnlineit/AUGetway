@@ -18,6 +18,8 @@ export type MethodCard = {
 };
 
 export type PublicSite = {
+  /** The registered website address this card was made for (au.amarpin.com). Empty for an address nobody added. */
+  host?: string;
   brandName: string;
   supportEmail: string;
   supportPhone: string;

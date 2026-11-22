@@ -29,6 +29,29 @@ model DeskUser {
   customers    Customer[]
   brand        BrandSetting?
   twoFactor    TwoFactor?
+  domains      SiteDomain[]
+}
+
+/// One row per website address (for example au.uniqbd.com and au.amarpin.com). A visitor sees the name, logo and colour
+/// of the address they came in on. An empty field falls back to the desk-wide brand in BrandSetting.
+model SiteDomain {
+  id           String   @id @default(cuid())
+  ownerId      String
+  owner        DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Lower case, no port, no "api." prefix. For example au.amarpin.com.
+  host         String   @unique
+  brandName    String   @default("")
+  brandLogo    String   @default("") @db.Text
+  brandFavicon String   @default("") @db.Text
+  themeAccent  String   @default("")
+  supportEmail String   @default("")
+  supportPhone String   @default("")
+  checkoutNote String   @default("")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([ownerId])
 }
 
 /// Optional second sign-in step (authenticator app code). One row per desk user, in its own table.
@@ -205,7 +228,7 @@ model BrandSetting {
   id           String   @id @default(cuid())
   ownerId      String   @unique
   owner        DeskUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  brandName    String   @default("UniqBD Pay")
+  brandName    String   @default("AU-Getway")
   supportEmail String   @default("")
   currency     String   @default("BDT")
   checkoutNote String   @default("")

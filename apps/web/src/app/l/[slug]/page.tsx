@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { BrandBar } from "@/components/brand-bar";
 import { TurnstileField } from "@/components/turnstile-field";
 
 type LinkField = { label: string; type: "text" | "email" | "phone" | "number" | "textarea"; required: boolean };
@@ -43,6 +44,7 @@ export default function LinkPage() {
 
   return (
     <main className="pay-shell">
+      <BrandBar />
       <p className="kicker">Payment link</p>
       <article className="receipt">
         {link?.image ? <img className="plf-public-image" src={link.image} alt="" /> : null}

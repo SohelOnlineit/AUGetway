@@ -11,7 +11,7 @@ object Heartbeat {
     val base = prefs.getString("base", null) ?: return 0
     val token = prefs.getString("token", null) ?: return 0
     val uid = prefs.getString("uid", null) ?: return 0
-    val label = prefs.getString("label", null) ?: "UniqBD handset"
+    val label = prefs.getString("label", null) ?: "AU-Getway phone"
     if (!base.startsWith("https://") || token.length < 20 || uid.length < 4) return 0
     val percent = batteryPercent(context)
     val charge = if (percent == null) "" else ""","battery":$percent"""

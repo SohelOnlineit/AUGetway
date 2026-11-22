@@ -132,14 +132,23 @@ else
 fi
 
 echo
-echo "-- Website over HTTPS"
-for host in "${MAIN_DOMAIN}" "${API_DOMAIN}"; do
+echo "-- Website over HTTPS (every website address, and its api. address)"
+# SITE_DOMAINS comes from site.env.sh. Each address has an api. twin for shops and programs.
+HOSTS=""
+for site in ${SITE_DOMAINS}; do HOSTS="${HOSTS} ${site} api.${site}"; done
+for host in ${HOSTS}; do
+  is_api=0
+  [[ "${host}" == api.* ]] && is_api=1
   if have curl; then
-    # The API answers on the main domain under /api (the phone app and the website use that). The api. host is optional.
-    headers="$(curl -sS -m 10 -D - -o /dev/null "https://${host}/$([[ "${host}" == "${API_DOMAIN}" ]] && echo api/health)" 2>/dev/null)"
-    if [[ -z "${headers}" ]]; then warn "https://${host} did not answer"; continue; fi
-    if [[ "${host}" == "${API_DOMAIN}" ]] && ! echo "${headers}" | head -1 | grep -q ' 200'; then
-      info "${host}: /api/health is not served here. That is fine when everything uses https://${MAIN_DOMAIN}/api"
+    # A website address serves the page. An api. address serves /api/health. The API also answers on every website
+    # address under /api, so an api. address is optional.
+    headers="$(curl -sS -m 10 -D - -o /dev/null "https://${host}/$([[ ${is_api} -eq 1 ]] && echo api/health)" 2>/dev/null)"
+    if [[ -z "${headers}" ]]; then
+      if [[ ${is_api} -eq 1 ]]; then info "${host}: did not answer (optional, add it in aaPanel when a shop needs it)"; else warn "https://${host} did not answer. Check its DNS, aaPanel site and SSL"; fi
+      continue
+    fi
+    if [[ ${is_api} -eq 1 ]] && ! echo "${headers}" | head -1 | grep -q ' 200'; then
+      info "${host}: /api/health is not served here. That is fine when everything uses https://<site>/api"
     else
       echo "${headers}" | grep -qi '^strict-transport-security' && ok "${host}: HSTS header is sent" || warn "${host}: no Strict-Transport-Security header"
       echo "${headers}" | grep -qi '^x-content-type-options: nosniff' && ok "${host}: nosniff header is sent" || warn "${host}: no X-Content-Type-Options header"
@@ -156,9 +165,24 @@ for host in "${MAIN_DOMAIN}" "${API_DOMAIN}"; do
   fi
   if have curl; then
     code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "http://${host}/" 2>/dev/null)"
-    if [[ "${code}" == "301" || "${code}" == "302" || "${code}" == "308" ]]; then ok "${host}: plain http redirects to https"; elif [[ "${host}" == "${API_DOMAIN}" && "${code}" == "404" ]]; then info "${host}: not served"; else warn "${host}: plain http answered ${code}, expected a redirect to https. In aaPanel open the site, then SSL, and turn on Force HTTPS"; fi
+    if [[ "${code}" == "301" || "${code}" == "302" || "${code}" == "308" ]]; then ok "${host}: plain http redirects to https"; elif [[ ${is_api} -eq 1 && ( "${code}" == "404" || "${code}" == "000" ) ]]; then info "${host}: not served"; else warn "${host}: plain http answered ${code}, expected a redirect to https. In aaPanel open the site, then SSL, and turn on Force HTTPS"; fi
   fi
 done
+
+echo
+echo "-- Each website address shows its own brand (name and logo)"
+if have curl; then
+  for site in ${SITE_DOMAINS}; do
+    card="$(curl -sS -m 10 "https://${site}/api/public/site" 2>/dev/null)"
+    if [[ -z "${card}" ]]; then warn "${site}: /api/public/site did not answer"; continue; fi
+    if echo "${card}" | grep -q "\"host\":\"${site}\""; then
+      name="$(echo "${card}" | sed -n 's/.*"brandName":"\([^"]*\)".*/\1/p')"
+      ok "${site}: registered, shows the name \"${name}\""
+    else
+      warn "${site}: not registered on the Domains page (or the latest update is not running yet). Add it there, or set SITE_DOMAINS in ${APP_ROOT}/.env and restart the API"
+    fi
+  done
+fi
 
 echo
 echo "-- API headers on ${MAIN_DOMAIN}/api (shows whether the latest update is running)"
@@ -168,12 +192,13 @@ if have curl; then
   if echo "${api_headers}" | grep -qi "^content-security-policy: default-src 'none'"; then ok "API sends its locked-down Content-Security-Policy"; else warn "API has no locked-down Content-Security-Policy yet"; fi
 fi
 
-echo
-echo "-- Things that must NOT be reachable from the internet"
+echoecho "-- Things that must NOT be reachable from the internet"
 if have curl; then
-  for path in "/.env" "/.git/config" "/backups/" "/apps/api/.env"; do
-    code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "https://${MAIN_DOMAIN}${path}" 2>/dev/null)"
-    if [[ "${code}" == "200" ]]; then warn "https://${MAIN_DOMAIN}${path} answered 200. This must never be public"; else ok "${path} is not served (${code})"; fi
+  for site in ${SITE_DOMAINS}; do
+    for path in "/.env" "/.git/config" "/backups/" "/apps/api/.env"; do
+      code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "https://${site}${path}" 2>/dev/null)"
+      if [[ "${code}" == "200" ]]; then warn "https://${site}${path} answered 200. This must never be public"; else ok "${site}${path} is not served (${code})"; fi
+    done
   done
 fi
 

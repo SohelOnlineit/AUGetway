@@ -15,7 +15,9 @@ export function applySiteChrome(site: PublicSite | null | undefined, options?: {
     }
     link.href = site.brandFavicon;
   }
+  // The tab title is the page's own title: the SEO title if one is set, otherwise the name of the address.
   if (site.metaTitle) document.title = site.metaTitle;
+  else if (site.brandName) document.title = site.brandName;
   const description = document.querySelector<HTMLMetaElement>("meta[name='description']");
   if (description && site.metaDescription) description.content = site.metaDescription;
   if (options?.layout && (site.checkoutTheme === "clean_light" || site.checkoutTheme === "modern_dark")) {

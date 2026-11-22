@@ -1,21 +1,23 @@
 [Unit]
-Description=UniqBD Pay API
+Description=AU-Getway API
 After=network-online.target
 Wants=network-online.target
 
+# __APP_ROOT__ is filled in by install-services.sh with the folder of this repository.
+# Install with: sudo bash deploy/ubuntu/install-services.sh (do not copy this file by hand).
 [Service]
 Type=simple
 User=uniqpay
 Group=uniqpay
-WorkingDirectory=/var/www/pay.uniqbd.com/apps/api
+WorkingDirectory=__APP_ROOT__/apps/api
 Environment=NODE_ENV=production
 Environment=PORT=4100
-EnvironmentFile=/var/www/pay.uniqbd.com/.env
+EnvironmentFile=__APP_ROOT__/.env
 ExecStart=/usr/bin/node dist/main.js
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
-# The API only needs to read the system, write inside /var/www/pay.uniqbd.com (backups), and use the network.
+# The API only needs to read the system, write inside __APP_ROOT__ (backups), and use the network.
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=read-only

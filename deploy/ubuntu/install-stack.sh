@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages for UniqBD Pay on the AmarPin VPS. Does not install Nginx and does not
+# Packages for AU-Getway on the AmarPin VPS. Does not install Nginx and does not
 # change the amarpin user, ports, or systemd services. aaPanel keeps Nginx and SSL.
 set -euo pipefail
 
@@ -36,11 +36,9 @@ install -d -o "${APP_USER}" -g "${APP_USER}" -m 750 "${APP_ROOT}"
 # Daily database copies are saved here. Only the app user can read them.
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 700 "${APP_ROOT}/backups"
 
-install -m 644 "${SCRIPT_DIR}/uniqpay-api.service" /etc/systemd/system/uniqpay-api.service
-install -m 644 "${SCRIPT_DIR}/uniqpay-web.service" /etc/systemd/system/uniqpay-web.service
-systemctl daemon-reload
+bash "${SCRIPT_DIR}/install-services.sh"
 
 echo "Stack ready. Node $(node -v), pnpm $(pnpm -v)."
-echo "UniqBD Pay listens on 127.0.0.1:${WEB_PORT} and 127.0.0.1:${API_PORT}."
+echo "AU-Getway listens on 127.0.0.1:${WEB_PORT} and 127.0.0.1:${API_PORT}."
 echo "AmarPin stays on 127.0.0.1:3000 and 127.0.0.1:4000."
 echo "Next: DATABASE_URL='postgresql://...' sudo -E bash deploy/ubuntu/prepare-env.sh"

@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { paidFitsCheckout } from "./amount-window";
 import { SecretBox, secretBox } from "./secret-box";
+import { SiteDomainService } from "./site-domain.service";
 import { TwoFactorService } from "./two-factor.service";
 import { webhookHeaders } from "./webhook-sign";
 import { attemptsLeft, unmatchedAttempt } from "./proof-attempt";
@@ -322,6 +323,8 @@ function accentColor(value: string | undefined) {
 }
 
 type SiteCard = {
+  /** The registered address this card was made for, like au.amarpin.com. Empty for an address nobody registered. */
+  host: string;
   brandName: string;
   supportEmail: string;
   supportPhone: string;
@@ -496,6 +499,7 @@ export class PayService implements OnModuleInit {
     private readonly jwt: JwtService,
     private readonly security: PaymentSecurityService,
     private readonly twoFactor: TwoFactorService,
+    private readonly domains: SiteDomainService,
   ) {}
 
   async onModuleInit() {
@@ -504,8 +508,20 @@ export class PayService implements OnModuleInit {
       await this.ensureCatalog(owner.id);
       await this.applyReceiptDefault();
       await this.restoreBrandAccent(owner.id);
+      await this.renameOldBrand();
+      await this.domains.seedFromEnv(owner.id).catch(() => undefined);
     }
     await this.sealStoredSecrets();
+  }
+
+  /** The product used to be called UniqBD Pay. Saved names are updated once, so every page says AU-Getway. */
+  private async renameOldBrand() {
+    try {
+      await this.prisma.brandSetting.updateMany({ where: { brandName: "UniqBD Pay" }, data: { brandName: "AU-Getway" } });
+      await this.prisma.deskUser.updateMany({ where: { name: "UniqBD Desk" }, data: { name: "AU-Getway Desk" } });
+    } catch {
+      // Only a display name. It is tried again at the next start.
+    }
   }
 
   /**
@@ -1138,7 +1154,8 @@ export class PayService implements OnModuleInit {
     });
     return {
       status: true,
-      payment_url: `${siteBase()}/pay/${row.publicId}`,
+      // The shop called au.amarpin.com or api.au.amarpin.com, so the customer is sent to au.amarpin.com.
+      payment_url: `${(await this.domains.originForRequest()) || siteBase()}/pay/${row.publicId}`,
       invoice_id: row.publicId,
     };
   }
@@ -2481,14 +2498,18 @@ export class PayService implements OnModuleInit {
   }
 
   private async ensureOwner() {
-    const email = (process.env.ADMIN_EMAIL ?? "admin@pay.uniqbd.com").toLowerCase();
+    const email = (process.env.ADMIN_EMAIL ?? "admin@au.uniqbd.com").toLowerCase();
     const password = process.env.ADMIN_PASSWORD;
     const existing = await this.prisma.deskUser.findUnique({ where: { email } });
     if (existing) return existing;
+    // The sign-in email of the main admin can be changed on the Account page, or ADMIN_EMAIL can change with the
+    // address of the site. That must never create a second main admin next to the one that already exists.
+    const main = await this.prisma.deskUser.findFirst({ where: { deskId: null }, orderBy: { createdAt: "asc" } });
+    if (main) return main;
     if (!password) return null;
     return this.prisma.deskUser.create({
       data: {
-        name: "UniqBD Desk",
+        name: "AU-Getway Desk",
         email,
         passwordHash: await bcrypt.hash(password, 12),
         receiptDefaulted: true,
@@ -2999,6 +3020,7 @@ export class PayService implements OnModuleInit {
 
   private blankSite(): SiteCard {
     return {
+      host: "",
       brandName: "AU-Getway",
       supportEmail: "",
       supportPhone: "",
@@ -3018,19 +3040,25 @@ export class PayService implements OnModuleInit {
     };
   }
 
+  /**
+   * The brand a visitor sees. It starts from the desk-wide settings, and the address the visitor came in on (see
+   * SiteDomainService) replaces the name, logo, icon, colour, support details and note it has filled in.
+   */
   private async siteView(ownerId: string): Promise<SiteCard> {
     const row = await this.settings(ownerId);
+    const domain = await this.domains.current(ownerId);
     const theme = row.prefs.checkoutTheme;
     return {
-      brandName: row.brandName || "AU-Getway",
-      supportEmail: row.supportEmail,
-      supportPhone: row.prefs.supportPhone ?? "",
+      host: domain?.host ?? "",
+      brandName: domain?.brandName || row.brandName || "AU-Getway",
+      supportEmail: domain?.supportEmail || row.supportEmail,
+      supportPhone: domain?.supportPhone || row.prefs.supportPhone || "",
       currency: row.currency || "BDT",
       currencySymbol: row.prefs.currencySymbol ?? "",
-      checkoutNote: row.checkoutNote,
-      brandLogo: row.prefs.brandLogo ?? "",
-      brandFavicon: row.prefs.brandFavicon ?? "",
-      themeAccent: accentColor(row.prefs.themeAccent),
+      checkoutNote: domain?.checkoutNote || row.checkoutNote,
+      brandLogo: domain?.brandLogo || row.prefs.brandLogo || "",
+      brandFavicon: domain?.brandFavicon || row.prefs.brandFavicon || "",
+      themeAccent: accentColor(domain?.themeAccent) || accentColor(row.prefs.themeAccent),
       checkoutTheme: theme === "clean_light" || theme === "modern_dark" ? theme : "",
       methodTabs: row.prefs.methodTabs === "1" ? "1" : "",
       checkoutLang: row.prefs.checkoutLang === "en" ? "en" : "bn",

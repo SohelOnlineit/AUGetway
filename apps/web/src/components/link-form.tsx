@@ -54,7 +54,7 @@ export function LinkForm({ mode, initial }: { mode: "create" | "edit"; initial?:
   const [image, setImage] = useState(initial?.image ?? "");
   const [fields, setFields] = useState<FieldRow[]>((initial?.fields ?? []).map((field) => ({ ...field, id: nextId() })));
   const [dragging, setDragging] = useState(false);
-  const [host, setHost] = useState("pay.uniqbd.com");
+  const [host, setHost] = useState("your-domain");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);

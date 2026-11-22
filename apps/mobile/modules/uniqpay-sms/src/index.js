@@ -13,7 +13,7 @@ function loadNative() {
 const native = loadNative();
 
 async function listRecentSms(limit = 40) {
-  if (!native) throw new Error("SMS reading needs the UniqBD Pay Android build.");
+  if (!native) throw new Error("SMS reading needs the AU-Getway Android build.");
   return native.listRecentSms(limit);
 }
 
@@ -23,7 +23,7 @@ function batteryIgnored() {
 }
 
 function askBattery() {
-  if (!native) throw new Error("Battery settings need the UniqBD Pay Android build.");
+  if (!native) throw new Error("Battery settings need the AU-Getway Android build.");
   native.askBattery();
 }
 
@@ -36,7 +36,7 @@ function batteryLevel() {
 
 function startKeepAlive(base, token, uid, label) {
   if (!native) return;
-  native.startKeepAlive(String(base), String(token), String(uid), String(label || "UniqBD handset"));
+  native.startKeepAlive(String(base), String(token), String(uid), String(label || "AU-Getway phone"));
 }
 
 function stopKeepAlive() {

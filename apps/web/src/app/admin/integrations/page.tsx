@@ -1,4 +1,10 @@
+"use client";
+
+import { useSiteAddresses } from "@/lib/addresses";
+
 export default function IntegrationsPage() {
+  // The address of the site you are on now. Another domain of this desk shows its own address here.
+  const { site, api } = useSiteAddresses();
   return (
     <div className="int-page">
       <header className="int-hero">
@@ -19,13 +25,14 @@ export default function IntegrationsPage() {
         <article className="int-card">
           <span className="int-ico shop" aria-hidden="true"><ShopIcon /></span>
           <strong>Uddokta Pay</strong>
-          <p>In the shop’s payment gateway, set the base URL to <span className="token">https://pay.uniqbd.com</span> and paste a Checkout API key from Api Keys. The secret is shown once, when the key is created.</p>
+          <p>In the shop’s payment gateway, set the base URL to <span className="token">{site || "https://your-domain"}</span> (or <span className="token">{api || "https://api.your-domain"}</span>) and paste a Checkout API key from Api Keys. The secret is shown once, when the key is created.</p>
         </article>
         <article className="int-card">
           <span className="int-ico server" aria-hidden="true"><ServerIcon /></span>
           <strong>Your store server</strong>
           <p>The same key also works with the header <span className="token">x-merchant-key</span>.</p>
-          <p className="token">POST http://127.0.0.1:4100/api/v1/checkouts</p>
+          <p className="token">POST {api || "https://api.your-domain"}/api/v1/checkouts</p>
+          <p className="muted">The customer is sent to the address you called: a shop that uses the au.amarpin.com address gets payment links on au.amarpin.com.</p>
           <pre className="token">{`{
   "reference": "order-19",
   "amount": 250,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { BrandBar } from "@/components/brand-bar";
 import { TurnstileField } from "@/components/turnstile-field";
 
 type Bill = { number: string; customerName: string; title: string; total: string; currency: string; status: string; note: string };
@@ -41,6 +42,7 @@ export default function BillPage() {
 
   return (
     <main className="pay-shell">
+      <BrandBar />
       <p className="kicker">Bill {bill?.number}</p>
       <article className="receipt">
         <h2>{bill?.title ?? "Bill"}</h2>

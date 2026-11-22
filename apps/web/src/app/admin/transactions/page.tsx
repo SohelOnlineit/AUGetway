@@ -370,7 +370,7 @@ export default function TransactionsPage() {
           <div>
             <p className="txn-crumb">Desk <span>›</span> Transactions</p>
             <h2>Transactions</h2>
-            <p className="muted">Find an AmarPin order and open its payment.</p>
+            <p className="muted">Find an order and open its payment.</p>
           </div>
         </div>
         <div className="txn-head-actions">
@@ -402,7 +402,7 @@ export default function TransactionsPage() {
         <div className="txn-tools">
           <label className="txn-search">
             <SearchIcon />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AmarPin order number, invoice, TrxID" aria-label="Search transactions" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Order number, invoice, TrxID" aria-label="Search transactions" />
           </label>
           <div className="txn-filter-wrap">
             <button className="txn-filter" type="button" aria-label="Filter" onClick={() => setFiltersOpen((open) => !open)}>

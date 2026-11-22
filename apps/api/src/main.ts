@@ -6,12 +6,20 @@ import { json, urlencoded, type NextFunction, type Request, type Response } from
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { needsPictureBody, pictureBodyLimit, smallBodyLimit } from "./body-limit";
+import { describeRequest, pickHostHeader, runWithRequest } from "./request-context";
+import { SiteDomainService } from "./site-domain.service";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   // nginx is the only thing in front of this process. Trust exactly that one hop, so the visitor's
   // address comes from nginx and a forged X-Forwarded-For from the visitor is ignored.
   app.set("trust proxy", 1);
+  // Remember which website address this request came in on (au.uniqbd.com, au.amarpin.com, api.au.amarpin.com),
+  // so the brand and the payment links in the answer are those of that address. nginx sends the real Host header.
+  app.use((request: Request, _response: Response, next: NextFunction) => {
+    const address = pickHostHeader(request.headers.host, request.headers["x-forwarded-host"]);
+    runWithRequest(describeRequest(address, request.protocol), next);
+  });
   const smallJson = json({ limit: smallBodyLimit });
   const pictureJson = json({ limit: pictureBodyLimit });
   app.use((request: Request, response: Response, next: NextFunction) =>
@@ -33,9 +41,15 @@ async function bootstrap() {
     next();
   });
 
-  const origin = config.get<string>("WEB_ORIGIN") ?? "http://127.0.0.1:3100";
+  // The website calls the API on its own address, so CORS is only a safety net for a page on another address.
+  // It lets in the origins in WEB_ORIGIN and every website address added on the Domains page.
+  const listed = (config.get<string>("WEB_ORIGIN") ?? "http://127.0.0.1:3100").split(",").map((value) => value.trim().replace(/\/+$/, ""));
+  const domains = app.get(SiteDomainService);
   app.enableCors({
-    origin: origin.split(",").map((value) => value.trim()),
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      if (!origin || listed.includes(origin)) return callback(null, true);
+      domains.allowsOrigin(origin).then((allowed) => callback(null, allowed), () => callback(null, false));
+    },
     credentials: true,
   });
 

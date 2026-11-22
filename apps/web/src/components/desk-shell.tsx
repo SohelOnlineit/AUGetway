@@ -17,6 +17,7 @@ const main = [
   ["Transactions", "/admin/transactions", "swap"],
   ["Financial & Transaction Reports", "/admin/reports", "chart"],
   ["Brand & System Settings", "/admin/settings", "sliders"],
+  ["Website Domains", "/admin/domains", "globe"],
   ["Database Backup", "/admin/backups", "archive"],
 ] as const;
 
@@ -50,6 +51,7 @@ function Icon({ name }: { name: string }) {
   if (name === "admins") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M12 12a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM5.5 19.2c.5-2.6 2.8-4.2 6.5-4.2s6 1.6 6.5 4.2" /><path {...common} d="M18 8v4M16 10h4" /></svg>;
   if (name === "key") return <svg width="18" height="18" viewBox="0 0 24 24"><circle {...common} cx="8" cy="14" r="3.2" /><path {...common} d="M11 14h9l-2 2M17 14l2-2" /></svg>;
   if (name === "archive") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M4 7h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM4 7V5h16v2M10 12h4" /></svg>;
+  if (name === "globe") return <svg width="18" height="18" viewBox="0 0 24 24"><circle {...common} cx="12" cy="12" r="8.5" /><path {...common} d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z" /></svg>;
   if (name === "puzzle") return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="M8 4h3a2 2 0 1 1 0 4h1v2h2a2 2 0 1 1 4 0v2h-2v3a2 2 0 1 1-4 0v-1H9v2H7a2 2 0 0 1-2-2V9h2a2 2 0 1 0 0-4H8z" /></svg>;
   return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12" /></svg>;
 }
@@ -116,28 +118,12 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       setUser({ name: detail.name, email: detail.email });
     }
     window.addEventListener("uniqpay-account", onAccount);
-    api<{ brandName: string; prefs: Record<string, string> }>("/desk/settings")
-      .then((row) => {
-        setAdminMode(row.prefs.themeMode ?? "");
-        setSite({
-          brandName: row.brandName,
-          supportEmail: "",
-          supportPhone: row.prefs.supportPhone ?? "",
-          currency: "",
-          currencySymbol: row.prefs.currencySymbol ?? "",
-          checkoutNote: "",
-          brandLogo: row.prefs.brandLogo ?? "",
-          brandFavicon: row.prefs.brandFavicon ?? "",
-          themeAccent: row.prefs.themeAccent ?? "",
-          checkoutTheme: "",
-          methodTabs: "",
-          checkoutLang: "",
-          faqTitle: "",
-          faqContent: "",
-          metaTitle: row.prefs.metaTitle ?? "",
-          metaDescription: row.prefs.metaDescription ?? "",
-        });
-      })
+    api<{ prefs: Record<string, string> }>("/desk/settings")
+      .then((row) => setAdminMode(row.prefs.themeMode ?? ""))
+      .catch(() => undefined);
+    // The name, logo and colour of the address this desk was opened on (au.uniqbd.com or au.amarpin.com).
+    api<PublicSite>("/public/site")
+      .then((card) => setSite({ ...card, checkoutTheme: "" }))
       .catch(() => undefined);
     return () => window.removeEventListener("uniqpay-account", onAccount);
   }, [router]);

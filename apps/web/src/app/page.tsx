@@ -29,7 +29,7 @@ export default function HomePage() {
       </header>
       <section className="hero">
         <div>
-          <p className="kicker">Pay desk for AU-Getway</p>
+          <p className="kicker">Pay desk for {brand}</p>
           <h1>Collect a payment without handing over your store.</h1>
           <p className="lede">
             Create a checkout, send the customer a link, and confirm it from the desk or from the AU-Getway app on your own Android phone.

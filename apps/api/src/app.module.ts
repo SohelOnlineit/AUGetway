@@ -5,6 +5,8 @@ import { JwtModule } from "@nestjs/jwt";
 import { BackupController } from "./backup.controller";
 import { BackupService } from "./backup.service";
 import { DeskGuard } from "./desk.guard";
+import { DomainsController } from "./domains.controller";
+import { SiteDomainService } from "./site-domain.service";
 import { PrismaService } from "./prisma.service";
 import { PayController } from "./pay.controller";
 import { PayService } from "./pay.service";
@@ -41,11 +43,12 @@ function jwtSecret() {
       verifyOptions: { algorithms: ["HS256"] },
     }),
   ],
-  controllers: [PayController, BackupController, TurnstileController, TwoFactorController],
+  controllers: [PayController, BackupController, TurnstileController, TwoFactorController, DomainsController],
   providers: [
     PrismaService,
     PayService,
     TwoFactorService,
+    SiteDomainService,
     PaymentSecurityService,
     BackupService,
     TurnstileService,

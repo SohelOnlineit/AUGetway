@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and restart UniqBD Pay. Does not touch aaPanel, SSL, or AmarPin services.
+# Build and restart AU-Getway. Does not touch aaPanel, SSL, or AmarPin services.
 set -euo pipefail
 
 if [[ "${EUID}" -ne 0 ]]; then

@@ -90,7 +90,7 @@ export default function SmsLogsPage() {
         <div className="ogw-tools">
           <label className="ogw-search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-            <input value={query} placeholder="AmarPin order number, sender, message" aria-label="Search by AmarPin order number" onChange={(event) => setQuery(event.target.value)} />
+            <input value={query} placeholder="Order number, sender, message" aria-label="Search by order number" onChange={(event) => setQuery(event.target.value)} />
           </label>
         </div>
         <div className="ogw-scroll">

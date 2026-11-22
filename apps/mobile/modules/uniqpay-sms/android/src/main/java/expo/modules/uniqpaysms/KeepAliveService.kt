@@ -38,7 +38,7 @@ class KeepAliveService : Service() {
         .putString("base", base)
         .putString("token", token)
         .putString("uid", uid)
-        .putString("label", intent.getStringExtra("label") ?: "UniqBD handset")
+        .putString("label", intent.getStringExtra("label") ?: "AU-Getway phone")
         .putBoolean("userStop", false)
         .apply()
     } else {

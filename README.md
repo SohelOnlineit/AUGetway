@@ -4,10 +4,10 @@
 
 | | |
 | --- | --- |
-| ওয়েবসাইট | https://pay.uniqbd.com |
-| API | https://api.uniqbd.com/api |
+| ওয়েবসাইট | https://au.uniqbd.com আর https://au.amarpin.com (একই ডেস্ক, প্রতি ঠিকানার নিজের নাম ও লোগো) |
+| API | `https://<ঠিকানা>/api`, শপের জন্য `https://api.au.uniqbd.com/api` আর `https://api.au.amarpin.com/api` |
 | কোড | https://github.com/SohelOnlineit/AUGetway |
-| সার্ভারে কোডের ফোল্ডার | `/var/www/pay.uniqbd.com` |
+| সার্ভারে কোডের ফোল্ডার | `/var/www/au.uniqbd.com` |
 | সার্ভিস | `uniqpay-api` (`127.0.0.1:4100`), `uniqpay-web` (`127.0.0.1:3100`) |
 | ডাটাবেস | PostgreSQL 18, ইউজার `uniqpay`, `127.0.0.1:5432` |
 
@@ -31,6 +31,18 @@
 - Security Monitoring: সন্দেহজনক সেন্ডার, একই ট্রানজেকশন আইডি বারবার, SMS-এর ঢল ইত্যাদির লগ।
 - **ব্যাকআপ** (`/admin/backups`): প্রতিদিন ভোর ৫টায় ডাটাবেসের কপি, ৬০ দিন রাখা হয়।
 - **Cloudflare Turnstile** (Security Monitoring পেজ): লগইন ও পাবলিক পেমেন্ট পেজে বট ঠেকানো।
+- **Website Domains** (`/admin/domains`, শুধু মূল অ্যাডমিন): একাধিক ওয়েবসাইট ঠিকানা। নিচে "একাধিক ডোমেইন" দেখুন।
+
+## একাধিক ডোমেইন (au.uniqbd.com আর au.amarpin.com)
+
+একটাই অ্যাপ, একটাই ডেস্ক, একটাই ডাটাবেস। পেমেন্ট মেথড, ট্রানজেকশন, API key আর ফোন সবার জন্য এক। যে ঠিকানা দিয়ে ভিজিটর আসে, সে সেই ঠিকানার নাম, লোগো, ট্যাব আইকন, রঙ, সাপোর্ট ফোন/ইমেইল আর চেকআউট নোট দেখে।
+
+- ঠিকানা যোগ ও সাজানো: ডেস্কের **Website Domains** পেজে। কোনো ঘর খালি রাখলে **Brand & System Settings**-এর সাধারণ নাম/লোগো দেখায়। সার্ভারের `.env`-এ `SITE_DOMAINS=au.uniqbd.com,au.amarpin.com` লিখলে API চালু হওয়ার সময় ঠিকানাগুলো নিজে যোগ হয়ে যায়।
+- API ঠিকানা: `api.au.amarpin.com` মানে `au.amarpin.com`-এর API। আলাদা করে যোগ করতে হয় না, নিজে চিনে নেয়। শপ `https://api.au.amarpin.com/api/checkout-v2` কল করলে কাস্টমারের পেমেন্ট লিংক হয় `https://au.amarpin.com/pay/…`। `au.uniqbd.com`-এর ক্ষেত্রেও একই।
+- ওয়েবসাইট API-কে নিজের ঠিকানার `/api`-তে ডাকে (যেমন `https://au.amarpin.com/api`), তাই এক বিল্ড সব ডোমেইনে চলে, আলাদা CORS লাগে না। প্রতিটি ঠিকানার nginx-এ `/api/` লাইন লাগে (`deploy/ubuntu/nginx-site-snippet.conf`)।
+- নতুন ডোমেইনের জন্য: DNS → aaPanel-এ সাইট ও SSL → nginx snippet → Website Domains পেজে ঠিকানা যোগ। ধাপগুলো [`deploy/ubuntu/README.md`](./deploy/ubuntu/README.md)-এ।
+- যে ঠিকানা যোগ করা হয়নি (বা বন্ধ করা), সেখানে সাধারণ নাম ও লোগো দেখায় আর পেমেন্ট লিংক এই ঠিকানার নামে বানানো হয় না। তাই কেউ নিজের ডোমেইন দিয়ে লিংক বানাতে পারে না।
+- Cloudflare Turnstile widget-এ দুটো ডোমেইনই যোগ করতে হয়।
 
 ## প্রজেক্টের গঠন
 
@@ -76,8 +88,9 @@ pnpm dev
 | --- | --- |
 | `NODE_ENV` | সার্ভারে `production` |
 | `PORT` | API পোর্ট (`4100`) |
-| `WEB_ORIGIN` | ওয়েবসাইটের ঠিকানা (CORS)। কমা দিয়ে একাধিক |
-| `API_PUBLIC_URL`, `NEXT_PUBLIC_API_URL` | ব্রাউজার ও ফোন যে API ঠিকানা ব্যবহার করে |
+| `WEB_ORIGIN` | ওয়েবসাইটের ঠিকানা (CORS, আর ঠিকানা না চেনা গেলে পেমেন্ট লিংকের ডিফল্ট)। কমা দিয়ে একাধিক, প্রথমটাই ডিফল্ট |
+| `SITE_DOMAINS` | ডেস্ক যে ওয়েবসাইট ঠিকানাগুলোতে চলে, কমা দিয়ে (`au.uniqbd.com,au.amarpin.com`)। চালু হওয়ার সময় Website Domains পেজে যোগ হয় |
+| `API_PUBLIC_URL` | API-র পাবলিক ঠিকানা (তথ্যের জন্য)। ওয়েবসাইট এখন নিজের ঠিকানার `/api` ব্যবহার করে, `NEXT_PUBLIC_API_URL` আর লাগে না |
 | `DATABASE_URL` | PostgreSQL সংযোগ |
 | `JWT_SECRET` | লগইন টোকেনের গোপন কী। **৩২+ অক্ষর, না থাকলে সার্ভারে API চালুই হয় না** |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | প্রথমবারের মূল অ্যাডমিন |
@@ -103,15 +116,17 @@ pnpm dev
 কম্পিউটারে কোড বদলে GitHub-এ পুশ করার পর, সার্ভারে SSH করে **এই একটা কমান্ডই** চালান:
 
 ```bash
-sudo bash /var/www/pay.uniqbd.com/deploy/ubuntu/update.sh
+sudo bash /var/www/au.uniqbd.com/deploy/ubuntu/update.sh
 ```
+
+(কোডের ফোল্ডার যেখানেই থাক, স্ক্রিপ্ট নিজের জায়গা থেকে পথ বের করে। পুরনো `/var/www/pay.uniqbd.com` ফোল্ডার সরানো না হলে সেই পথেই চালান, আর ফোল্ডার সরানোর ধাপ `deploy/ubuntu/README.md`-এ আছে।)
 
 এটা নতুন কোড আনে, প্যাকেজ ইনস্টল করে, ডাটাবেসে নতুন টেবিল/কলাম যোগ করে (কিছু মোছে না), বিল্ড করে, দুটো সার্ভিস রিস্টার্ট করে এবং `verify-live: OK` দিয়ে চেক করে। `.env`, ডাটাবেসের ডেটা আর `backups` ছোঁয় না। GitHub পাসওয়ার্ড চাইলে ইউজারনেম `sohelonlineit` আর পাসওয়ার্ডের জায়গায় GitHub token দিন।
 
 **রিপোজিটরি সরানোর পর প্রথমবার:** সার্ভারের কোডের ইতিহাস GitHub-এর নতুন রিপোর সাথে মেলে না, তাই স্ক্রিপ্ট থেমে একটা কমান্ড দেখাবে। সার্ভারে কোডে নিজে এডিট না থাকলে সেটা একবার চালিয়ে আবার `update.sh`:
 
 ```bash
-sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com reset --hard origin/main
+sudo git -c safe.directory=/var/www/au.uniqbd.com -C /var/www/au.uniqbd.com reset --hard origin/main
 ```
 
 পুরো সার্ভার সেটআপ (নতুন VPS-এ), nginx, রোলব্যাক ও সমস্যার সমাধান: [`deploy/ubuntu/README.md`](./deploy/ubuntu/README.md)
@@ -120,7 +135,7 @@ sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com re
 
 ডেস্কের **Backups** পেজ (শুধু মূল অ্যাডমিন)।
 - প্রতিদিন ভোর ৫:০০টায় (Asia/Dhaka) অটো কপি। সার্ভার তখন বন্ধ থাকলে চালু হয়ে একবার সেভ করে।
-- ৬০ দিনের পুরনো কপি নিজে মুছে যায়। ফাইল: `/var/www/pay.uniqbd.com/backups/augetway-database-…sql`।
+- ৬০ দিনের পুরনো কপি নিজে মুছে যায়। ফাইল: `/var/www/au.uniqbd.com/backups/augetway-database-…sql`।
 - "Save a copy now" দিয়ে যেকোনো সময় কপি, আর Download দিয়ে নামানো যায়।
 - কপিতে পাসওয়ার্ড হ্যাশ ও গেটওয়ে ক্রেডেনশিয়ালসহ সব ডেটা থাকে। সার্ভারের বাইরেও নিরাপদ জায়গায় একটা কপি রাখুন।
 
@@ -129,7 +144,7 @@ sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com re
 ## Cloudflare Turnstile
 
 বট ঠেকাতে ডেস্ক লগইন এবং পাবলিক পেমেন্ট পেজে (পেমেন্ট লিংক, বিল, ট্রানজেকশন আইডি যাচাই) চালানো যায়। ফোন অ্যাপের লগইনে এটা চায় না।
-1. Cloudflare-এ Turnstile widget বানান, Domain-এ `pay.uniqbd.com`।
+1. Cloudflare-এ Turnstile widget বানান, Domain-এ `au.uniqbd.com` আর `au.amarpin.com` দুটোই।
 2. ডেস্কে **Security Monitoring** পেজের **Cloudflare Turnstile** কার্ডে Site key ও Secret key বসিয়ে **Save keys**।
 3. কার্ডের চেক সলভ করে **Test and turn on**। টেস্ট পাশ না করলে চালু হয় না, তাই ভুল key দিয়ে লগইন বন্ধ হয়ে যায় না।
 4. key বদলালে চেক নিজে বন্ধ হয়। **Turn off** দিলে key সেভ থাকে।
@@ -151,7 +166,7 @@ sudo git -c safe.directory=/var/www/pay.uniqbd.com -C /var/www/pay.uniqbd.com re
 
 ## ফোন অ্যাপ (Android)
 
-`apps/mobile`। সাইন-ইন করে ডেস্কের ইমেইল ও পাসওয়ার্ড দিয়ে। অ্যাপ নিজেই `https://api.uniqbd.com/api`-এ কথা বলে।
+`apps/mobile`। সাইন-ইন করে ডেস্কের ইমেইল ও পাসওয়ার্ড দিয়ে। অ্যাপ নিজেই `https://au.uniqbd.com/api`-এ কথা বলে। (অ্যাপ ২.৩২ থেকে। আগের অ্যাপ `pay.uniqbd.com`-এ কথা বলত, তাই ওই ঠিকানা কিছুদিন চালু রাখুন, যতক্ষণ না সব ফোনে নতুন অ্যাপ বসে।)
 - প্রথমবার **SMS পড়া, SMS পাঠানো, ফোন স্টেট** পারমিশন দিন, আর ব্যাটারি অপটিমাইজেশনে "Unrestricted"। নইলে ফোন স্ক্রিন বন্ধ করলে Android অ্যাপ থামিয়ে দিতে পারে এবং ওয়েবসাইটের SMS আটকে থাকে।
 - নোটিফিকেশনে "AU-Getway · Online" দেখা গেলে ফোন জুড়ে আছে। সমস্যা হলে সেখানে লাল বার্তা আসে।
 - বিল্ড (Android SDK লাগে): `pnpm install` তারপর `pnpm --filter @uniqpay/mobile android`। `.apk` ফাইল git-এ যায় না।
@@ -200,4 +215,4 @@ node --test apps/mobile/*.test.ts
 - Webhook-এ সেটিংসের **Global Webhook Signing Secret** বসানো থাকলে দুটো হেডার যায়: `X-Webhook-Timestamp` (সেকেন্ড) আর `X-Webhook-Signature: sha256=<hex>`, যেখানে hex = `HMAC-SHA256(secret, timestamp + "." + body)`। দোকানের সার্ভার মিলিয়ে দেখবে, আর timestamp ৫ মিনিটের বেশি পুরোনো হলে নেবে না (নমুনা: `apps/api/src/webhook-sign.ts` এর `webhookIsGenuine`)। secret না থাকলে আগের মতোই সাইন ছাড়া যায়। যাই হোক, মাল পাঠানোর আগে `verify-payment` দিয়ে আবার মিলিয়ে নিন।
 - ওয়েব পেজে `Strict-Transport-Security` ও `Content-Security-Policy` আছে। স্ক্রিপ্ট শুধু নিজের সাইট (আর Next.js-এর inline স্ক্রিপ্ট) ও Cloudflare Turnstile থেকে চলে। ব্রাউজার থেকে ডেটা শুধু নিজের সাইট, API ও Cloudflare-এ যেতে পারে। কেউ কোনোভাবে স্ক্রিপ্ট ঢুকিয়ে দিলেও সেটা অন্য সাইট থেকে কোড আনতে বা লগইন টোকেন অন্য সাইটে পাঠাতে পারবে না। `unsafe-inline` রাখতে হয়েছে কারণ Next.js নিজে ছোট inline স্ক্রিপ্ট লেখে।
 - সার্ভারের হাল দেখতে `sudo bash deploy/ubuntu/audit-server.sh` (কিছু বদলায় না, শুধু দেখায়): `.env`-এর পারমিশন, খোলা পোর্ট, ফায়ারওয়াল, SSH, fail2ban, সিকিউরিটি আপডেট, ব্যাকআপ ফোল্ডার, HTTPS, সার্টিফিকেটের মেয়াদ। প্রতিটা `WARN` ঠিক করে আবার চালান। aaPanel-এ দুই সাইটেই **Force HTTPS** চালু রাখুন, নইলে `http://` সরাসরি খোলে।
-- `update.sh` শুধু কোড টানে। `deploy/ubuntu/` এর nginx snippet ও systemd ফাইল বদলালে সার্ভারে আলাদা করে বসাতে হয়: nginx snippet aaPanel-এর সাইট কনফিগে বসিয়ে রিলোড, আর systemd ফাইল `sudo install -m 644 deploy/ubuntu/uniqpay-*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart uniqpay-api uniqpay-web`।
+- `update.sh` শুধু কোড টানে। `deploy/ubuntu/` এর nginx snippet ও systemd ফাইল বদলালে সার্ভারে আলাদা করে বসাতে হয়: nginx snippet aaPanel-এর সাইট কনফিগে বসিয়ে রিলোড, আর systemd ফাইলের জন্য `sudo bash deploy/ubuntu/install-services.sh --restart` (ফাইলে কোডের ফোল্ডারের জায়গায় `__APP_ROOT__` লেখা, স্ক্রিপ্টটাই আসল পথ বসিয়ে দেয়। ফাইল হাতে কপি করবেন না)।

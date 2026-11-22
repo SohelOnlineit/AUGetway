@@ -6,6 +6,7 @@ const picturePaths = [
   /^\/api\/desk\/methods(?:\/[^/]+)?\/?$/,
   /^\/api\/desk\/links(?:\/[^/]+)?\/?$/,
   /^\/api\/desk\/settings\/?$/,
+  /^\/api\/desk\/domains(?:\/[^/]+)?\/?$/,
   /^\/api\/public\/pay\/[^/]+\/proof\/?$/,
 ];
 

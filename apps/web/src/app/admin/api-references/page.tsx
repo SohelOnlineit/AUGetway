@@ -1,3 +1,7 @@
+"use client";
+
+import { useSiteAddresses } from "@/lib/addresses";
+
 const rows = [
   ["POST", "/api/auth/login", "Desk sign in"],
   ["GET", "/api/desk/summary", "Dashboard totals"],
@@ -14,6 +18,7 @@ const rows = [
 ] as const;
 
 export default function ApiReferencesPage() {
+  const { site, api } = useSiteAddresses();
   return (
     <div className="ref-page">
       <header className="ref-hero">
@@ -28,7 +33,7 @@ export default function ApiReferencesPage() {
         <div>
           <p className="keys-crumb">Desk <span>›</span> API References</p>
           <h2>API References</h2>
-          <p className="muted">Base URL <span className="token">http://127.0.0.1:4100</span></p>
+          <p className="muted">Base URL <span className="token">{api || "https://api.your-domain"}</span> or <span className="token">{site || "https://your-domain"}</span></p>
         </div>
       </header>
       <section className="ref-card">

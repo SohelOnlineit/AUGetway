@@ -93,6 +93,62 @@ export class UpdateTurnstileDto {
   turnstileToken?: string;
 }
 
+/** One website address and how it looks. Fields left empty use the desk-wide brand. */
+class DomainFieldsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  brandName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_200_000)
+  brandLogo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400_000)
+  brandFavicon?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  themeAccent?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  supportEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  supportPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  checkoutNote?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+export class DomainUpdateDto extends DomainFieldsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(253)
+  host?: string;
+}
+
+export class DomainDto extends DomainFieldsDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(253)
+  host!: string;
+}
+
 export class StartBillDto {
   @IsOptional()
   @IsString()

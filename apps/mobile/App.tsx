@@ -7,13 +7,13 @@ import { askBattery, batteryIgnored, batteryLevel, clearSynced, listRecentSms, r
 import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRules, type Sender } from "./inbox-rules";
 import { SERVICES, emptyBooks, formatTaka, mergeRemote, normalizeBook, parseTaka, setBalance, type Books, type Service } from "./ledger";
 
-const DESK = "https://pay.uniqbd.com/api";
+const DESK = "https://au.uniqbd.com/api";
 
 function pulsePayload(uid: string, label: string) {
   const battery = batteryLevel();
   return JSON.stringify({
     uid,
-    label: label.trim() || "UniqBD handset",
+    label: label.trim() || "AU-Getway phone",
     model: "Android",
     ...(battery === null ? {} : { battery }),
   });
@@ -149,7 +149,7 @@ function App() {
   const [needCode, setNeedCode] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [uid, setUid] = useState("");
-  const [name, setName] = useState("UniqBD handset");
+  const [name, setName] = useState("AU-Getway phone");
   const [items, setItems] = useState<InboxItem[]>([]);
   const [tab, setTab] = useState<Tab>("home");
   const [books, setBooks] = useState<Books>(emptyBooks());
@@ -264,7 +264,7 @@ function App() {
       const savedUid = uidRef.current;
       if (!savedToken || !savedUid || Platform.OS !== "android") return;
       try {
-        startKeepAlive(DESK, savedToken, savedUid, nameRef.current.trim() || "UniqBD handset");
+        startKeepAlive(DESK, savedToken, savedUid, nameRef.current.trim() || "AU-Getway phone");
       } catch {
         // Expo Go has no background watch.
       }
@@ -468,7 +468,7 @@ function App() {
       }
       if (watch) return;
       try {
-        startKeepAlive(DESK, token, uid, nameRef.current.trim() || "UniqBD handset");
+        startKeepAlive(DESK, token, uid, nameRef.current.trim() || "AU-Getway phone");
       } catch {
         // Expo Go has no background watch.
       }
@@ -518,7 +518,7 @@ function App() {
       setCode("");
       setNeedCode(false);
       await writeStore("uniqpay_token", data.accessToken);
-      await writeStore("uniqpay_name", name.trim() || "UniqBD handset");
+      await writeStore("uniqpay_name", name.trim() || "AU-Getway phone");
       setToken(data.accessToken);
       setNote(smsReady ? "This phone is online. Website SMS goes out from here, and payment SMS syncs to the desk." : "Sign-in worked. SMS needs the AU-Getway Android app.");
     } catch {
@@ -988,7 +988,7 @@ function App() {
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
           {note ? <Text style={styles.note}>{note}</Text> : null}
-          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
+          <Text style={styles.hint}>This phone signs in only at au.uniqbd.com.</Text>
           <Text style={styles.label}>Phone name</Text>
           <Field scroll={loginScroll} style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>
