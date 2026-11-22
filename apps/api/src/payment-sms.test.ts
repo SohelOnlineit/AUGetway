@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms.ts";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, normalizeTrxRef, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms.ts";
 
 test("a wallet sender can verify a payment", () => {
   assert.equal(isPaymentSender("bKash"), true);
@@ -34,6 +34,12 @@ test("a transaction id is a whole code, not part of an amount", () => {
   assert.equal(trxRefOk("01711111111"), false);
   assert.equal(trxRefOk("100"), false);
   assert.equal(trxRefOk("ABC"), false);
+  assert.equal(normalizeTrxRef("TrxID BL8A9K7M2Q"), "BL8A9K7M2Q");
+  assert.equal(normalizeTrxRef("TxnID: 7B9M2X4K"), "7B9M2X4K");
+  assert.equal(normalizeTrxRef("8N70 O2M4 RB"), "8N70O2M4RB");
+  assert.equal(normalizeTrxRef("You have received Tk 1.00. TrxID 8N70O2M4RB at 17/09/2026."), "8N70O2M4RB");
+  assert.equal(normalizeTrxRef("01711111111"), "");
+  assert.equal(normalizeTrxRef("ABC"), "");
   assert.equal(bodyHasRef("You have received Tk 1.00. TrxID 8N70O2M4RB.", "8N70O2M4RB"), true);
   assert.equal(bodyHasRef("You have received Tk 100.00.", "100"), false);
   assert.equal(bodyHasRef("TrxID 8N70O2M4RBX extra", "8N70O2M4RB"), false);

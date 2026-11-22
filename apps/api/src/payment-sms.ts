@@ -91,6 +91,24 @@ export function trxRefOk(value: string) {
   return true;
 }
 
+/**
+ * Customers paste the code as it appears in the SMS, often with the word TrxID, a colon, or a space.
+ * Keep only the transaction code. A phone number or a plain amount is not a code.
+ */
+export function normalizeTrxRef(value: string): string {
+  const folded = value
+    .replace(/[০-৯]/g, (digit) => String("০১২৩৪৫৬৭৮৯".indexOf(digit)))
+    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+    .trim();
+  if (!folded) return "";
+  const labeled = readTrxId(folded);
+  if (labeled) return labeled;
+  const compact = folded.toUpperCase().replace(/[\s._\-/]+/g, "");
+  if (trxRefOk(compact)) return compact;
+  const tokens = folded.toUpperCase().match(/[A-Z0-9]{8,20}/g) ?? [];
+  return tokens.find((token) => trxRefOk(token)) ?? "";
+}
+
 export function readBalanceTaka(body: string) {
   const match = body.match(/\bbal(?:ance)?\s*(?:is\s*)?:?\s*(?:tk|bdt|taka|৳)\.?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   if (!match) return null;
@@ -100,7 +118,7 @@ export function readBalanceTaka(body: string) {
 }
 
 export function readTrxId(body: string) {
-  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)[\s:]+([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
+  const match = body.match(/(?:trx\s*id|trxid|txn\s*id|txnid|txn\s*no|txnno|transaction\s*id|trx\s*code|transaction\s*no|trans\s*id)\s*[:\-]?\s*([A-Za-z0-9]{8,20})(?![A-Za-z0-9])/i);
   if (!match) return "";
   const ref = match[1].toUpperCase();
   return trxRefOk(ref) ? ref : "";

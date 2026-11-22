@@ -16,7 +16,7 @@ import { SiteDomainService } from "./site-domain.service";
 import { TwoFactorService } from "./two-factor.service";
 import { webhookHeaders } from "./webhook-sign";
 import { attemptsLeft, unmatchedAttempt } from "./proof-attempt";
-import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, trxRefOk, walletService } from "./payment-sms";
+import { acceptInboundSms, bodyHasRef, isCreditMessage, isDebitMessage, isOtpMessage, isPaymentSender, normalizeTrxRef, readBalanceTaka, readPaidAmount, readTrxId, senderFitsMethod, walletService } from "./payment-sms";
 import { browserHttpUrl, postPublicJson, publicHttpUrl } from "./public-url";
 import { matchWithoutWaitingForSnapshot } from "./payment-security";
 import { PaymentSecurityService } from "./payment-security.service";
@@ -1110,8 +1110,8 @@ export class PayService implements OnModuleInit {
     const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId: id } });
     if (!row) throw new NotFoundException("Checkout not found");
     if (row.status === "paid") return this.publicPay(id);
-    const ref = (providerRef ?? "").trim().toUpperCase();
-    if (ref && !trxRefOk(ref)) throw new BadRequestException("Enter the transaction ID from the payment message");
+    const ref = normalizeTrxRef(providerRef ?? "");
+    if ((providerRef ?? "").trim() && !ref) throw new BadRequestException("Enter the transaction ID from the payment message");
     const nextRef = ref || row.providerRef;
     if (status === "paid" && nextRef) {
       const used = await this.prisma.checkout.findFirst({
@@ -1145,8 +1145,8 @@ export class PayService implements OnModuleInit {
     if (payer && !/^01\d{9}$/.test(payer)) {
       throw new BadRequestException("Sender number must start with 01 and be exactly 11 digits.");
     }
-    const ref = (input.providerRef ?? "").trim().toUpperCase();
-    if (ref && !trxRefOk(ref)) throw new BadRequestException("Enter the transaction ID from the payment message");
+    const ref = normalizeTrxRef(input.providerRef ?? "");
+    if ((input.providerRef ?? "").trim() && !ref) throw new BadRequestException("Enter the transaction ID from the payment message");
     if (ref) {
       const used = await this.prisma.checkout.findFirst({
         where: { ownerId, providerRef: ref, id: { not: row.id }, status: { in: ["waiting", "pending", "paid"] } },
@@ -2215,11 +2215,11 @@ export class PayService implements OnModuleInit {
     if (row.expiresAt.getTime() < Date.now() && row.status !== "pending") {
       throw new BadRequestException("This checkout has expired");
     }
-    const providerRef = (input.providerRef ?? "").trim().toUpperCase();
+    const providerRef = normalizeTrxRef(input.providerRef ?? "");
     const collectNumber = row.method?.askPayerNumber !== false;
     const payerAccount = collectNumber ? (input.payerAccount ?? "").trim() : "";
     const receipt = input.receipt ? this.cleanReceipt(input.receipt) : "";
-    if (providerRef && !trxRefOk(providerRef)) {
+    if ((input.providerRef ?? "").trim() && !providerRef) {
       throw new BadRequestException("Enter the transaction ID from the payment message");
     }
     if (providerRef && (row.providerRef ?? "").toUpperCase() === providerRef) {

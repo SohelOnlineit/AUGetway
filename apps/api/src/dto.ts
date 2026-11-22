@@ -412,7 +412,7 @@ export class ChooseMethodDto {
 export class ProofDto {
   @IsOptional()
   @IsString()
-  @MaxLength(40)
+  @MaxLength(180)
   providerRef?: string;
 
   @IsOptional()

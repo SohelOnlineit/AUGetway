@@ -435,7 +435,7 @@ export default function PayPage() {
               </div>
               <label className="ck-field">
                 <span>{text(lang, "Enter Transaction ID *", "ট্রানজেকশন আইডি লিখুন *")}</span>
-                <input className="ck-ref" name="providerRef" required minLength={8} maxLength={20} autoComplete="off" placeholder="8N70O2M4RB" />
+                <input className="ck-ref" name="providerRef" required minLength={8} maxLength={180} autoComplete="off" placeholder="8N70O2M4RB" />
               </label>
               {card.method.askPayerNumber !== false ? (
                 <label className="ck-field">
