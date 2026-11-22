@@ -276,7 +276,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M6 19c.6-2.4 2.6-4 6-4s5.4 1.6 6 4" /></svg>
                   </span>
                   <span className="menu-copy">
-                    <b>Profile</b>
+                    <b>Profile Settings</b>
                     <small>Name, email and password</small>
                   </span>
                 </Link>
