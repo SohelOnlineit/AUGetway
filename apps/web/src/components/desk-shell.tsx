@@ -87,6 +87,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ name: string; email: string; role: string; twoFactor?: boolean } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 12 });
   const [navOpen, setNavOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [cacheNote, setCacheNote] = useState(false);
@@ -148,17 +149,27 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!menuOpen) return;
+    function place() {
+      const rect = profileRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPos({ top: Math.round(rect.bottom + 8), right: Math.max(12, Math.round(window.innerWidth - rect.right)) });
+    }
     function onPointer(event: MouseEvent) {
       if (!profileRef.current?.contains(event.target as Node)) setMenuOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setMenuOpen(false);
     }
+    place();
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     return () => {
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
     };
   }, [menuOpen]);
 
@@ -257,11 +268,15 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           </button>
           {cacheNote ? <p className="cache-note">Cache cleared</p> : null}
           <div className="profile-anchor" ref={profileRef}>
-            <button className={menuOpen ? "avatar on" : "avatar"} type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Profile" aria-expanded={menuOpen} aria-haspopup="menu">
+            <button className={menuOpen ? "avatar on" : "avatar"} type="button" onClick={() => {
+              const rect = profileRef.current?.getBoundingClientRect();
+              if (rect) setMenuPos({ top: Math.round(rect.bottom + 8), right: Math.max(12, Math.round(window.innerWidth - rect.right)) });
+              setMenuOpen((open) => !open);
+            }} aria-label="Profile" aria-expanded={menuOpen} aria-haspopup="menu">
               {user ? initials(user.name, user.email) : "·"}
             </button>
             {menuOpen ? (
-              <div className="avatar-menu" role="menu">
+              <div className="avatar-menu" role="menu" style={{ top: menuPos.top, right: menuPos.right }}>
                 <div className="avatar-who">
                   <span className="avatar mini" aria-hidden="true">{user ? initials(user.name, user.email) : "·"}</span>
                   <div className="avatar-id">

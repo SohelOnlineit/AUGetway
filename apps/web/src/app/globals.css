@@ -219,9 +219,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 .avatar.mini { width: 40px; height: 40px; animation: none; box-shadow: none; flex: none; }
 .profile-anchor { position: relative; }
 .avatar-menu {
-  position: absolute;
-  top: 48px;
-  right: 0;
+  position: fixed;
   width: min(300px, calc(100vw - 24px));
   display: grid;
   gap: 4px;
@@ -229,7 +227,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 12px;
-  z-index: 30;
+  z-index: 80;
   box-shadow: var(--shadow);
   animation: people-rise 0.28s cubic-bezier(.2, .8, .2, 1);
 }
