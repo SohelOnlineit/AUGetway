@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { pictureDataUrl } from "@/lib/picture";
+import { publicOriginForHost, publicPathUrl } from "@/lib/addresses";
 
 type Domain = {
   id: string;
@@ -46,11 +47,6 @@ function toDraft(row: Domain): Draft {
     checkoutNote: row.checkoutNote,
     active: row.active,
   };
-}
-
-function opened(host: string) {
-  if (typeof window === "undefined") return `https://${host}`;
-  return `${window.location.protocol}//${host}${window.location.port && /^(localhost|127\.)/.test(host) ? `:${window.location.port}` : ""}`;
 }
 
 export default function DomainsPage() {
@@ -99,7 +95,7 @@ export default function DomainsPage() {
       if (id) await api(`/desk/domains/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       else await api("/desk/domains", { method: "POST", body: JSON.stringify(body) });
       setDraft(null);
-      setNotice(id ? "Saved." : "Address added. Point its DNS and nginx at this server, then open it.");
+      setNotice(id ? "Saved. Visitors on this address now see the new name and logo." : "Address added. Point its DNS and nginx at this server, then open it.");
       await load();
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : "Could not save");
@@ -137,10 +133,9 @@ export default function DomainsPage() {
           <p className="keys-crumb">Desk <span>›</span> Website Domains</p>
           <h2>Website Domains</h2>
           <p className="muted sec-note">
-            One desk can answer on several website addresses. A visitor sees the name, logo and colour of the address they
-            came in on, and payment links stay on that address. Payment methods, transactions and keys are shared. A field
-            left empty uses the name and logo from Brand &amp; System Settings. The api. address (for example api.pay.amarpin.com)
-            is understood automatically. Only the main admin can change this page.
+            একটাই ডেস্ক, কয়েকটা ওয়েবসাইট ঠিকানা। কাস্টমার যে ঠিকানা দিয়ে আসে (যেমন pay.uniqbd.com বা pay.amarpin.com),
+            সেই ঠিকানার নাম, লোগো, রঙ আর পেমেন্ট লিংক দেখে। Edit চেপে প্রতিটি ঠিকানার লোগো বদলান। খালি ঘর
+            Brand &amp; System Settings-এর সাধারণ লোগো ব্যবহার করে। শুধু মূল অ্যাডমিন এই পেজ বদলাতে পারে।
           </p>
         </div>
       </header>
@@ -157,40 +152,47 @@ export default function DomainsPage() {
         {notice ? <p className="muted">{notice}</p> : null}
       </section>
 
-      <section className="keys-card">
-        <table className="keys-table">
-          <thead>
-            <tr>
-              <th>Address</th>
-              <th>Name shown</th>
-              <th>Logo</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          {ready && rows.length > 0 ? (
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <strong>{row.host}</strong>
-                    <p className="muted">api.{row.host}</p>
-                  </td>
-                  <td>{row.brandName || <span className="muted">desk-wide name</span>}</td>
-                  <td>{row.brandLogo ? <img src={row.brandLogo} alt="" style={{ maxHeight: 32, maxWidth: 96 }} /> : <span className="muted">desk-wide logo</span>}</td>
-                  <td>{row.active ? "On" : "Off"}</td>
-                  <td>
-                    <div className="row">
-                      <a className="btn-line" href={opened(row.host)} target="_blank" rel="noreferrer">Open</a>
-                      <button className="btn-line" type="button" disabled={busy} onClick={() => { setFormError(""); setDraft(toDraft(row)); }}>Edit</button>
-                      <button className="btn-line" type="button" disabled={busy} onClick={() => void remove(row)}>Remove</button>
+      <section className="domain-grid">
+        {ready && rows.length > 0
+          ? rows.map((row) => {
+              const origin = publicOriginForHost(row.host);
+              const accent = row.themeAccent || "var(--brand)";
+              return (
+                <article key={row.id} className={`domain-card ${row.active ? "" : "off"}`}>
+                  <div className="domain-preview" style={{ ["--domain-accent" as string]: accent }}>
+                    {row.brandLogo ? (
+                      <img src={row.brandLogo} alt="" className="domain-preview-logo" />
+                    ) : (
+                      <span className="domain-preview-fallback">{(row.brandName || row.host).slice(0, 1).toUpperCase()}</span>
+                    )}
+                    <div>
+                      <strong>{row.brandName || <span className="muted">desk-wide name</span>}</strong>
+                      <p className="muted">{row.host}</p>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          ) : null}
-        </table>
+                  </div>
+                  <div className="domain-meta">
+                    <p>
+                      <span className="muted">Status</span> {row.active ? "On" : "Off"}
+                    </p>
+                    <p>
+                      <span className="muted">Customer link</span>{" "}
+                      <a href={publicPathUrl("/l/example", row.host)} target="_blank" rel="noreferrer">{origin}/l/…</a>
+                    </p>
+                    <p>
+                      <span className="muted">Logo</span> {row.brandLogo ? "Custom for this address" : "Uses desk-wide logo"}
+                    </p>
+                  </div>
+                  <div className="row domain-actions">
+                    <a className="btn-line" href={origin} target="_blank" rel="noreferrer">Open site</a>
+                    <button className="btn" type="button" disabled={busy} onClick={() => { setFormError(""); setDraft(toDraft(row)); }}>
+                      Change logo / name
+                    </button>
+                    <button className="btn-line" type="button" disabled={busy} onClick={() => void remove(row)}>Remove</button>
+                  </div>
+                </article>
+              );
+            })
+          : null}
         {ready && rows.length === 0 && !error ? (
           <div className="keys-empty">
             <div>
@@ -203,8 +205,22 @@ export default function DomainsPage() {
 
       {draft ? (
         <div className="modal-back" onClick={() => !busy && setDraft(null)}>
-          <form className="modal set-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
-            <h2>{draft.id ? `Edit ${draft.host}` : "Add a website address"}</h2>
+          <form className="modal set-modal domain-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
+            <h2>{draft.id ? `Edit ${draft.host || "address"}` : "Add a website address"}</h2>
+            <p className="muted">Visitors who open this address see the name and logo you set here.</p>
+
+            <div className="domain-live" style={{ ["--domain-accent" as string]: draft.themeAccent || "var(--brand)" }}>
+              {draft.brandLogo ? (
+                <img src={draft.brandLogo} alt="" className="domain-preview-logo" />
+              ) : (
+                <span className="domain-preview-fallback">{(draft.brandName || draft.host || "?").slice(0, 1).toUpperCase()}</span>
+              )}
+              <div>
+                <strong>{draft.brandName || "Desk-wide name"}</strong>
+                <p className="muted">{draft.host || "pay.amarpin.com"}</p>
+              </div>
+            </div>
+
             <label className="field">
               <span>Website address</span>
               <input value={draft.host} onChange={(event) => patch({ host: event.target.value })} placeholder="pay.amarpin.com" required maxLength={253} autoCapitalize="none" autoComplete="off" />
@@ -215,16 +231,16 @@ export default function DomainsPage() {
               <input value={draft.brandName} onChange={(event) => patch({ brandName: event.target.value })} maxLength={60} placeholder="Leave empty to use the desk-wide name" />
             </label>
             <label className="field">
-              <span>Logo</span>
-              {draft.brandLogo ? <img src={draft.brandLogo} alt="" className="set-preview" /> : null}
+              <span>Logo (checkout, bills, home)</span>
+              {draft.brandLogo ? <img src={draft.brandLogo} alt="" className="set-preview" /> : <p className="muted">No custom logo yet — desk-wide logo will show.</p>}
               <input type="file" accept="image/*" onChange={(event) => void pick(event.target.files?.[0], "brandLogo")} />
-              {draft.brandLogo ? <button type="button" className="btn-line" onClick={() => patch({ brandLogo: "" })}>Use the desk-wide logo</button> : null}
+              {draft.brandLogo ? <button type="button" className="btn-line" onClick={() => patch({ brandLogo: "" })}>Clear — use desk-wide logo</button> : null}
             </label>
             <label className="field">
               <span>Browser tab icon</span>
-              {draft.brandFavicon ? <img src={draft.brandFavicon} alt="" className="set-preview" style={{ maxHeight: 32 }} /> : null}
+              {draft.brandFavicon ? <img src={draft.brandFavicon} alt="" className="set-preview" style={{ maxHeight: 32 }} /> : <p className="muted">No custom icon yet.</p>}
               <input type="file" accept="image/*" onChange={(event) => void pick(event.target.files?.[0], "brandFavicon")} />
-              {draft.brandFavicon ? <button type="button" className="btn-line" onClick={() => patch({ brandFavicon: "" })}>Use the desk-wide icon</button> : null}
+              {draft.brandFavicon ? <button type="button" className="btn-line" onClick={() => patch({ brandFavicon: "" })}>Clear — use desk-wide icon</button> : null}
             </label>
             <label className="field">
               <span>Main colour</span>
@@ -248,7 +264,7 @@ export default function DomainsPage() {
             </label>
             {formError ? <p className="error">{formError}</p> : null}
             <div className="row">
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save logo & name"}</button>
               <button className="btn btn-quiet" type="button" disabled={busy} onClick={() => setDraft(null)}>Cancel</button>
             </div>
           </form>

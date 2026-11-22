@@ -39,11 +39,11 @@ const cards: { id: string; title: string; description: string; icon: string; fie
   {
     id: "logo",
     title: "Logo & Favicon",
-    description: "Upload and manage website logo, favicon and invoice branding",
+    description: "Desk-wide default logo. For a different logo on pay.uniqbd.com or pay.amarpin.com, open Website Domains and change that address.",
     icon: "image",
     fields: [
-      { key: "brandLogo", label: "Main Brand Logo", kind: "file" },
-      { key: "brandFavicon", label: "Favicon Icon", kind: "file" },
+      { key: "brandLogo", label: "Main Brand Logo (fallback)", kind: "file" },
+      { key: "brandFavicon", label: "Favicon Icon (fallback)", kind: "file" },
     ],
   },
   {

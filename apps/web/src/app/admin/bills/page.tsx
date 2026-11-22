@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { publicPathUrl, useShareHosts } from "@/lib/addresses";
 
 type Bill = {
   number: string;
@@ -72,6 +73,8 @@ export default function BillsPage() {
   const [pageSize, setPageSize] = useState(10);
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState("");
+  const { hosts, shareHost, setShareHost } = useShareHosts();
 
   function load() {
     api<Bill[]>("/desk/bills")
@@ -164,9 +167,19 @@ export default function BillsPage() {
         <div>
           <p className="inv-crumb">Desk <span>›</span> Invoices</p>
           <h2>Invoices</h2>
-          <p className="muted">Bills you send from this desk, and whether they are still due.</p>
+          <p className="muted">Bills you send from this desk, and whether they are still due. The customer sees the logo of the website address you share.</p>
         </div>
         <div className="inv-head-actions">
+          {hosts.length > 1 ? (
+            <label className="pl-share-host">
+              <span>Copy / open on</span>
+              <select value={shareHost} onChange={(event) => setShareHost(event.target.value)} aria-label="Website address for customer links">
+                {hosts.map((row) => (
+                  <option key={row.host} value={row.host}>{row.brandName} ({row.host})</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {picked.length ? (
             <button className="inv-drop" type="button" onClick={removePicked} disabled={busy}>Delete selected ({picked.length})</button>
           ) : null}
@@ -255,8 +268,25 @@ export default function BillsPage() {
                     {shown.due ? <td className="inv-when">{stamp(row.dueOn)}</td> : null}
                     {shown.created ? <td className="inv-when">{stamp(row.createdAt)}</td> : null}
                     <td className="inv-actions">
-                      <a className="inv-go" href={`/bill/${row.number}`} target="_blank" rel="noreferrer">
-                        <LinkIcon /> Payment Link
+                      <button
+                        className="inv-go"
+                        type="button"
+                        onClick={async () => {
+                          const url = publicPathUrl(`/bill/${row.number}`, shareHost || undefined);
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            setCopied(row.number);
+                            setNote(`Copied ${url}`);
+                            window.setTimeout(() => setCopied((current) => (current === row.number ? "" : current)), 1400);
+                          } catch {
+                            setError("Could not copy");
+                          }
+                        }}
+                      >
+                        <LinkIcon /> {copied === row.number ? "Copied" : "Copy link"}
+                      </button>
+                      <a className="inv-go" href={publicPathUrl(`/bill/${row.number}`, shareHost || undefined)} target="_blank" rel="noreferrer">
+                        <LinkIcon /> Open
                       </a>
                       <Link className="inv-go" href={`/admin/invoices/${row.number}/edit`}>
                         <PencilIcon /> Edit

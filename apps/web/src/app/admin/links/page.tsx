@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { publicPathUrl, useShareHosts } from "@/lib/addresses";
 
 type LinkRow = {
   slug: string;
@@ -54,6 +55,7 @@ export default function LinksPage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
   const [focus, setFocus] = useState<"all" | "on" | "off">("all");
+  const { hosts, shareHost, setShareHost } = useShareHosts();
 
   function load() {
     api<LinkRow[]>("/desk/links")
@@ -110,10 +112,12 @@ export default function LinksPage() {
     setPicked((current) => (allPicked ? current.filter((slug) => !pageSlugs.includes(slug)) : [...new Set([...current, ...pageSlugs])]));
   }
 
-  async function copySlug(slug: string) {
+  async function copyLink(slug: string) {
+    const url = publicPathUrl(`/l/${slug}`, shareHost || undefined);
     try {
-      await navigator.clipboard.writeText(slug);
+      await navigator.clipboard.writeText(url);
       setCopied(slug);
+      setNote(`Copied ${url}`);
       window.setTimeout(() => setCopied((current) => (current === slug ? "" : current)), 1400);
     } catch {
       setError("Could not copy");
@@ -173,10 +177,20 @@ export default function LinksPage() {
           <div>
             <p className="pl-crumb">Desk <span>›</span> Payment Links</p>
             <h2>Payment Links</h2>
-            <p className="muted">Share a link and collect a payment without opening a new invoice.</p>
+            <p className="muted">Share a link and collect a payment without opening a new invoice. The customer sees the logo of the website address you copy.</p>
           </div>
         </div>
         <div className="pl-head-actions">
+          {hosts.length > 1 ? (
+            <label className="pl-share-host">
+              <span>Copy / open on</span>
+              <select value={shareHost} onChange={(event) => setShareHost(event.target.value)} aria-label="Website address for customer links">
+                {hosts.map((row) => (
+                  <option key={row.host} value={row.host}>{row.brandName} ({row.host})</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {picked.length ? (
             <button className="pl-drop" type="button" onClick={removePicked} disabled={busy}>Delete selected ({picked.length})</button>
           ) : null}
@@ -260,7 +274,9 @@ export default function LinksPage() {
                   {shown.amount ? <td className="pl-amt">{moneyLabel(row.currency, row.amount)}</td> : null}
                   {shown.slug ? (
                     <td>
-                      <button className="pl-slug" type="button" onClick={() => copySlug(row.slug)}>{copied === row.slug ? "Copied" : row.slug}</button>
+                      <button className="pl-slug" type="button" title={publicPathUrl(`/l/${row.slug}`, shareHost || undefined)} onClick={() => copyLink(row.slug)}>
+                        {copied === row.slug ? "Copied" : row.slug}
+                      </button>
                     </td>
                   ) : null}
                   {shown.active ? (
@@ -272,7 +288,7 @@ export default function LinksPage() {
                   ) : null}
                   {shown.created ? <td className="pl-when">{stamp(row.createdAt)}</td> : null}
                   <td className="pl-actions">
-                    <a className="pl-go" href={`/l/${row.slug}`} target="_blank" rel="noreferrer">
+                    <a className="pl-go" href={publicPathUrl(`/l/${row.slug}`, shareHost || undefined)} target="_blank" rel="noreferrer">
                       <OpenIcon /> Open Link
                     </a>
                     <Link className="pl-go" href={`/admin/payment-links/${row.slug}/edit`}>

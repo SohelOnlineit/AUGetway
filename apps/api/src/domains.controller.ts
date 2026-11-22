@@ -16,6 +16,15 @@ type DeskRequest = Request & { desk: DeskSession };
 export class DomainsController {
   constructor(private readonly domains: SiteDomainService) {}
 
+  /** Active website addresses any desk user can pick when copying a payment / invoice link. */
+  @Get("hosts")
+  async hosts(@Req() request: DeskRequest) {
+    const rows = await this.domains.list(request.desk.sub);
+    return rows
+      .filter((row) => row.active)
+      .map((row) => ({ host: row.host, brandName: row.brandName || row.host }));
+  }
+
   @Get()
   list(@Req() request: DeskRequest) {
     requireMainAdmin(request, "website addresses");
