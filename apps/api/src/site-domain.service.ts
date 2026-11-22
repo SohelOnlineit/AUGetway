@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "./prisma.service";
-import { cleanSiteHost, currentRequest, hostCandidates, isValidSiteHost } from "./request-context";
+import { cleanSiteHost, currentRequest, customerPayOrigin, hostCandidates, isValidSiteHost } from "./request-context";
 
 export type DomainRow = {
   id: string;
@@ -86,12 +86,14 @@ export class SiteDomainService {
     return null;
   }
 
-  /** "https://pay.amarpin.com" for a visitor on pay.amarpin.com or on api.pay.amarpin.com. Empty when not registered. */
+  /**
+   * Where the customer opens the payment page. The shop may have called api.pay.amarpin.com, and the connection
+   * behind nginx is http, but the link is still https://pay.amarpin.com. Empty only when this request has no
+   * website address at all.
+   */
   async originForRequest(): Promise<string> {
-    const info = currentRequest();
     const row = await this.current();
-    if (!info || !row) return "";
-    return `${info.proto}://${row.host}${info.port}`;
+    return customerPayOrigin(currentRequest(), row?.host ?? "");
   }
 
   /** True for a browser page on one of the registered addresses (used for CORS). */

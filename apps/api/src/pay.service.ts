@@ -1238,7 +1238,7 @@ export class PayService implements OnModuleInit {
     return {
       status: true,
       // The shop called pay.amarpin.com or api.pay.amarpin.com, so the customer is sent to pay.amarpin.com.
-      payment_url: `${(await this.domains.originForRequest()) || siteBase()}/pay/${row.publicId}`,
+      payment_url: await this.customerPayUrl(row.publicId),
       invoice_id: row.publicId,
     };
   }
@@ -2615,7 +2615,19 @@ export class PayService implements OnModuleInit {
     const key = await this.keyFromToken(token);
     this.requireAbility(key, "payment:checkout");
     const checkout = await this.createCheckout(key.ownerId, input);
-    return { publicId: checkout.publicId, status: checkout.status, payable: checkout.payable };
+    return {
+      publicId: checkout.publicId,
+      status: checkout.status,
+      payable: checkout.payable,
+      // A custom integration used to get only the id and then glued it onto the api. address, which has no payment page.
+      payment_url: await this.customerPayUrl(checkout.publicId),
+    };
+  }
+
+  /** https://pay.amarpin.com/pay/… for a shop that called either that address or api.pay.amarpin.com. */
+  private async customerPayUrl(publicId: string) {
+    const origin = (await this.domains.originForRequest()) || siteBase();
+    return `${origin}/pay/${publicId}`;
   }
 
   async merchantGet(token: string, id: string) {

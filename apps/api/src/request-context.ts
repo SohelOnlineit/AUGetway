@@ -46,11 +46,23 @@ export function describeRequest(hostHeader: string | undefined, protocol: string
  * `pay.amarpin.com`, so both are tried, the exact one first.
  */
 export function hostCandidates(host: string): string[] {
-  const clean = host.trim().toLowerCase().replace(/:\d{1,5}$/, "").replace(/\.$/, "");
+  const clean = bareHost(host);
   if (!clean) return [];
   const out = [clean];
-  if (clean.startsWith("api.") && clean.split(".").length > 2) out.push(clean.slice(4));
+  const site = websiteHost(clean);
+  if (site !== clean) out.push(site);
   return out;
+}
+
+function bareHost(host: string) {
+  return host.trim().toLowerCase().replace(/:\d{1,5}$/, "").replace(/\.$/, "");
+}
+
+/** `api.pay.amarpin.com` is where a shop calls the API. The customer page lives on `pay.amarpin.com`. */
+export function websiteHost(host: string) {
+  const clean = bareHost(host);
+  if (clean.startsWith("api.") && clean.split(".").length > 2) return clean.slice(4);
+  return clean;
 }
 
 /** A website address that may be registered: a normal domain name, or localhost for testing. */
@@ -58,6 +70,22 @@ export function isValidSiteHost(value: string): boolean {
   if (value === "localhost") return true;
   if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value)) return true;
   return /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(value);
+}
+
+/**
+ * The origin a customer can open. A public site is always https and never the api. address: that address only
+ * answers the API, so a link like https://api.pay.amarpin.com/pay/… never shows the payment page. A local address
+ * keeps http and its port.
+ */
+export function customerPayOrigin(info: RequestInfo | undefined, registeredHost = ""): string {
+  const fromRequest = info ? websiteHost(info.host) : "";
+  const host = websiteHost(registeredHost) || fromRequest;
+  if (!host || !isValidSiteHost(host)) return "";
+  const local = host === "localhost" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
+  if (!local) return `https://${host}`;
+  const proto = info?.proto === "https" ? "https" : "http";
+  const port = info && websiteHost(info.host) === host ? info.port : "";
+  return `${proto}://${host}${port}`;
 }
 
 /** What a person typed into the Domains page, cleaned: lower case, no scheme, no path, no port, no trailing dot. */

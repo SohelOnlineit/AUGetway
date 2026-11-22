@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanSiteHost, currentRequest, describeRequest, hostCandidates, isValidSiteHost, pickHostHeader, runWithRequest } from "./request-context.ts";
+import { cleanSiteHost, currentRequest, customerPayOrigin, describeRequest, hostCandidates, isValidSiteHost, pickHostHeader, runWithRequest } from "./request-context.ts";
 
 test("a Host header is split into host, port and protocol", () => {
   assert.deepEqual(describeRequest("pay.amarpin.com", "https"), { host: "pay.amarpin.com", port: "", proto: "https" });
@@ -41,6 +41,15 @@ test("only real website addresses are accepted", () => {
   for (const bad of ["", "com", "au_amarpin.com", "-au.com", "au..com", "pay.amarpin.com/x", "au amarpin.com", "javascript:alert(1)", "a.b", "<script>.com"]) {
     assert.equal(isValidSiteHost(bad), false, bad);
   }
+});
+
+test("a customer payment link is the website, on https, even when the shop called the api. address over http", () => {
+  const api = { host: "api.pay.amarpin.com", port: "", proto: "http" as const };
+  assert.equal(customerPayOrigin(api, "pay.amarpin.com"), "https://pay.amarpin.com");
+  assert.equal(customerPayOrigin(api, ""), "https://pay.amarpin.com");
+  assert.equal(customerPayOrigin({ host: "pay.uniqbd.com", port: ":443", proto: "http" }, ""), "https://pay.uniqbd.com");
+  assert.equal(customerPayOrigin({ host: "127.0.0.1", port: ":4100", proto: "http" }, ""), "http://127.0.0.1:4100");
+  assert.equal(customerPayOrigin(undefined, ""), "");
 });
 
 test("the address stays known through async work of the same request, and does not leak to another", async () => {
