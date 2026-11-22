@@ -39,6 +39,7 @@ import {
 } from "./dto";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
+import { wantsHandset } from "./desk-device";
 import { isMainAdmin, requireHandset, requireMainAdmin } from "./main-admin";
 import { clientAddress, RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
@@ -65,8 +66,9 @@ export class PayController {
   @RateLimit("login", 30, 900)
   async login(@Body() body: LoginDto, @Req() request: Request) {
     // The phone app cannot show the Cloudflare widget. A browser always sends Sec-Fetch-Site, so a website
-    // request cannot skip the check, or take the phone's long sign-in, just by calling itself the phone app.
-    const handset = body.client === "handset" && typeof request.header("sec-fetch-site") !== "string";
+    // request cannot skip the check or take the phone sign-in. The app build that does not send client:"handset"
+    // is still the phone: it has no Sec-Fetch-Site header.
+    const handset = wantsHandset(request.header("sec-fetch-site"), body.client);
     if (!handset) await this.turnstile.assert(body.turnstileToken);
     return this.pay.login(body.email, body.password, handset ? "handset" : "desk", clientAddress(request), body.code);
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tokenDevice } from "./desk-device.ts";
+import { tokenDevice, wantsHandset } from "./desk-device.ts";
 
 const day = 24 * 60 * 60;
 
@@ -22,4 +22,11 @@ test("an older website token lasts a week, so it cannot act as the phone", () =>
 
 test("a token with no lifetime is treated as the website", () => {
   assert.equal(tokenDevice({}), "desk");
+});
+
+test("the payment app is the phone even when an older build does not say so", () => {
+  assert.equal(wantsHandset(undefined, undefined), true);
+  assert.equal(wantsHandset(undefined, "handset"), true);
+  assert.equal(wantsHandset("same-origin", "handset"), false);
+  assert.equal(wantsHandset(undefined, "desk"), false);
 });

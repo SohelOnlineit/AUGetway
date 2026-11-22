@@ -8,3 +8,14 @@ export function tokenDevice(payload: { device?: string; exp?: number; iat?: numb
   const life = (payload.exp ?? 0) - (payload.iat ?? 0);
   return life > 30 * 24 * 60 * 60 ? "handset" : "desk";
 }
+
+/**
+ * A browser always sends Sec-Fetch-Site, so it cannot take the phone sign-in.
+ * The payment app does not send that header. Older builds also omit client:"handset", and those must still
+ * sign in as the phone. Otherwise the app stays open on a website token, payment SMS never reach the desk,
+ * and the payment shows as failed.
+ */
+export function wantsHandset(secFetchSite: string | undefined, client: string | undefined): boolean {
+  if (typeof secFetchSite === "string") return false;
+  return client !== "desk";
+}

@@ -1,4 +1,4 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 import type { DeskSession } from "./desk.guard";
 
@@ -19,8 +19,10 @@ export function requireMainAdmin(request: Request & { desk: DeskSession }, what 
  * A website sign-in, and a staff account, cannot register a device or mark an order paid by sending a text.
  */
 export function requireHandset(request: Request & { desk: DeskSession }) {
+  // 401, not 403. The installed app treats 401 as "sign in again" and drops the saved token.
+  // A website token left on the phone otherwise stays there, the pulse is refused, and payment SMS show as failed.
   if (request.desk.device !== "handset") {
-    throw new ForbiddenException("Only the payment phone can send payment messages");
+    throw new UnauthorizedException("Sign in on the payment phone again");
   }
   requireMainAdmin(request, "the payment phone");
 }
