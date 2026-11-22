@@ -290,7 +290,37 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand);
 }
 .menu-ico svg { width: 16px; height: 16px; }
-.menu-ico.user svg { animation: dev-bob 2.4s ease-in-out infinite; }
+.menu-ico.user { position: relative; }
+.menu-ico.user::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 13px;
+  border: 1.5px solid color-mix(in srgb, var(--brand) 75%, transparent);
+  animation: profile-ring 2.4s ease-out infinite;
+  pointer-events: none;
+}
+.menu-ico.user svg { width: 20px; height: 20px; animation: none; }
+.profile-glyph { stroke-width: 1.7; }
+.profile-orbit {
+  stroke-width: 1.35;
+  stroke-dasharray: 14 42;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: profile-spin 3.4s linear infinite;
+}
+.profile-head {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: profile-pop 2.2s ease-in-out infinite;
+}
+.profile-body { stroke-width: 1.7; }
+@keyframes profile-spin { to { transform: rotate(360deg); } }
+@keyframes profile-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+@keyframes profile-ring {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
 .menu-ico.shield.on { background: color-mix(in srgb, var(--good) 16%, var(--surface)); color: var(--good); }
 .menu-ico.out { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); color: var(--bad); }
 .menu-ico.out svg { animation: dev-fly 2.2s ease-in-out infinite; }
@@ -300,7 +330,7 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   100% { box-shadow: 0 0 0 8px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .avatar, .avatar-menu, .menu-ico svg, .account-mark, .account-facts svg, .account-icon svg { animation: none; }
+  .avatar, .avatar-menu, .menu-ico svg, .menu-ico.user::after, .profile-orbit, .profile-head, .account-mark, .account-facts svg, .account-icon svg { animation: none; }
 }
 .avatar-menu .menu-row:hover { background: var(--surface); }
 .avatar-menu .menu-row.out { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; padding-top: 10px; }

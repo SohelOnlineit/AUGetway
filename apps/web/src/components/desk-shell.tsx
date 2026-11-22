@@ -273,7 +273,11 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
                 <p className="profile-kicker">Account</p>
                 <Link className="menu-row" role="menuitem" href="/admin/account" onClick={() => setMenuOpen(false)}>
                   <span className="menu-ico user" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M6 19c.6-2.4 2.6-4 6-4s5.4 1.6 6 4" /></svg>
+                    <svg className="profile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round">
+                      <circle className="profile-orbit" cx="12" cy="12" r="9" />
+                      <circle className="profile-head" cx="12" cy="9.2" r="2.2" />
+                      <path className="profile-body" d="M7.5 17.2c.5-2 2.15-3.2 4.5-3.2s4 1.2 4.5 3.2" />
+                    </svg>
                   </span>
                   <span className="menu-copy">
                     <b>Profile Settings</b>
