@@ -9,13 +9,16 @@ export function tokenDevice(payload: { device?: string; exp?: number; iat?: numb
   return life > 30 * 24 * 60 * 60 ? "handset" : "desk";
 }
 
-/**
- * A browser always sends Sec-Fetch-Site, so it cannot take the phone sign-in.
- * The payment app does not send that header. Older builds also omit client:"handset", and those must still
- * sign in as the phone. Otherwise the app stays open on a website token, payment SMS never reach the desk,
- * and the payment shows as failed.
- */
-export function wantsHandset(secFetchSite: string | undefined, client: string | undefined): boolean {
+/** The payment app names itself this way. A browser is not allowed to change its User-Agent, so the website cannot pretend to be the phone. */
+export function isPaymentApp(userAgent: string | undefined): boolean {
+  return typeof userAgent === "string" && /^\s*AU-Getway\//i.test(userAgent);
+}
+
+export function wantsHandset(secFetchSite: string | undefined, client: string | undefined, userAgent?: string): boolean {
+  if (client === "desk") return false;
+  // The installed app can be told apart by its name. Some phone HTTP stacks also send Sec-Fetch-Site,
+  // and that must not force the website's security check onto the phone, or the phone can never sign in.
+  if (isPaymentApp(userAgent)) return true;
   if (typeof secFetchSite === "string") return false;
-  return client !== "desk";
+  return true;
 }

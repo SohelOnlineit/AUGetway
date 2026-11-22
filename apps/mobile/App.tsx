@@ -8,6 +8,7 @@ import { DEFAULT_SENDERS, keepMessage, senderLabel, shouldUpload, type InboxRule
 import { SERVICES, emptyBooks, formatTaka, mergeRemote, normalizeBook, parseTaka, setBalance, type Books, type Service } from "./ledger";
 
 const DESK = "https://pay.uniqbd.com/api";
+const APP = "AU-Getway/2.34";
 
 function pulsePayload(uid: string, label: string) {
   const battery = batteryLevel();
@@ -206,6 +207,8 @@ function App() {
   const nameRef = useRef(name);
   const tokenRef = useRef(token);
   const uidRef = useRef(uid);
+  // Bumps on a new sign-in or sign-out, so a slow reply from the previous token cannot throw the new one out.
+  const epoch = useRef(0);
   nameRef.current = name;
   tokenRef.current = token;
   uidRef.current = uid;
@@ -362,6 +365,7 @@ function App() {
   useEffect(() => {
     if (!token || !uid) return;
     let stop = false;
+    const seen = epoch.current;
     const run = async () => {
       if (balancing.current || AppState.currentState !== "active") return;
       balancing.current = true;
@@ -369,7 +373,7 @@ function App() {
         const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
         const listed = await fetch(`${DESK}/handset/balances?uid=${encodeURIComponent(uid)}`, { headers });
         if (listed.status === 401) {
-          if (!stop) void signOut();
+          if (!stop && epoch.current === seen) void signOut();
           return;
         }
         if (listed.ok) {
@@ -416,7 +420,7 @@ function App() {
         const nextUid = savedUid || deviceUid();
         setUid(nextUid);
         if (!savedUid) void writeStore("uniqpay_uid", nextUid);
-        if (savedToken) setToken(savedToken);
+        if (savedToken && epoch.current === 0) setToken(savedToken);
       },
     );
   }, []);
@@ -425,6 +429,7 @@ function App() {
     if (!token || !uid) return;
     let stop = false;
     let synced = false;
+    const seen = epoch.current;
     const beat = async () => {
       try {
         const response = await fetch(`${DESK}/handset/pulse`, {
@@ -434,7 +439,7 @@ function App() {
         });
         const data = (await response.json()) as { id?: string; message?: string | string[] };
         if (response.status === 401) {
-          if (!stop) void signOut();
+          if (!stop && epoch.current === seen) void signOut();
           return;
         }
         if (!response.ok || !data.id) {
@@ -496,22 +501,32 @@ function App() {
   }, [token, uid]);
 
   async function signIn() {
+    const seen = ++epoch.current;
     setBusy(true);
     setNote("");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       const response = await fetch(`${DESK}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "User-Agent": APP },
         body: JSON.stringify({ email: email.trim(), password, client: "handset", ...(code.trim() ? { code: code.trim() } : {}) }),
+        signal: controller.signal,
       });
-      const data = (await response.json()) as { accessToken?: string; message?: string | string[] };
+      const data = (await response.json().catch(() => ({}))) as { accessToken?: string; message?: string | string[]; user?: { role?: string } };
+      if (epoch.current !== seen) return;
+      const message = Array.isArray(data.message) ? data.message.join(", ") : data.message ?? "";
+      if (message.includes("TWO_FACTOR_REQUIRED")) {
+        setNeedCode(true);
+        setNote("Enter the 6-digit code from your authenticator app.");
+        return;
+      }
       if (!response.ok || !data.accessToken) {
-        if (data.message === "TWO_FACTOR_REQUIRED") {
-          setNeedCode(true);
-          setNote("Enter the 6-digit code from your authenticator app.");
-          return;
-        }
-        setNote(problem(data, "Sign in failed"));
+        setNote(message || "Sign in failed");
+        return;
+      }
+      if (data.user?.role === "admin") {
+        setNote("Only the main admin can sign in on the payment phone.");
         return;
       }
       setPassword("");
@@ -519,12 +534,14 @@ function App() {
       setNeedCode(false);
       await writeStore("uniqpay_token", data.accessToken);
       await writeStore("uniqpay_name", name.trim() || "AU-Getway phone");
+      if (epoch.current !== seen) return;
       setToken(data.accessToken);
       setNote(smsReady ? "This phone is online. Website SMS goes out from here, and payment SMS syncs to the desk." : "Sign-in worked. SMS needs the AU-Getway Android app.");
     } catch {
-      setNote("Could not reach the desk. Check the desk URL and your internet connection.");
+      if (epoch.current === seen) setNote("Could not reach pay.uniqbd.com. Check the phone's internet and try again.");
     } finally {
-      setBusy(false);
+      clearTimeout(timer);
+      if (epoch.current === seen) setBusy(false);
     }
   }
 
@@ -621,6 +638,7 @@ function App() {
   async function uploadPending(rows: InboxItem[]) {
     const pending = rows.filter((row) => row.status !== "synced" && shouldUpload(row, rulesRef.current.senders) && !seenSms.current.has(row.key));
     if (!pending.length || !token) return;
+    const seen = epoch.current;
     const saved = new Set<string>();
     for (let index = 0; index < pending.length; index += 20) {
       const chunk = pending.slice(index, index + 20);
@@ -635,7 +653,7 @@ function App() {
           }),
         });
         if (response.status === 401) {
-          void signOut();
+          if (epoch.current === seen) void signOut();
           return;
         }
         if (response.ok) {
@@ -652,7 +670,7 @@ function App() {
             return one.ok ? row.key : "";
           }));
           if (single.includes("unauthorized")) {
-            void signOut();
+            if (epoch.current === seen) void signOut();
             return;
           }
           done = single.filter((key) => key && key !== "unauthorized");
@@ -744,6 +762,7 @@ function App() {
   }, [token, smsReady, settingsReady]);
 
   async function signOut() {
+    epoch.current += 1;
     try {
       stopKeepAlive();
     } catch {
@@ -987,8 +1006,8 @@ function App() {
         <ScrollView ref={loginScroll} style={styles.fill} contentContainerStyle={[styles.scroll, { paddingBottom: 28 + insets.bottom }]} keyboardShouldPersistTaps="handled">
           <View style={styles.logo}><Text style={styles.logoText}>U</Text></View>
           <Text style={styles.pageTitle}>Sign in</Text>
-          {note ? <Text style={styles.note}>{note}</Text> : null}
-          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com.</Text>
+          {note ? <Text style={styles.warn}>{note}</Text> : null}
+          <Text style={styles.hint}>This phone signs in only at pay.uniqbd.com. Use the main admin email and password.</Text>
           <Text style={styles.label}>Phone name</Text>
           <Field scroll={loginScroll} style={styles.input} value={name} onChangeText={setName} maxLength={80} placeholderTextColor="#94a3b8" />
           <Text style={styles.label}>Email</Text>
@@ -1049,6 +1068,7 @@ const styles = StyleSheet.create({
   pillWait: { backgroundColor: "#b45309" },
   pillBad: { backgroundColor: "#e11d48" },
   note: { color: "#94a3b8", lineHeight: 20 },
+  warn: { color: "#fbbf24", lineHeight: 20, fontWeight: "700" },
   empty: { color: "#94a3b8", textAlign: "center", marginTop: 28 },
   pageTitle: { color: "#f8fafc", fontSize: 22, fontWeight: "800", marginTop: 12 },
   label: { color: "#94a3b8", fontSize: 13, fontWeight: "700", marginTop: 8 },

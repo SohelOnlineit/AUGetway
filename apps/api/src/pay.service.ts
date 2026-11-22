@@ -587,8 +587,11 @@ export class PayService implements OnModuleInit {
     clearLoginFailure(normalized, address);
     // Both the website and the phone keep a sign-in for 5 years. Only the main admin's phone may send payment
     // messages. A website sign-in, and a staff account, never get that phone mark.
-    const phone = client === "handset" && !user.deskId;
-    return this.session(user, phone ? "handset" : "desk");
+    // A staff account must not get a website token and then be thrown out by the phone. Say so at sign-in.
+    if (client === "handset" && user.deskId) {
+      throw new ForbiddenException("Only the main admin can sign in on the payment phone.");
+    }
+    return this.session(user, client === "handset" ? "handset" : "desk");
   }
 
   async me(userId: string) {

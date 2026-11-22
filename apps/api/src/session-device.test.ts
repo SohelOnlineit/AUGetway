@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tokenDevice, wantsHandset } from "./desk-device.ts";
+import { isPaymentApp, tokenDevice, wantsHandset } from "./desk-device.ts";
 
 const day = 24 * 60 * 60;
 
@@ -29,4 +29,13 @@ test("the payment app is the phone even when an older build does not say so", ()
   assert.equal(wantsHandset(undefined, "handset"), true);
   assert.equal(wantsHandset("same-origin", "handset"), false);
   assert.equal(wantsHandset(undefined, "desk"), false);
+});
+
+test("the payment app stays the phone when its HTTP stack sends Sec-Fetch-Site", () => {
+  assert.equal(isPaymentApp("AU-Getway/2.34"), true);
+  assert.equal(isPaymentApp("Mozilla/5.0"), false);
+  assert.equal(wantsHandset("cross-site", "handset", "AU-Getway/2.34"), true);
+  assert.equal(wantsHandset("cross-site", undefined, "AU-Getway/2.33"), true);
+  assert.equal(wantsHandset("same-origin", "desk", "AU-Getway/2.34"), false);
+  assert.equal(wantsHandset("same-origin", "handset", "Mozilla/5.0"), false);
 });

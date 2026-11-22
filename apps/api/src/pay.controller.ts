@@ -65,10 +65,10 @@ export class PayController {
   @Post("auth/login")
   @RateLimit("login", 30, 900)
   async login(@Body() body: LoginDto, @Req() request: Request) {
-    // The phone app cannot show the Cloudflare widget. A browser always sends Sec-Fetch-Site, so a website
-    // request cannot skip the check or take the phone sign-in. The app build that does not send client:"handset"
-    // is still the phone: it has no Sec-Fetch-Site header.
-    const handset = wantsHandset(request.header("sec-fetch-site"), body.client);
+    // The phone app cannot show the Cloudflare widget. A browser always sends Sec-Fetch-Site and cannot
+    // change its User-Agent, so a website request cannot skip the check or take the phone sign-in.
+    // The app names itself AU-Getway, including builds that also send Sec-Fetch-Site or omit client:"handset".
+    const handset = wantsHandset(request.header("sec-fetch-site"), body.client, request.header("user-agent"));
     if (!handset) await this.turnstile.assert(body.turnstileToken);
     return this.pay.login(body.email, body.password, handset ? "handset" : "desk", clientAddress(request), body.code);
   }
