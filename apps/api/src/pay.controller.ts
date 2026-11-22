@@ -39,7 +39,7 @@ import {
 } from "./dto";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
-import { isMainAdmin, requireMainAdmin } from "./main-admin";
+import { isMainAdmin, requireHandset, requireMainAdmin } from "./main-admin";
 import { clientAddress, RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
 
@@ -65,10 +65,10 @@ export class PayController {
   @RateLimit("login", 30, 900)
   async login(@Body() body: LoginDto, @Req() request: Request) {
     // The phone app cannot show the Cloudflare widget. A browser always sends Sec-Fetch-Site, so a website
-    // request cannot skip the check just by calling itself the phone app.
-    const fromBrowser = typeof request.header("sec-fetch-site") === "string";
-    if (body.client !== "handset" || fromBrowser) await this.turnstile.assert(body.turnstileToken);
-    return this.pay.login(body.email, body.password, body.client, clientAddress(request), body.code);
+    // request cannot skip the check, or take the phone's long sign-in, just by calling itself the phone app.
+    const handset = body.client === "handset" && typeof request.header("sec-fetch-site") !== "string";
+    if (!handset) await this.turnstile.assert(body.turnstileToken);
+    return this.pay.login(body.email, body.password, handset ? "handset" : "desk", clientAddress(request), body.code);
   }
 
   @Get("auth/me")
@@ -122,24 +122,28 @@ export class PayController {
   @Post("desk/methods")
   @UseGuards(DeskGuard)
   addMethod(@Req() request: DeskRequest, @Body() body: MethodDto) {
+    requireMainAdmin(request, "payment methods");
     return this.pay.createMethod(request.desk.sub, body);
   }
 
   @Patch("desk/methods/:id")
   @UseGuards(DeskGuard)
   editMethod(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: MethodDto) {
+    requireMainAdmin(request, "payment methods");
     return this.pay.updateMethod(request.desk.sub, id, body);
   }
 
   @Post("desk/methods/bulk-delete")
   @UseGuards(DeskGuard)
   removeMethods(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    requireMainAdmin(request, "payment methods");
     return this.pay.removeMethods(request.desk.sub, body.ids);
   }
 
   @Post("desk/methods/reorder")
   @UseGuards(DeskGuard)
   reorderMethods(@Req() request: DeskRequest, @Body() body: BulkIdsDto) {
+    requireMainAdmin(request, "payment methods");
     return this.pay.reorderMethods(request.desk.sub, body.ids);
   }
 
@@ -197,7 +201,7 @@ export class PayController {
   @Patch("desk/checkouts/:id")
   @UseGuards(DeskGuard)
   editCheckout(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: EditCheckoutDto) {
-    return this.pay.editCheckout(request.desk.sub, id, body);
+    return this.pay.editCheckout(request.desk.sub, id, body, isMainAdmin(request));
   }
 
   @Delete("desk/checkouts/:id")
@@ -308,12 +312,14 @@ export class PayController {
   @Patch("desk/handsets/:id")
   @UseGuards(DeskGuard)
   saveHandset(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: HandsetDto) {
+    requireMainAdmin(request, "payment phones");
     return this.pay.saveHandset(request.desk.sub, id, body);
   }
 
   @Delete("desk/handsets/:id")
   @UseGuards(DeskGuard)
   removeHandset(@Req() request: DeskRequest, @Param("id") id: string) {
+    requireMainAdmin(request, "payment phones");
     return this.pay.removeHandset(request.desk.sub, id);
   }
 
@@ -356,6 +362,7 @@ export class PayController {
   @Post("desk/sms")
   @UseGuards(DeskGuard)
   queueSms(@Req() request: DeskRequest, @Body() body: QueueSmsDto) {
+    requireMainAdmin(request, "sending SMS");
     return this.pay.queueSms(request.desk.sub, body);
   }
 
@@ -451,60 +458,70 @@ export class PayController {
   @Post("handset/pulse")
   @UseGuards(DeskGuard)
   pulse(@Req() request: DeskRequest, @Body() body: PulseDto) {
+    requireHandset(request);
     return this.pay.pulse(request.desk.sub, body);
   }
 
   @Post("handset/notice")
   @UseGuards(DeskGuard)
   notice(@Req() request: DeskRequest, @Body() body: NoticeDto) {
+    requireHandset(request);
     return this.pay.notice(request.desk.sub, body);
   }
 
   @Post("handset/notices")
   @UseGuards(DeskGuard)
   noticeBatch(@Req() request: DeskRequest, @Body() body: NoticeBatchDto) {
+    requireHandset(request);
     return this.pay.noticeBatch(request.desk.sub, body);
   }
 
   @Get("handset/jobs")
   @UseGuards(DeskGuard)
   jobs(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    requireHandset(request);
     return this.pay.pollJobs(request.desk.sub, query.uid);
   }
 
   @Post("handset/jobs/:id")
   @UseGuards(DeskGuard)
   jobResult(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: JobResultDto) {
+    requireHandset(request);
     return this.pay.finishJob(request.desk.sub, id, body);
   }
 
   @Get("handset/balances")
   @UseGuards(DeskGuard)
   handsetBalances(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    requireHandset(request);
     return this.pay.handsetBalances(request.desk.sub, query.uid);
   }
 
   @Post("handset/balances")
   @UseGuards(DeskGuard)
   saveHandsetBalance(@Req() request: DeskRequest, @Body() body: BalanceWriteDto) {
+    requireHandset(request);
     return this.pay.saveHandsetBalance(request.desk.sub, body);
   }
 
   @Post("handset/balance-check")
   @UseGuards(DeskGuard)
   setBalanceCheck(@Req() request: DeskRequest, @Body() body: BalanceCheckDto) {
+    requireHandset(request);
     return this.pay.setBalanceCheck(request.desk.sub, body.uid, body.on);
   }
 
   @Get("handset/balance-jobs")
   @UseGuards(DeskGuard)
   balanceJobs(@Req() request: DeskRequest, @Query() query: JobsQueryDto) {
+    requireHandset(request);
     return this.pay.balanceJobs(request.desk.sub, query.uid);
   }
 
   @Post("handset/balance-jobs/:id")
   @UseGuards(DeskGuard)
   decideBalance(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: BalanceDecisionDto) {
+    requireHandset(request);
     return this.pay.decideBalance(request.desk.sub, id, body);
   }
 

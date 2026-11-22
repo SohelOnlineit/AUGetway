@@ -265,7 +265,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       <button className="nav-shade" type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} />
       <aside className="rail">
         <nav className="rail-box">
-        {main.filter(([, href]) => user?.role === "owner" || !["/admin/settings", "/admin/domains", "/admin/backups"].includes(href)).map(([label, href, icon]) => (
+        {main.filter(([, href]) => user?.role === "owner" || !["/admin/gateways", "/admin/settings", "/admin/domains", "/admin/backups"].includes(href)).map(([label, href, icon]) => (
           <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-tone nav-tone--${icon} active` : `nav-tone nav-tone--${icon}`}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
@@ -278,7 +278,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           </span>
         </button>
         {openSms
-          ? smsGateway.map(([label, href, icon]) => (
+          ? smsGateway.filter(([, href]) => user?.role === "owner" || href !== "/admin/sms-gateway/send").map(([label, href, icon]) => (
               <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-sub nav-tone nav-tone--${icon} active` : `nav-sub nav-tone nav-tone--${icon}`}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>

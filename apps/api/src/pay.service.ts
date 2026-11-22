@@ -585,9 +585,10 @@ export class PayService implements OnModuleInit {
       throw new UnauthorizedException("That code is wrong or was already used. Wait for the next code and try again.");
     }
     clearLoginFailure(normalized, address);
-    // The phone app cannot ask for a new sign-in while it runs in the background, so it keeps a long token.
-    // The website signs in again after 7 days.
-    return this.session(user, client === "handset" ? "5y" : "7d");
+    // The phone app cannot ask for a new sign-in while it runs in the background, so the main admin's phone
+    // keeps a long token. A staff account never gets that token: it must not be able to send payment messages.
+    const phone = client === "handset" && !user.deskId;
+    return this.session(user, phone ? "5y" : "7d");
   }
 
   async me(userId: string) {
@@ -1135,6 +1136,7 @@ export class PayService implements OnModuleInit {
     ownerId: string,
     publicId: string,
     input: { reference: string; amount?: number; payerAccount?: string; providerRef?: string },
+    allowAmount = false,
   ) {
     const row = await this.prisma.checkout.findFirst({ where: { ownerId, publicId }, include: { method: true } });
     if (!row) throw new NotFoundException("Checkout not found");
@@ -1153,13 +1155,16 @@ export class PayService implements OnModuleInit {
       if (used) throw new BadRequestException("This Transaction ID is already used on another order.");
     }
     const openSlot = row.status === "open" && Number(row.amount) === Number(row.payable);
+    const changingAmount = openSlot && input.amount != null && Math.abs(input.amount - Number(row.amount)) > 0.001;
+    // A staff account that can lower the amount could match a customer's order to a small payment of their own.
+    if (changingAmount && !allowAmount) throw new ForbiddenException("Only the main admin can change the amount");
     const updated = await this.prisma.checkout.update({
       where: { id: row.id },
       data: {
         reference,
         payerAccount: payer || null,
         providerRef: ref || null,
-        ...(openSlot && input.amount != null ? { amount: input.amount, payable: input.amount } : {}),
+        ...(changingAmount ? { amount: input.amount, payable: input.amount } : {}),
       },
       include: { method: true },
     });
@@ -2779,6 +2784,8 @@ export class PayService implements OnModuleInit {
       email: user.email,
       actor: user.id,
       stamp: sessionStamp(user.passwordHash),
+      // The website token must not be able to call the phone routes. See tokenDevice.
+      device: expiresIn === "5y" ? "handset" : "desk",
     }, { expiresIn });
     return {
       accessToken,

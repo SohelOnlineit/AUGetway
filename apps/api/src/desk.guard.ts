@@ -2,9 +2,10 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
 import { PrismaService } from "./prisma.service";
+import { tokenDevice } from "./desk-device";
 import { sessionStamp } from "./session";
 
-export type DeskSession = { sub: string; email: string; actor?: string; stamp?: string };
+export type DeskSession = { sub: string; email: string; actor?: string; stamp?: string; device: "desk" | "handset" };
 
 @Injectable()
 export class DeskGuard implements CanActivate {
@@ -19,7 +20,7 @@ export class DeskGuard implements CanActivate {
     const token = header.startsWith("Bearer ") ? header.slice(7) : "";
     if (!token) throw new UnauthorizedException("Sign in required");
     try {
-      const payload = await this.jwt.verifyAsync<DeskSession>(token);
+      const payload = await this.jwt.verifyAsync<DeskSession & { exp?: number; iat?: number }>(token);
       const actor = payload.actor || payload.sub;
       if (!actor || !payload.stamp) throw new UnauthorizedException("Sign in required");
       const user = await this.prisma.deskUser.findUnique({
@@ -30,7 +31,7 @@ export class DeskGuard implements CanActivate {
       if (!user || payload.stamp !== sessionStamp(user.passwordHash) || payload.sub !== deskId) {
         throw new UnauthorizedException("Sign in required");
       }
-      request.desk = { sub: deskId, email: payload.email, actor: user.id };
+      request.desk = { sub: deskId, email: payload.email, actor: user.id, device: tokenDevice(payload) };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;

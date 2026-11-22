@@ -13,3 +13,14 @@ export function requireMainAdmin(request: Request & { desk: DeskSession }, what 
     throw new ForbiddenException(`Only the main admin can use ${what}`);
   }
 }
+
+/**
+ * Payment messages are accepted only from the main admin's phone.
+ * A website sign-in, and a staff account, cannot register a device or mark an order paid by sending a text.
+ */
+export function requireHandset(request: Request & { desk: DeskSession }) {
+  if (request.desk.device !== "handset") {
+    throw new ForbiddenException("Only the payment phone can send payment messages");
+  }
+  requireMainAdmin(request, "the payment phone");
+}
