@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { pictureDataUrl } from "@/lib/picture";
-import { publicOriginForHost, publicPathUrl } from "@/lib/addresses";
+import { publicOriginForHost } from "@/lib/addresses";
 
 type Domain = {
   id: string;
@@ -57,6 +57,7 @@ export default function DomainsPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setRows(await api<Domain[]>("/desk/domains"));
@@ -136,8 +137,15 @@ export default function DomainsPage() {
     }
   }
 
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) => `${row.host} ${row.brandName} ${row.supportEmail}`.toLowerCase().includes(needle));
+  }, [rows, query]);
+  const liveCount = rows.filter((row) => row.active).length;
+
   return (
-    <div className="sec-page">
+    <div className="wd-page">
       <header className="sec-hero">
         <span className="sec-hero-ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -149,155 +157,187 @@ export default function DomainsPage() {
           <p className="keys-crumb">Desk <span>›</span> Website Domains</p>
           <h2>Website Domains</h2>
           <p className="muted sec-note">
-            pay.uniqbd.com and pay.amarpin.com each keep their own logo and browser-tab icon. Upload them on the card
-            for that address. A customer on that address sees that logo, and the tab shows that icon. An empty picture
-            uses the desk-wide one from Brand &amp; System Settings. Only the main admin can change this page.
+            Each address keeps its own name, logo and tab icon. Customers see the brand of the site they opened.
           </p>
         </div>
+        <button className="btn wd-add" type="button" onClick={() => { setFormError(""); setDraft({ ...blank }); }}>Add address</button>
       </header>
 
-      <section className="card">
-        <div className="item">
-          <div>
-            <strong>Add a website address</strong>
-            <p className="muted">Type it like pay.amarpin.com. Its DNS and nginx must point at this server.</p>
-          </div>
-          <button className="btn" type="button" onClick={() => { setFormError(""); setDraft({ ...blank }); }}>Add address</button>
-        </div>
-        {error ? <p className="error">{error}</p> : null}
-        {notice ? <p className="muted">{notice}</p> : null}
+      <section className="wd-stats" aria-label="Domain summary">
+        <div className="wd-stat"><strong>{ready ? rows.length : "—"}</strong><span>Addresses</span></div>
+        <div className="wd-stat"><strong>{ready ? liveCount : "—"}</strong><span>Live</span></div>
+        <div className="wd-stat"><strong>{ready ? rows.filter((row) => row.brandLogo).length : "—"}</strong><span>Custom logos</span></div>
+        <div className="wd-stat"><strong>{ready ? rows.filter((row) => row.brandFavicon).length : "—"}</strong><span>Custom icons</span></div>
       </section>
 
-      <section className="domain-grid">
-        {ready && rows.length > 0
-          ? rows.map((row) => {
+      {error ? <p className="error">{error}</p> : null}
+      {notice ? <p className="wd-note">{notice}</p> : null}
+
+      <div className="wd-bar">
+        <label className="wd-search">
+          <span className="wd-sr">Search addresses</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search address or name" />
+        </label>
+        <p className="muted">{ready ? `${shown.length} shown` : "Loading…"}</p>
+      </div>
+
+      <section className="wd-grid">
+        {ready && shown.length > 0
+          ? shown.map((row) => {
               const origin = publicOriginForHost(row.host);
               const accent = row.themeAccent || "var(--brand)";
+              const name = row.brandName || "Desk-wide name";
               return (
-                <article key={row.id} className={`domain-card ${row.active ? "" : "off"}`}>
-                  <div className="domain-preview" style={{ ["--domain-accent" as string]: accent }}>
-                    {row.brandLogo ? (
-                      <img src={row.brandLogo} alt="" className="domain-preview-logo" />
-                    ) : (
-                      <span className="domain-preview-fallback">{(row.brandName || row.host).slice(0, 1).toUpperCase()}</span>
-                    )}
-                    <div>
-                      <strong>{row.brandName || <span className="muted">desk-wide name</span>}</strong>
-                      <p className="muted">{row.host}</p>
+                <article key={row.id} className={`wd-card ${row.active ? "" : "off"}`}>
+                  <div className="wd-browser" style={{ ["--domain-accent" as string]: accent }}>
+                    <div className="wd-chrome">
+                      <i /><i /><i />
+                      <span className="wd-tab">
+                        {row.brandFavicon ? <img src={row.brandFavicon} alt="" /> : <b>{(row.brandName || row.host).slice(0, 1).toUpperCase()}</b>}
+                        {row.host}
+                      </span>
+                    </div>
+                    <div className="wd-stage">
+                      {row.brandLogo ? <img src={row.brandLogo} alt="" className="wd-logo" /> : <span className="wd-mark">{(row.brandName || row.host).slice(0, 1).toUpperCase()}</span>}
+                      <div>
+                        <strong>{name}</strong>
+                        <p>{origin.replace(/^https?:\/\//, "")}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="domain-meta">
-                    <p>
-                      <span className="muted">Status</span> {row.active ? "On" : "Off"}
-                    </p>
-                    <p>
-                      <span className="muted">Customer link</span>{" "}
-                      <a href={publicPathUrl("/l/example", row.host)} target="_blank" rel="noreferrer">{origin}/l/…</a>
-                    </p>
-                    <p>
-                      <span className="muted">Logo</span> {row.brandLogo ? "Custom for this address" : "Uses desk-wide logo"}
-                    </p>
-                    <p>
-                      <span className="muted">Favicon</span> {row.brandFavicon ? "Custom tab icon" : "Uses desk-wide icon"}
-                    </p>
+                  <div className="wd-card-top">
+                    <div>
+                      <strong>{name}</strong>
+                      <code>{row.host}</code>
+                    </div>
+                    <span className={row.active ? "wd-pill on" : "wd-pill"}>{row.active ? "Live" : "Off"}</span>
                   </div>
-                  <div className="domain-uploads">
-                    <label className="domain-upload">
-                      {row.brandLogo ? <img src={row.brandLogo} alt="" /> : <span>Logo</span>}
+                  <div className="wd-assets">
+                    <label className="wd-asset">
+                      <span>Logo</span>
+                      {row.brandLogo ? <img src={row.brandLogo} alt="" /> : <em>Desk logo</em>}
                       <input type="file" accept="image/*" disabled={busy} onChange={(event) => { void savePicture(row, "brandLogo", event.target.files?.[0]); event.target.value = ""; }} />
-                      <em>Upload logo</em>
+                      <small>{row.brandLogo ? "Replace" : "Upload"}</small>
                     </label>
-                    <label className="domain-upload">
-                      {row.brandFavicon ? <img src={row.brandFavicon} alt="" /> : <span>Icon</span>}
+                    <label className="wd-asset">
+                      <span>Favicon</span>
+                      {row.brandFavicon ? <img src={row.brandFavicon} alt="" /> : <em>Desk icon</em>}
                       <input type="file" accept="image/*,.ico" disabled={busy} onChange={(event) => { void savePicture(row, "brandFavicon", event.target.files?.[0]); event.target.value = ""; }} />
-                      <em>Upload favicon</em>
+                      <small>{row.brandFavicon ? "Replace" : "Upload"}</small>
                     </label>
                   </div>
-                  <div className="row domain-actions">
-                    <a className="btn-line" href={origin} target="_blank" rel="noreferrer">Open site</a>
-                    <button className="btn" type="button" disabled={busy} onClick={() => { setFormError(""); setDraft(toDraft(row)); }}>
-                      Change logo / name
-                    </button>
-                    <button className="btn-line" type="button" disabled={busy} onClick={() => void remove(row)}>Remove</button>
-                  </div>
+                  <footer className="wd-actions">
+                    <a href={origin} target="_blank" rel="noreferrer">Open</a>
+                    <button type="button" disabled={busy} onClick={() => { setFormError(""); setDraft(toDraft(row)); }}>Edit</button>
+                    <button type="button" className="danger" disabled={busy} onClick={() => void remove(row)}>Remove</button>
+                  </footer>
                 </article>
               );
             })
           : null}
         {ready && rows.length === 0 && !error ? (
-          <div className="keys-empty">
-            <div>
-              <strong>No website address added yet</strong>
-              <p className="muted">Add pay.uniqbd.com and pay.amarpin.com, or set SITE_DOMAINS in the server .env and restart the API.</p>
-            </div>
+          <div className="wd-empty">
+            <strong>No website address yet</strong>
+            <p className="muted">Add pay.uniqbd.com and pay.amarpin.com, or set SITE_DOMAINS in the server .env and restart the API.</p>
+          </div>
+        ) : null}
+        {ready && rows.length > 0 && shown.length === 0 ? (
+          <div className="wd-empty">
+            <strong>No matches</strong>
+            <p className="muted">Nothing matches “{query.trim()}”.</p>
           </div>
         ) : null}
       </section>
 
       {draft ? (
         <div className="modal-back" onClick={() => !busy && setDraft(null)}>
-          <form className="modal set-modal domain-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
-            <h2>{draft.id ? `Edit ${draft.host || "address"}` : "Add a website address"}</h2>
-            <p className="muted">Visitors who open this address see the name and logo you set here.</p>
-
-            <div className="domain-live" style={{ ["--domain-accent" as string]: draft.themeAccent || "var(--brand)" }}>
-              {draft.brandLogo ? (
-                <img src={draft.brandLogo} alt="" className="domain-preview-logo" />
-              ) : (
-                <span className="domain-preview-fallback">{(draft.brandName || draft.host || "?").slice(0, 1).toUpperCase()}</span>
-              )}
+          <form className="modal wd-modal" onClick={(event) => event.stopPropagation()} onSubmit={save}>
+            <header className="wd-modal-head">
               <div>
-                <strong>{draft.brandName || "Desk-wide name"}</strong>
-                <p className="muted">{draft.host || "pay.amarpin.com"}</p>
+                <p className="keys-crumb">Website Domains</p>
+                <h2>{draft.id ? `Edit ${draft.host || "address"}` : "Add a website address"}</h2>
+              </div>
+              <button className="wd-x" type="button" disabled={busy} onClick={() => setDraft(null)} aria-label="Close">×</button>
+            </header>
+            <div className="wd-modal-body">
+              <aside className="wd-live" style={{ ["--domain-accent" as string]: draft.themeAccent || "var(--brand)" }}>
+                <div className="wd-chrome">
+                  <i /><i /><i />
+                  <span className="wd-tab">
+                    {draft.brandFavicon ? <img src={draft.brandFavicon} alt="" /> : <b>{(draft.brandName || draft.host || "A").slice(0, 1).toUpperCase()}</b>}
+                    {draft.host || "pay.example.com"}
+                  </span>
+                </div>
+                <div className="wd-stage">
+                  {draft.brandLogo ? <img src={draft.brandLogo} alt="" className="wd-logo" /> : <span className="wd-mark">{(draft.brandName || draft.host || "?").slice(0, 1).toUpperCase()}</span>}
+                  <div>
+                    <strong>{draft.brandName || "Desk-wide name"}</strong>
+                    <p>{draft.host || "pay.amarpin.com"}</p>
+                  </div>
+                </div>
+                <p className="muted">This is what a visitor sees on this address.</p>
+              </aside>
+              <div className="wd-fields">
+                <label className="field">
+                  <span>Website address</span>
+                  <input value={draft.host} onChange={(event) => patch({ host: event.target.value })} placeholder="pay.amarpin.com" required maxLength={253} autoCapitalize="none" autoComplete="off" />
+                </label>
+                <label className="field">
+                  <span>Name shown to visitors</span>
+                  <input value={draft.brandName} onChange={(event) => patch({ brandName: event.target.value })} maxLength={60} placeholder="Leave empty for the desk-wide name" />
+                </label>
+                <div className="wd-assets">
+                  <label className="wd-asset">
+                    <span>Logo</span>
+                    {draft.brandLogo ? <img src={draft.brandLogo} alt="" /> : <em>None</em>}
+                    <input type="file" accept="image/*" onChange={(event) => void pick(event.target.files?.[0], "brandLogo")} />
+                    <small>{draft.brandLogo ? "Replace" : "Upload"}</small>
+                  </label>
+                  <label className="wd-asset">
+                    <span>Favicon</span>
+                    {draft.brandFavicon ? <img src={draft.brandFavicon} alt="" /> : <em>None</em>}
+                    <input type="file" accept="image/*,.ico" onChange={(event) => void pick(event.target.files?.[0], "brandFavicon")} />
+                    <small>{draft.brandFavicon ? "Replace" : "Upload"}</small>
+                  </label>
+                </div>
+                {(draft.brandLogo || draft.brandFavicon) ? (
+                  <div className="row">
+                    {draft.brandLogo ? <button type="button" className="btn-line" onClick={() => patch({ brandLogo: "" })}>Clear logo</button> : null}
+                    {draft.brandFavicon ? <button type="button" className="btn-line" onClick={() => patch({ brandFavicon: "" })}>Clear icon</button> : null}
+                  </div>
+                ) : null}
+                <label className="field">
+                  <span>Main colour</span>
+                  <span className="wd-color">
+                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(draft.themeAccent) ? draft.themeAccent : "#26bfb0"} onChange={(event) => patch({ themeAccent: event.target.value })} aria-label="Pick a colour" />
+                    <input value={draft.themeAccent} onChange={(event) => patch({ themeAccent: event.target.value })} maxLength={7} placeholder="#26bfb0" />
+                  </span>
+                </label>
+                <div className="wd-split">
+                  <label className="field">
+                    <span>Support email</span>
+                    <input type="email" value={draft.supportEmail} onChange={(event) => patch({ supportEmail: event.target.value })} maxLength={120} />
+                  </label>
+                  <label className="field">
+                    <span>Support phone</span>
+                    <input value={draft.supportPhone} onChange={(event) => patch({ supportPhone: event.target.value })} maxLength={40} />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>Note on the checkout page</span>
+                  <textarea rows={3} value={draft.checkoutNote} onChange={(event) => patch({ checkoutNote: event.target.value })} maxLength={400} />
+                </label>
+                <label className="set-check">
+                  <input type="checkbox" checked={draft.active} onChange={(event) => patch({ active: event.target.checked })} />
+                  <span>Live. Turn off to show the desk-wide look instead.</span>
+                </label>
+                {formError ? <p className="error">{formError}</p> : null}
               </div>
             </div>
-
-            <label className="field">
-              <span>Website address</span>
-              <input value={draft.host} onChange={(event) => patch({ host: event.target.value })} placeholder="pay.amarpin.com" required maxLength={253} autoCapitalize="none" autoComplete="off" />
-              <p className="muted">Without https:// and without a path.</p>
-            </label>
-            <label className="field">
-              <span>Name shown to visitors</span>
-              <input value={draft.brandName} onChange={(event) => patch({ brandName: event.target.value })} maxLength={60} placeholder="Leave empty to use the desk-wide name" />
-            </label>
-            <label className="field">
-              <span>Logo (checkout, bills, home)</span>
-              {draft.brandLogo ? <img src={draft.brandLogo} alt="" className="set-preview" /> : <p className="muted">No custom logo yet — desk-wide logo will show.</p>}
-              <input type="file" accept="image/*" onChange={(event) => void pick(event.target.files?.[0], "brandLogo")} />
-              {draft.brandLogo ? <button type="button" className="btn-line" onClick={() => patch({ brandLogo: "" })}>Clear — use desk-wide logo</button> : null}
-            </label>
-            <label className="field">
-              <span>Browser tab icon</span>
-              {draft.brandFavicon ? <img src={draft.brandFavicon} alt="" className="set-preview" style={{ maxHeight: 32 }} /> : <p className="muted">No custom icon yet.</p>}
-              <input type="file" accept="image/*" onChange={(event) => void pick(event.target.files?.[0], "brandFavicon")} />
-              {draft.brandFavicon ? <button type="button" className="btn-line" onClick={() => patch({ brandFavicon: "" })}>Clear — use desk-wide icon</button> : null}
-            </label>
-            <label className="field">
-              <span>Main colour</span>
-              <input value={draft.themeAccent} onChange={(event) => patch({ themeAccent: event.target.value })} maxLength={7} placeholder="#e11d48" />
-            </label>
-            <label className="field">
-              <span>Support email</span>
-              <input type="email" value={draft.supportEmail} onChange={(event) => patch({ supportEmail: event.target.value })} maxLength={120} />
-            </label>
-            <label className="field">
-              <span>Support phone</span>
-              <input value={draft.supportPhone} onChange={(event) => patch({ supportPhone: event.target.value })} maxLength={40} />
-            </label>
-            <label className="field">
-              <span>Note on the checkout page</span>
-              <textarea rows={3} value={draft.checkoutNote} onChange={(event) => patch({ checkoutNote: event.target.value })} maxLength={400} />
-            </label>
-            <label className="set-check">
-              <input type="checkbox" checked={draft.active} onChange={(event) => patch({ active: event.target.checked })} />
-              <span>On (an address that is off shows the desk-wide look)</span>
-            </label>
-            {formError ? <p className="error">{formError}</p> : null}
-            <div className="row">
-              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save logo & name"}</button>
+            <footer className="wd-modal-foot">
               <button className="btn btn-quiet" type="button" disabled={busy} onClick={() => setDraft(null)}>Cancel</button>
-            </div>
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+            </footer>
           </form>
         </div>
       ) : null}
