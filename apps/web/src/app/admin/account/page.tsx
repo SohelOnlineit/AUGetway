@@ -56,8 +56,8 @@ export default function AccountPage() {
       setNote("");
       return;
     }
-    if (newPassword && newPassword.length < 8) {
-      setError("New password must be at least 8 characters");
+    if (newPassword && newPassword.length < 10) {
+      setError("New password must be at least 10 characters");
       setNote("");
       return;
     }
@@ -174,7 +174,7 @@ export default function AccountPage() {
               <label className="account-field">
                 <span className="account-label">New password</span>
                 <span className="account-secret">
-                  <input type={showNew ? "text" : "password"} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} maxLength={80} autoComplete="new-password" placeholder="At least 8 characters" />
+                  <input type={showNew ? "text" : "password"} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={10} maxLength={80} autoComplete="new-password" placeholder="At least 10 characters" />
                   <button type="button" onClick={() => setShowNew((open) => !open)}>{showNew ? "Hide" : "Show"}</button>
                 </span>
               </label>

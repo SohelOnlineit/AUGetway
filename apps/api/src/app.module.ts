@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
 import { BackupController } from "./backup.controller";
 import { BackupService } from "./backup.service";
@@ -8,6 +9,7 @@ import { PrismaService } from "./prisma.service";
 import { PayController } from "./pay.controller";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
+import { RateLimitGuard } from "./rate-limit";
 import { TurnstileController } from "./turnstile.controller";
 import { TurnstileService } from "./turnstile.service";
 
@@ -32,10 +34,21 @@ function jwtSecret() {
     JwtModule.register({
       global: true,
       secret: jwtSecret(),
-      signOptions: { expiresIn: "5y" },
+      // The desk website signs in for 7 days. Only the phone app asks for a longer token (see PayService.login).
+      signOptions: { expiresIn: "7d", algorithm: "HS256" },
+      verifyOptions: { algorithms: ["HS256"] },
     }),
   ],
   controllers: [PayController, BackupController, TurnstileController],
-  providers: [PrismaService, PayService, PaymentSecurityService, BackupService, TurnstileService, DeskGuard],
+  providers: [
+    PrismaService,
+    PayService,
+    PaymentSecurityService,
+    BackupService,
+    TurnstileService,
+    DeskGuard,
+    // Runs before every route guard, so a flood is turned away before it reaches the database.
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+  ],
 })
 export class AppModule {}

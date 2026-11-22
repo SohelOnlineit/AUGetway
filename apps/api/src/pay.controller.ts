@@ -39,9 +39,13 @@ import {
 } from "./dto";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
+import { clientAddress, RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
 
 type DeskRequest = Request & { desk: DeskSession };
+
+// Limits are per visitor address. Many phone customers can share one address, so the public ones are generous.
+// The checkout page asks for its status every 2 seconds, which is why the read limit is high.
 
 @Controller()
 export class PayController {
@@ -57,11 +61,12 @@ export class PayController {
   }
 
   @Post("auth/login")
-  async login(@Body() body: LoginDto) {
+  @RateLimit("login", 30, 900)
+  async login(@Body() body: LoginDto, @Req() request: Request) {
     // The phone app cannot show the Cloudflare widget, so only its own client name skips the check.
-    // Wrong-password attempts are still limited per email for everyone.
+    // Wrong-password attempts are still limited per address, per email and per pair for everyone.
     if (body.client !== "handset") await this.turnstile.assert(body.turnstileToken);
-    return this.pay.login(body.email, body.password, body.client);
+    return this.pay.login(body.email, body.password, body.client, clientAddress(request));
   }
 
   @Get("auth/me")
@@ -73,7 +78,7 @@ export class PayController {
   @Patch("auth/account")
   @UseGuards(DeskGuard)
   account(@Req() request: DeskRequest, @Body() body: AccountDto) {
-    return this.pay.updateAccount(request.desk.actor || request.desk.sub, body);
+    return this.pay.updateAccount(request.desk.actor || request.desk.sub, body, clientAddress(request));
   }
 
   @Get("desk/admins")
@@ -359,43 +364,52 @@ export class PayController {
   }
 
   @Get("public/site")
+  @RateLimit("public-read", 1200, 60)
   site() {
     return this.pay.publicSite();
   }
 
   @Get("public/pay/:id")
+  @RateLimit("public-read", 1200, 60)
   payView(@Param("id") id: string) {
     return this.pay.publicPay(id);
   }
 
   @Post("public/pay/:id/method")
+  @RateLimit("public-write", 120, 60)
   payMethod(@Param("id") id: string, @Body() body: ChooseMethodDto) {
     return this.pay.chooseMethod(id, body.methodId);
   }
 
   @Post("public/pay/:id/proof")
+  @RateLimit("public-write", 120, 60)
   async payProof(@Param("id") id: string, @Body() body: ProofDto) {
     await this.turnstile.assert(body.turnstileToken);
     return this.pay.submitProof(id, body);
   }
 
   @Get("public/bills/:number")
+  @RateLimit("public-read", 1200, 60)
   bill(@Param("number") number: string) {
     return this.pay.publicBill(number);
   }
 
+  // Starting a bill or a link opens a new checkout row, so these are the tightest public limits.
   @Post("public/bills/:number/start")
+  @RateLimit("public-start", 20, 60)
   async startBill(@Param("number") number: string, @Body() body: StartBillDto) {
     await this.turnstile.assert(body?.turnstileToken);
     return this.pay.startBill(number);
   }
 
   @Get("public/links/:slug")
+  @RateLimit("public-read", 1200, 60)
   link(@Param("slug") slug: string) {
     return this.pay.publicLink(slug);
   }
 
   @Post("public/links/:slug/start")
+  @RateLimit("public-start", 20, 60)
   async startLink(@Param("slug") slug: string, @Body() body: StartLinkDto) {
     await this.turnstile.assert(body.turnstileToken);
     return this.pay.startLink(slug, body);
@@ -462,6 +476,7 @@ export class PayController {
   }
 
   @Get("sms/status")
+  @RateLimit("merchant-api", 600, 60)
   smsStatus(
     @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
     @Headers("x-merchant-key") merchantKey: string | undefined,
@@ -470,6 +485,7 @@ export class PayController {
   }
 
   @Post("sms/send")
+  @RateLimit("merchant-api", 600, 60)
   sendPublicSms(
     @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
     @Headers("x-merchant-key") merchantKey: string | undefined,
@@ -479,6 +495,7 @@ export class PayController {
   }
 
   @Post("checkout-v2")
+  @RateLimit("merchant-api", 600, 60)
   uddoktaCheckout(
     @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
     @Headers("x-merchant-key") merchantKey: string | undefined,
@@ -488,6 +505,7 @@ export class PayController {
   }
 
   @Post("verify-payment")
+  @RateLimit("merchant-api", 600, 60)
   uddoktaVerify(
     @Headers("rt-uddoktapay-api-key") gatewayKey: string | undefined,
     @Headers("x-merchant-key") merchantKey: string | undefined,
@@ -497,11 +515,13 @@ export class PayController {
   }
 
   @Post("v1/checkouts")
+  @RateLimit("merchant-api", 600, 60)
   merchantCreate(@Headers("x-merchant-key") token: string, @Body() body: CheckoutDto) {
     return this.pay.merchantCreate(token ?? "", body);
   }
 
   @Get("v1/checkouts/:id")
+  @RateLimit("merchant-api", 600, 60)
   merchantGet(@Headers("x-merchant-key") token: string, @Param("id") id: string) {
     return this.pay.merchantGet(token ?? "", id);
   }

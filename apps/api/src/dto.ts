@@ -22,8 +22,10 @@ export class LoginDto {
   @IsEmail()
   email!: string;
 
+  // Old passwords can be 8 characters, so sign-in keeps accepting those. Only a new password needs 10.
   @IsString()
   @MinLength(8)
+  @MaxLength(200)
   password!: string;
 
   @IsOptional()
@@ -80,7 +82,7 @@ export class AdminDto {
   email!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(80)
   password!: string;
 }
@@ -104,7 +106,7 @@ export class AccountDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   @MaxLength(80)
   newPassword?: string;
 }
@@ -250,7 +252,9 @@ export class MethodDto {
 
 export class BulkIdsDto {
   @IsArray()
+  @ArrayMaxSize(500)
   @IsString({ each: true })
+  @MaxLength(80, { each: true })
   ids!: string[];
 }
 
@@ -315,6 +319,7 @@ export class CheckoutDto {
 
 export class ChooseMethodDto {
   @IsString()
+  @MaxLength(80)
   methodId!: string;
 }
 

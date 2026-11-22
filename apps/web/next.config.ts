@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // Browsers only honour this over https, so it does nothing on the local http dev server.
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          // The safe part of a content policy: no framing by other sites, no <base> or <object> tricks,
+          // and forms can only post back to this site. Scripts and styles are left open because Next.js
+          // needs inline scripts and the Cloudflare check loads from challenges.cloudflare.com.
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'" },
         ],
       },
     ];

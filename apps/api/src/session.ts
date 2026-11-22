@@ -1,10 +1,9 @@
 import { HttpException } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
+import { LoginThrottle } from "./limits";
 
-const windowMs = 15 * 60 * 1000;
-const attemptLimit = 8;
-const failures = new Map<string, { count: number; reset: number }>();
+const throttle = new LoginThrottle();
 
 export const paddingHash = bcrypt.hashSync("uniqpay-login-padding", 12);
 
@@ -12,30 +11,17 @@ export function sessionStamp(passwordHash: string) {
   return createHash("sha256").update(passwordHash).digest("hex").slice(0, 16);
 }
 
-export function assertLoginOpen(email: string) {
-  const row = failures.get(email);
-  if (row && row.reset > Date.now() && row.count >= attemptLimit) {
+/** Throws 429 while this person, address or account has failed too often. `address` may be empty. */
+export function assertLoginOpen(subject: string, address = "") {
+  if (throttle.blocked(subject, address)) {
     throw new HttpException("Too many sign-in attempts. Wait a few minutes and try again.", 429);
   }
 }
 
-export function noteLoginFailure(email: string) {
-  const now = Date.now();
-  if (failures.size > 5000) {
-    // Guesses against many different emails must not grow this map without limit.
-    for (const [key, value] of failures) {
-      if (value.reset <= now) failures.delete(key);
-    }
-    if (failures.size > 5000) failures.clear();
-  }
-  const row = failures.get(email);
-  if (!row || row.reset <= now) {
-    failures.set(email, { count: 1, reset: now + windowMs });
-    return;
-  }
-  row.count += 1;
+export function noteLoginFailure(subject: string, address = "") {
+  throttle.fail(subject, address);
 }
 
-export function clearLoginFailure(email: string) {
-  failures.delete(email);
+export function clearLoginFailure(subject: string, address = "") {
+  throttle.clear(subject, address);
 }

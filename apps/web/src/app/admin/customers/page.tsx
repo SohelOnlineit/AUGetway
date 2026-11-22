@@ -304,7 +304,7 @@ export default function CustomersPage() {
               </label>
               <label>
                 <span>Password</span>
-                <input name="password" type="password" required minLength={8} maxLength={80} autoComplete="new-password" />
+                <input name="password" type="password" required minLength={10} maxLength={80} autoComplete="new-password" />
               </label>
               {error ? <p className="error">{error}</p> : null}
             </div>

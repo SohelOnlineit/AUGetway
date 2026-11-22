@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { DeskGuard, type DeskSession } from "./desk.guard";
 import { UpdateTurnstileDto } from "./dto";
 import { requireMainAdmin } from "./main-admin";
+import { RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
 
 type DeskRequest = Request & { desk: DeskSession };
@@ -13,6 +14,7 @@ export class TurnstileController {
 
   /** The site key is public. It is empty while the check is off. The secret never leaves the API. */
   @Get("security/turnstile")
+  @RateLimit("public-read", 1200, 60)
   async site() {
     return { siteKey: await this.turnstile.siteKey() };
   }

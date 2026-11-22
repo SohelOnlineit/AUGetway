@@ -15,6 +15,16 @@ ExecStart=/usr/bin/node dist/main.js
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
+# The API only needs to read the system, write inside /var/www/pay.uniqbd.com (backups), and use the network.
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target

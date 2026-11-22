@@ -490,17 +490,19 @@ export class PayService implements OnModuleInit {
     }
   }
 
-  async login(email: string, password: string, _client?: string) {
+  async login(email: string, password: string, client?: string, address = "") {
     const normalized = email.trim().toLowerCase();
-    assertLoginOpen(normalized);
+    assertLoginOpen(normalized, address);
     const user = await this.prisma.deskUser.findUnique({ where: { email: normalized } });
     const matches = await bcrypt.compare(password, user?.passwordHash ?? paddingHash);
     if (!user || !matches) {
-      noteLoginFailure(normalized);
+      noteLoginFailure(normalized, address);
       throw new UnauthorizedException("Email or password is wrong");
     }
-    clearLoginFailure(normalized);
-    return this.session(user, "5y");
+    clearLoginFailure(normalized, address);
+    // The phone app cannot ask for a new sign-in while it runs in the background, so it keeps a long token.
+    // The website signs in again after 7 days.
+    return this.session(user, client === "handset" ? "5y" : "7d");
   }
 
   async me(userId: string) {
@@ -509,11 +511,20 @@ export class PayService implements OnModuleInit {
     return { id: user.id, name: user.name, email: user.email, role: user.deskId ? "admin" : "owner" };
   }
 
-  async updateAccount(userId: string, input: { currentPassword: string; email: string; name: string; newPassword?: string }) {
+  async updateAccount(
+    userId: string,
+    input: { currentPassword: string; email: string; name: string; newPassword?: string },
+    address = "",
+  ) {
+    // A stolen sign-in token must not be able to guess the current password without limit.
+    const subject = `account:${userId}`;
+    assertLoginOpen(subject, address);
     const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
     if (!user || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
+      noteLoginFailure(subject, address);
       throw new BadRequestException("Current password is wrong");
     }
+    clearLoginFailure(subject, address);
     const email = input.email.trim().toLowerCase();
     const name = input.name.trim();
     const newPassword = input.newPassword?.trim() ?? "";
@@ -1581,12 +1592,12 @@ export class PayService implements OnModuleInit {
       if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException("Expiry date is not valid");
     }
     const pasted = input.generation === "custom" ? (input.token ?? "").trim() : "";
-    if (pasted && (pasted.length < 12 || pasted.length > 120)) throw new BadRequestException("API key must be 12 to 120 characters");
+    if (pasted && (pasted.length < 16 || pasted.length > 120)) throw new BadRequestException("API key must be 16 to 120 characters");
     const token = pasted || freshKey(input.keyType);
     const secret = (input.secret ?? "").trim();
     let altHash: string | null = null;
     if (secret && secret !== token) {
-      if (secret.length < 12 || secret.length > 120) throw new BadRequestException("Secret key must be 12 to 120 characters");
+      if (secret.length < 16 || secret.length > 120) throw new BadRequestException("Secret key must be 16 to 120 characters");
       altHash = hashKey(secret);
       const clash = await this.prisma.merchantKey.findFirst({
         where: { OR: [{ secretHash: altHash }, { altHash }] },
@@ -1672,7 +1683,7 @@ export class PayService implements OnModuleInit {
     let issued = (input.token ?? "").trim();
     if (!issued && input.generate) issued = freshKey(keyType);
     if (issued) {
-      if (issued.length < 12 || issued.length > 120) throw new BadRequestException("API key must be 12 to 120 characters");
+      if (issued.length < 16 || issued.length > 120) throw new BadRequestException("API key must be 16 to 120 characters");
       data.prefix = issued.slice(0, 16);
       data.secretHash = hashKey(issued);
     }
@@ -1680,7 +1691,7 @@ export class PayService implements OnModuleInit {
       const secret = input.secret.trim();
       if (!secret || (issued && secret === issued)) data.altHash = null;
       else {
-        if (secret.length < 12 || secret.length > 120) throw new BadRequestException("Secret key must be 12 to 120 characters");
+        if (secret.length < 16 || secret.length > 120) throw new BadRequestException("Secret key must be 16 to 120 characters");
         data.altHash = hashKey(secret);
       }
     }
@@ -2509,7 +2520,7 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "5y" = "5y") {
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "7d" | "5y" = "7d") {
     const accessToken = this.jwt.sign({
       sub: user.deskId ?? user.id,
       email: user.email,
