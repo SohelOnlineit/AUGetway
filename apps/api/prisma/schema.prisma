@@ -150,6 +150,7 @@ model Checkout {
   notices      InboxNotice[]
 
   @@index([ownerId, status])
+  @@index([ownerId, createdAt])
 }
 
 model Bill {

@@ -171,7 +171,7 @@ export default function SettingsPage() {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    api<Settings>("/desk/settings")
+    api<Settings>("/desk/settings?light=1")
       .then(setSettings)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load"));
   }, []);
@@ -179,11 +179,22 @@ export default function SettingsPage() {
   const visible = cards.filter((card) => `${card.title} ${card.description}`.toLowerCase().includes(query.trim().toLowerCase()));
   const open = cards.find((card) => card.id === openId) ?? null;
 
-  function openCard(id: string) {
+  async function openCard(id: string) {
     if (!settings) return;
     setError("");
+    let current = settings;
+    // The logo pictures are large, so they are loaded only when that card is opened.
+    if (id === "logo" && current.prefs.brandLogo === undefined) {
+      try {
+        current = await api<Settings>("/desk/settings");
+        setSettings(current);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not load");
+        return;
+      }
+    }
     setOpenId(id);
-    setDraft({ ...settings.prefs, brandName: settings.brandName, supportEmail: settings.supportEmail, currency: settings.currency, checkoutNote: settings.checkoutNote, balanceCheck: settings.prefs.balanceCheck === "0" ? "0" : "1" });
+    setDraft({ ...current.prefs, brandName: current.brandName, supportEmail: current.supportEmail, currency: current.currency, checkoutNote: current.checkoutNote, balanceCheck: current.prefs.balanceCheck === "0" ? "0" : "1" });
   }
 
   async function save(event: FormEvent) {

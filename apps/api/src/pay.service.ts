@@ -1034,12 +1034,13 @@ export class PayService implements OnModuleInit {
           },
         },
       }),
-      this.prisma.checkout.findMany({
-        where: { ownerId, NOT: { receipt: "" } },
-        select: { publicId: true },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
+      // pg_column_size reads the row header, not the picture, so a long receipt list does not pull every image.
+      this.prisma.$queryRaw<Array<{ publicId: string }>>`
+        SELECT "publicId" FROM "Checkout"
+        WHERE "ownerId" = ${ownerId} AND pg_column_size("receipt") > 1
+        ORDER BY "createdAt" DESC
+        LIMIT 500
+      `,
     ]);
     const hasReceipt = new Set(receipts.map((row) => row.publicId));
     return Promise.all(rows.map((row) => this.checkoutCard({
@@ -2071,24 +2072,46 @@ export class PayService implements OnModuleInit {
 
   async reports(ownerId: string) {
     const bounds = reportBounds(new Date());
-    const rows = await this.prisma.checkout.findMany({
-      where: { ownerId, createdAt: { gte: bounds.last_year.start } },
-      select: { status: true, payable: true, createdAt: true },
-    });
+    const [row] = await this.prisma.$queryRaw<Array<Record<string, number | string | null>>>`
+      SELECT
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.today.start} AND "createdAt" < ${bounds.today.end})::int AS "today_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.today.start} AND "createdAt" < ${bounds.today.end})::int AS "today_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.today.start} AND "createdAt" < ${bounds.today.end}), 0)::text AS "today_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.yesterday.start} AND "createdAt" < ${bounds.yesterday.end})::int AS "yesterday_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.yesterday.start} AND "createdAt" < ${bounds.yesterday.end})::int AS "yesterday_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.yesterday.start} AND "createdAt" < ${bounds.yesterday.end}), 0)::text AS "yesterday_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.this_week.start} AND "createdAt" < ${bounds.this_week.end})::int AS "this_week_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_week.start} AND "createdAt" < ${bounds.this_week.end})::int AS "this_week_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_week.start} AND "createdAt" < ${bounds.this_week.end}), 0)::text AS "this_week_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.last_week.start} AND "createdAt" < ${bounds.last_week.end})::int AS "last_week_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_week.start} AND "createdAt" < ${bounds.last_week.end})::int AS "last_week_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_week.start} AND "createdAt" < ${bounds.last_week.end}), 0)::text AS "last_week_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.this_month.start} AND "createdAt" < ${bounds.this_month.end})::int AS "this_month_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_month.start} AND "createdAt" < ${bounds.this_month.end})::int AS "this_month_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_month.start} AND "createdAt" < ${bounds.this_month.end}), 0)::text AS "this_month_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.last_month.start} AND "createdAt" < ${bounds.last_month.end})::int AS "last_month_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_month.start} AND "createdAt" < ${bounds.last_month.end})::int AS "last_month_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_month.start} AND "createdAt" < ${bounds.last_month.end}), 0)::text AS "last_month_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.this_year.start} AND "createdAt" < ${bounds.this_year.end})::int AS "this_year_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_year.start} AND "createdAt" < ${bounds.this_year.end})::int AS "this_year_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.this_year.start} AND "createdAt" < ${bounds.this_year.end}), 0)::text AS "this_year_amount",
+        COUNT(*) FILTER (WHERE "createdAt" >= ${bounds.last_year.start} AND "createdAt" < ${bounds.last_year.end})::int AS "last_year_total",
+        COUNT(*) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_year.start} AND "createdAt" < ${bounds.last_year.end})::int AS "last_year_paid",
+        COALESCE(SUM(payable) FILTER (WHERE status = 'paid' AND "createdAt" >= ${bounds.last_year.start} AND "createdAt" < ${bounds.last_year.end}), 0)::text AS "last_year_amount"
+      FROM "Checkout"
+      WHERE "ownerId" = ${ownerId} AND "createdAt" >= ${bounds.last_year.start}
+    `;
+    const found = row ?? {};
     return Object.fromEntries(
-      Object.entries(bounds).map(([key, range]) => {
-        const slice = rows.filter((row) => row.createdAt >= range.start && row.createdAt < range.end);
-        const paid = slice.filter((row) => row.status === "paid");
-        const amount = paid.reduce((sum, row) => sum + Number(row.payable), 0);
-        return [
-          key,
-          {
-            amount: amount.toFixed(2),
-            completed: paid.length,
-            total: slice.length,
-            successRate: slice.length === 0 ? 0 : Math.round((paid.length / slice.length) * 100),
-          },
-        ];
+      (Object.keys(bounds) as Array<keyof typeof bounds>).map((key) => {
+        const total = Number(found[`${key}_total`] ?? 0);
+        const completed = Number(found[`${key}_paid`] ?? 0);
+        return [key, {
+          amount: Number(found[`${key}_amount`] ?? 0).toFixed(2),
+          completed,
+          total,
+          successRate: total === 0 ? 0 : Math.round((completed / total) * 100),
+        }];
       }),
     );
   }

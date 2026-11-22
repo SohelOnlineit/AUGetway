@@ -35,7 +35,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/((?!_next/static|_next/image|icon.svg|api/public/brand).*)",
+        // API answers change with the data. Pages themselves stay cacheable so the desk menu can open at once.
+        source: "/api/((?!public/brand).*)",
         headers: [{ key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" }],
       },
       {
