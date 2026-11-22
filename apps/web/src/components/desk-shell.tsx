@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { clearToken, readToken, saveToken } from "@/lib/token";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -56,7 +56,7 @@ function Icon({ name }: { name: string }) {
   return <svg width="18" height="18" viewBox="0 0 24 24"><path {...common} d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12" /></svg>;
 }
 
-const pages = [...main, ...smsGateway, ...developers, ["Account", "/admin/account", "admins"] as const];
+const pages = [...main, ...smsGateway, ...developers, ["Account", "/admin/account", "admins"] as const, ["Two-factor", "/admin/account#two-factor", "shield"] as const];
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
@@ -84,7 +84,8 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [openDev, setOpenDev] = useState(true);
   const [openSms, setOpenSms] = useState(true);
   const [query, setQuery] = useState("");
-  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role: string; twoFactor?: boolean } | null>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -103,7 +104,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
     if (sessionStorage.getItem("uniqpay_cache_note") === "1") setCacheNote(true);
-    api<{ name: string; email: string; role: string }>("/auth/me")
+    api<{ name: string; email: string; role: string; twoFactor?: boolean }>("/auth/me")
       .then((row) => {
         setUser(row);
         setReady(true);
@@ -113,11 +114,16 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
         router.replace("/au");
       });
     function onAccount(event: Event) {
-      const detail = (event as CustomEvent<{ name?: string; email?: string }>).detail;
+      const detail = (event as CustomEvent<{ name?: string; email?: string; twoFactor?: boolean }>).detail;
       const name = detail?.name;
       const email = detail?.email;
       if (!name || !email) return;
-      setUser((current) => ({ name, email, role: current?.role ?? "owner" }));
+      setUser((current) => ({
+        name,
+        email,
+        role: current?.role ?? "owner",
+        twoFactor: detail.twoFactor ?? current?.twoFactor,
+      }));
     }
     window.addEventListener("uniqpay-account", onAccount);
     api<{ prefs: Record<string, string> }>("/desk/settings?light=1")
@@ -136,7 +142,24 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setNavOpen(false);
+    setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (!profileRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!cacheNote) return;
@@ -232,32 +255,52 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           {cacheNote ? <p className="cache-note">Cache cleared</p> : null}
-          <button className={menuOpen ? "avatar on" : "avatar"} type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account" aria-expanded={menuOpen}>
-            {user ? initials(user.name, user.email) : "·"}
-          </button>
-          {menuOpen ? (
-            <div className="avatar-menu">
-              <div className="avatar-who">
-                <span className="avatar mini" aria-hidden="true">{user ? initials(user.name, user.email) : "·"}</span>
-                <div>
-                  <strong>{user?.name || "Desk"}</strong>
-                  <p>{user?.email}</p>
+          <div className="profile-anchor" ref={profileRef}>
+            <button className={menuOpen ? "avatar on" : "avatar"} type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Profile" aria-expanded={menuOpen} aria-haspopup="menu">
+              {user ? initials(user.name, user.email) : "·"}
+            </button>
+            {menuOpen ? (
+              <div className="avatar-menu" role="menu">
+                <div className="avatar-who">
+                  <span className="avatar mini" aria-hidden="true">{user ? initials(user.name, user.email) : "·"}</span>
+                  <div className="avatar-id">
+                    <strong>{user?.name || "Desk"}</strong>
+                    <p>{user?.email}</p>
+                    <span className="profile-role">{user?.role === "owner" ? "Main admin" : "Admin"}</span>
+                  </div>
                 </div>
+                <p className="profile-kicker">Account</p>
+                <Link className="menu-row" role="menuitem" href="/admin/account" onClick={() => setMenuOpen(false)}>
+                  <span className="menu-ico user" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M6 19c.6-2.4 2.6-4 6-4s5.4 1.6 6 4" /></svg>
+                  </span>
+                  <span className="menu-copy">
+                    <b>Profile</b>
+                    <small>Name, email and password</small>
+                  </span>
+                </Link>
+                <Link className="menu-row" role="menuitem" href="/admin/account#two-factor" onClick={() => setMenuOpen(false)}>
+                  <span className={user?.twoFactor ? "menu-ico shield on" : "menu-ico shield"} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 3 5 6v5c0 4.5 2.8 8.3 7 10 4.2-1.7 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>
+                  </span>
+                  <span className="menu-copy">
+                    <b>Two-factor</b>
+                    <small>{user?.twoFactor ? "Code required at sign-in" : "Off — turn it on"}</small>
+                  </span>
+                  <span className={user?.twoFactor ? "profile-pill on" : "profile-pill"}>{user?.twoFactor ? "On" : "Off"}</span>
+                </Link>
+                <button className="menu-row out" role="menuitem" type="button" onClick={signOut}>
+                  <span className="menu-ico out" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M10 7V5a1 1 0 0 1 1-1h8v16h-8a1 1 0 0 1-1-1v-2" /><path d="M4 12h11M12 8l4 4-4 4" /></svg>
+                  </span>
+                  <span className="menu-copy">
+                    <b>Sign out</b>
+                    <small>Leave this desk</small>
+                  </span>
+                </button>
               </div>
-              <Link className="menu-row" href="/admin/account" onClick={() => setMenuOpen(false)}>
-                <span className="menu-ico user" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M6 19c.6-2.4 2.6-4 6-4s5.4 1.6 6 4" /></svg>
-                </span>
-                Email and password
-              </Link>
-              <button className="menu-row out" type="button" onClick={signOut}>
-                <span className="menu-ico out" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M10 7V5a1 1 0 0 1 1-1h8v16h-8a1 1 0 0 1-1-1v-2" /><path d="M4 12h11M12 8l4 4-4 4" /></svg>
-                </span>
-                Sign out
-              </button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
         </div>
       </header>

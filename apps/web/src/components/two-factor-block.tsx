@@ -69,7 +69,7 @@ export function TwoFactorBlock({ enabled, onChange }: { enabled: boolean; onChan
   }
 
   return (
-    <section className="account-block">
+    <section className="account-block" id="two-factor">
       <header>
         <span className="account-icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3 5 6v5c0 4.5 2.8 8.3 7 10 4.2-1.7 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>

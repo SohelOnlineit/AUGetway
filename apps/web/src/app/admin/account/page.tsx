@@ -79,7 +79,7 @@ export default function AccountPage() {
       setUser({ ...result.user, twoFactor: user.twoFactor });
       setName(result.user.name);
       setEmail(result.user.email);
-      window.dispatchEvent(new CustomEvent("uniqpay-account", { detail: result.user }));
+      window.dispatchEvent(new CustomEvent("uniqpay-account", { detail: { ...result.user, twoFactor: user.twoFactor } }));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -95,6 +95,11 @@ export default function AccountPage() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!user || window.location.hash !== "#two-factor") return;
+    document.getElementById("two-factor")?.scrollIntoView({ block: "start" });
+  }, [user]);
 
   const role = user?.role === "owner" ? "Main admin" : "Admin";
 
@@ -131,7 +136,15 @@ export default function AccountPage() {
           <p className="muted">Update the name, sign-in email, or password for this desk.</p>
         </header>
 
-        {user ? <TwoFactorBlock enabled={user.twoFactor === true} onChange={(on) => setUser({ ...user, twoFactor: on })} /> : null}
+        {user ? (
+          <TwoFactorBlock
+            enabled={user.twoFactor === true}
+            onChange={(on) => {
+              setUser({ ...user, twoFactor: on });
+              window.dispatchEvent(new CustomEvent("uniqpay-account", { detail: { name: user.name, email: user.email, twoFactor: on } }));
+            }}
+          />
+        ) : null}
 
         <form className="account-form" onSubmit={(event) => void save(event)}>
           <section className="account-block">

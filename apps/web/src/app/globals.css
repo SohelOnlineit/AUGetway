@@ -99,6 +99,9 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   color: var(--fg);
 }
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   background: color-mix(in srgb, var(--header) 92%, transparent);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(14px);
@@ -214,31 +217,52 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
 }
 .avatar.on { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 28%, transparent); }
 .avatar.mini { width: 40px; height: 40px; animation: none; box-shadow: none; flex: none; }
+.profile-anchor { position: relative; }
 .avatar-menu {
   position: absolute;
-  top: 52px;
+  top: 48px;
   right: 0;
-  width: 260px;
+  width: min(300px, calc(100vw - 24px));
   display: grid;
-  gap: 6px;
+  gap: 4px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 10px;
-  z-index: 5;
+  padding: 12px;
+  z-index: 30;
   box-shadow: var(--shadow);
   animation: people-rise 0.28s cubic-bezier(.2, .8, .2, 1);
 }
-.avatar-who { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
-.avatar-who strong { display: block; font-size: 14px; }
-.avatar-who p { margin: 2px 0 0; color: var(--muted); font-size: 12px; word-break: break-all; }
+.avatar-who { display: flex; align-items: flex-start; gap: 12px; padding: 4px 4px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.avatar-id { min-width: 0; }
+.avatar-who strong { display: block; font-size: 15px; line-height: 1.2; }
+.avatar-who p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; word-break: break-all; }
+.profile-role {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+.profile-kicker {
+  margin: 4px 8px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .avatar-menu .menu-row {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
-  padding: 0 8px;
+  min-height: 52px;
+  padding: 6px 8px;
   border: 0;
   border-radius: 12px;
   background: transparent;
@@ -246,13 +270,28 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   text-decoration: none;
   font-weight: 650;
   text-align: left;
+  cursor: pointer;
 }
+.menu-copy { display: grid; min-width: 0; flex: 1; }
+.menu-copy b { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.menu-copy small { color: var(--muted); font-size: 12px; font-weight: 550; line-height: 1.3; }
+.profile-pill {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+.profile-pill.on { background: color-mix(in srgb, var(--good) 16%, var(--surface)); color: var(--good); }
 .menu-ico {
   width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; flex: none;
   background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand);
 }
 .menu-ico svg { width: 16px; height: 16px; }
 .menu-ico.user svg { animation: dev-bob 2.4s ease-in-out infinite; }
+.menu-ico.shield.on { background: color-mix(in srgb, var(--good) 16%, var(--surface)); color: var(--good); }
 .menu-ico.out { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); color: var(--bad); }
 .menu-ico.out svg { animation: dev-fly 2.2s ease-in-out infinite; }
 .menu-row.out { color: var(--bad); }
@@ -264,6 +303,9 @@ h1 { font-size: clamp(46px, 6vw, 78px); line-height: 0.95; margin: 0 0 16px; }
   .avatar, .avatar-menu, .menu-ico svg, .account-mark, .account-facts svg, .account-icon svg { animation: none; }
 }
 .avatar-menu .menu-row:hover { background: var(--surface); }
+.avatar-menu .menu-row.out { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; padding-top: 10px; }
+#two-factor { scroll-margin-top: 84px; }
+#two-factor:target { box-shadow: inset 3px 0 0 var(--brand); }
 .rail {
   padding: 0;
   background: transparent;
