@@ -24,8 +24,11 @@ export default function DeskGatePage() {
   useEffect(() => {
     const token = readToken();
     if (!token) return;
-    api("/auth/me")
-      .then(() => router.replace("/admin"))
+    api<{ accessToken?: string }>("/auth/me")
+      .then((row) => {
+        if (row.accessToken) saveToken(row.accessToken);
+        router.replace("/admin");
+      })
       .catch(() => clearToken());
   }, [router]);
   useEffect(() => {

@@ -104,9 +104,10 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
     if (sessionStorage.getItem("uniqpay_cache_note") === "1") setCacheNote(true);
-    api<{ name: string; email: string; role: string; twoFactor?: boolean }>("/auth/me")
+    api<{ name: string; email: string; role: string; twoFactor?: boolean; accessToken?: string }>("/auth/me")
       .then((row) => {
-        setUser(row);
+        if (row.accessToken) saveToken(row.accessToken);
+        setUser({ name: row.name, email: row.email, role: row.role, twoFactor: row.twoFactor });
         setReady(true);
       })
       .catch(() => {

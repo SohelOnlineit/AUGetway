@@ -585,21 +585,22 @@ export class PayService implements OnModuleInit {
       throw new UnauthorizedException("That code is wrong or was already used. Wait for the next code and try again.");
     }
     clearLoginFailure(normalized, address);
-    // The phone app cannot ask for a new sign-in while it runs in the background, so the main admin's phone
-    // keeps a long token. A staff account never gets that token: it must not be able to send payment messages.
+    // Both the website and the phone keep a sign-in for 5 years. Only the main admin's phone may send payment
+    // messages. A website sign-in, and a staff account, never get that phone mark.
     const phone = client === "handset" && !user.deskId;
-    return this.session(user, phone ? "5y" : "7d");
+    return this.session(user, phone ? "handset" : "desk");
   }
 
   async me(userId: string) {
     const user = await this.prisma.deskUser.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException("Sign in required");
+    // A sign-in that is still valid is replaced with a fresh 5-year website token, so an older 7-day
+    // sign-in does not end while the person is still using the desk. This is never a phone token.
+    const signed = this.session(user, "desk");
     return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.deskId ? "admin" : "owner",
+      ...signed.user,
       twoFactor: await this.twoFactor.enabled(user.id),
+      accessToken: signed.accessToken,
     };
   }
 
@@ -2778,15 +2779,15 @@ export class PayService implements OnModuleInit {
     if (!user || user.deskId) throw new ForbiddenException("Only the main admin can open accounts");
   }
 
-  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, expiresIn: "7d" | "5y" = "7d") {
+  private session(user: { id: string; email: string; name: string; deskId: string | null; passwordHash: string }, device: "desk" | "handset" = "desk") {
     const accessToken = this.jwt.sign({
       sub: user.deskId ?? user.id,
       email: user.email,
       actor: user.id,
       stamp: sessionStamp(user.passwordHash),
       // The website token must not be able to call the phone routes. See tokenDevice.
-      device: expiresIn === "5y" ? "handset" : "desk",
-    }, { expiresIn });
+      device,
+    }, { expiresIn: "5y" });
     return {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, role: user.deskId ? "admin" : "owner" },

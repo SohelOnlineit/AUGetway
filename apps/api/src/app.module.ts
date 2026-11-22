@@ -38,8 +38,8 @@ function jwtSecret() {
     JwtModule.register({
       global: true,
       secret: jwtSecret(),
-      // The desk website signs in for 7 days. Only the phone app asks for a longer token (see PayService.login).
-      signOptions: { expiresIn: "7d", algorithm: "HS256" },
+      // Sign-in lasts 5 years. PayService.login still marks the phone separately from the website.
+      signOptions: { expiresIn: "5y", algorithm: "HS256" },
       verifyOptions: { algorithms: ["HS256"] },
     }),
   ],

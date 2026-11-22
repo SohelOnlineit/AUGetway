@@ -22,7 +22,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase()}${path}`, { ...init, headers, cache: "no-store" });
   const data = (await response.json().catch(() => ({}))) as { message?: string | string[] };
   if (!response.ok) {
-    // A desk sign-in lasts 7 days. When the server no longer accepts the saved token, drop it and go to the sign-in page
+    // A desk sign-in lasts 5 years. When the server no longer accepts the saved token, drop it and go to the sign-in page
     // instead of leaving every screen showing "Sign in required".
     if (response.status === 401 && token && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
       clearToken();
