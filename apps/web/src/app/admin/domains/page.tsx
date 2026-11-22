@@ -85,6 +85,22 @@ export default function DomainsPage() {
     }
   }
 
+  async function savePicture(row: Domain, field: "brandLogo" | "brandFavicon", file: File | undefined) {
+    if (!file || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const data = await pictureDataUrl(file, field === "brandLogo" ? 480 : 128, field === "brandLogo" ? 1_100_000 : 380_000);
+      await api(`/desk/domains/${row.id}`, { method: "PATCH", body: JSON.stringify({ [field]: data }) });
+      setNotice(field === "brandLogo" ? `Logo saved for ${row.host}.` : `Favicon saved for ${row.host}.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the picture");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!draft || busy) return;
@@ -133,9 +149,9 @@ export default function DomainsPage() {
           <p className="keys-crumb">Desk <span>›</span> Website Domains</p>
           <h2>Website Domains</h2>
           <p className="muted sec-note">
-            একটাই ডেস্ক, কয়েকটা ওয়েবসাইট ঠিকানা। কাস্টমার যে ঠিকানা দিয়ে আসে (যেমন pay.uniqbd.com বা pay.amarpin.com),
-            সেই ঠিকানার নাম, লোগো, রঙ আর পেমেন্ট লিংক দেখে। Edit চেপে প্রতিটি ঠিকানার লোগো বদলান। খালি ঘর
-            Brand &amp; System Settings-এর সাধারণ লোগো ব্যবহার করে। শুধু মূল অ্যাডমিন এই পেজ বদলাতে পারে।
+            pay.uniqbd.com and pay.amarpin.com each keep their own logo and browser-tab icon. Upload them on the card
+            for that address. A customer on that address sees that logo, and the tab shows that icon. An empty picture
+            uses the desk-wide one from Brand &amp; System Settings. Only the main admin can change this page.
           </p>
         </div>
       </header>
@@ -181,6 +197,21 @@ export default function DomainsPage() {
                     <p>
                       <span className="muted">Logo</span> {row.brandLogo ? "Custom for this address" : "Uses desk-wide logo"}
                     </p>
+                    <p>
+                      <span className="muted">Favicon</span> {row.brandFavicon ? "Custom tab icon" : "Uses desk-wide icon"}
+                    </p>
+                  </div>
+                  <div className="domain-uploads">
+                    <label className="domain-upload">
+                      {row.brandLogo ? <img src={row.brandLogo} alt="" /> : <span>Logo</span>}
+                      <input type="file" accept="image/*" disabled={busy} onChange={(event) => { void savePicture(row, "brandLogo", event.target.files?.[0]); event.target.value = ""; }} />
+                      <em>Upload logo</em>
+                    </label>
+                    <label className="domain-upload">
+                      {row.brandFavicon ? <img src={row.brandFavicon} alt="" /> : <span>Icon</span>}
+                      <input type="file" accept="image/*,.ico" disabled={busy} onChange={(event) => { void savePicture(row, "brandFavicon", event.target.files?.[0]); event.target.value = ""; }} />
+                      <em>Upload favicon</em>
+                    </label>
                   </div>
                   <div className="row domain-actions">
                     <a className="btn-line" href={origin} target="_blank" rel="noreferrer">Open site</a>

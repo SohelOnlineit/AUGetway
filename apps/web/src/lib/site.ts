@@ -6,6 +6,9 @@ export function applySiteChrome(site: PublicSite | null | undefined, options?: {
   if (!site || typeof document === "undefined") return;
   if (site.themeAccent) document.documentElement.style.setProperty("--brand", site.themeAccent);
   if (site.brandFavicon) {
+    document.querySelectorAll<HTMLLinkElement>("link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']").forEach((node) => {
+      if (node.getAttribute("data-site-icon") !== "1") node.remove();
+    });
     let link = document.querySelector<HTMLLinkElement>("link[data-site-icon]");
     if (!link) {
       link = document.createElement("link");
@@ -13,6 +16,8 @@ export function applySiteChrome(site: PublicSite | null | undefined, options?: {
       link.setAttribute("data-site-icon", "1");
       document.head.appendChild(link);
     }
+    const mime = /^data:(image\/[a-z0-9.+-]+);/i.exec(site.brandFavicon)?.[1];
+    if (mime) link.type = mime;
     link.href = site.brandFavicon;
   }
   // The tab title is the page's own title: the SEO title if one is set, otherwise the name of the address.
