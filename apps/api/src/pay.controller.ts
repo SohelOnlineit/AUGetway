@@ -39,7 +39,7 @@ import {
 } from "./dto";
 import { PayService } from "./pay.service";
 import { PaymentSecurityService } from "./payment-security.service";
-import { isMainAdmin } from "./main-admin";
+import { isMainAdmin, requireMainAdmin } from "./main-admin";
 import { clientAddress, RateLimit } from "./rate-limit";
 import { TurnstileService } from "./turnstile.service";
 
@@ -64,9 +64,10 @@ export class PayController {
   @Post("auth/login")
   @RateLimit("login", 30, 900)
   async login(@Body() body: LoginDto, @Req() request: Request) {
-    // The phone app cannot show the Cloudflare widget, so only its own client name skips the check.
-    // Wrong-password attempts are still limited per address, per email and per pair for everyone.
-    if (body.client !== "handset") await this.turnstile.assert(body.turnstileToken);
+    // The phone app cannot show the Cloudflare widget. A browser always sends Sec-Fetch-Site, so a website
+    // request cannot skip the check just by calling itself the phone app.
+    const fromBrowser = typeof request.header("sec-fetch-site") === "string";
+    if (body.client !== "handset" || fromBrowser) await this.turnstile.assert(body.turnstileToken);
     return this.pay.login(body.email, body.password, body.client, clientAddress(request), body.code);
   }
 
@@ -151,18 +152,21 @@ export class PayController {
   @Post("desk/official-gateways")
   @UseGuards(DeskGuard)
   addOfficialGateway(@Req() request: DeskRequest, @Body() body: OfficialGatewayDto) {
+    requireMainAdmin(request, "official gateways");
     return this.pay.createOfficialGateway(request.desk.sub, body);
   }
 
   @Patch("desk/official-gateways/:id")
   @UseGuards(DeskGuard)
   editOfficialGateway(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: OfficialGatewayDto) {
+    requireMainAdmin(request, "official gateways");
     return this.pay.updateOfficialGateway(request.desk.sub, id, body);
   }
 
   @Delete("desk/official-gateways/:id")
   @UseGuards(DeskGuard)
   removeOfficialGateway(@Req() request: DeskRequest, @Param("id") id: string) {
+    requireMainAdmin(request, "official gateways");
     return this.pay.removeOfficialGateway(request.desk.sub, id);
   }
 
@@ -277,18 +281,21 @@ export class PayController {
   @Post("desk/keys")
   @UseGuards(DeskGuard)
   addKey(@Req() request: DeskRequest, @Body() body: KeyDto) {
+    requireMainAdmin(request, "API keys");
     return this.pay.createKey(request.desk.sub, body);
   }
 
   @Patch("desk/keys/:id")
   @UseGuards(DeskGuard)
   setKey(@Req() request: DeskRequest, @Param("id") id: string, @Body() body: KeyUpdateDto) {
+    requireMainAdmin(request, "API keys");
     return this.pay.updateKey(request.desk.sub, id, body);
   }
 
   @Delete("desk/keys/:id")
   @UseGuards(DeskGuard)
   removeKey(@Req() request: DeskRequest, @Param("id") id: string) {
+    requireMainAdmin(request, "API keys");
     return this.pay.removeKey(request.desk.sub, id);
   }
 
@@ -361,12 +368,15 @@ export class PayController {
   @Get("desk/settings")
   @UseGuards(DeskGuard)
   settings(@Req() request: DeskRequest, @Query("light") light?: string) {
-    return this.pay.settings(request.desk.sub, light === "1");
+    if (light === "1") return this.pay.settings(request.desk.sub, true);
+    requireMainAdmin(request, "settings");
+    return this.pay.settings(request.desk.sub, false);
   }
 
   @Post("desk/settings")
   @UseGuards(DeskGuard)
   saveSettings(@Req() request: DeskRequest, @Body() body: SettingsDto) {
+    requireMainAdmin(request, "settings");
     return this.pay.saveSettings(request.desk.sub, body);
   }
 
@@ -388,6 +398,7 @@ export class PayController {
     response.setHeader("Content-Type", asset.mime);
     response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
     response.end(asset.body);
   }
 

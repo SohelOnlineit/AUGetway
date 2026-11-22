@@ -84,7 +84,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
   const [openDev, setOpenDev] = useState(true);
   const [openSms, setOpenSms] = useState(true);
   const [query, setQuery] = useState("");
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -103,7 +103,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       window.history.replaceState(null, "", `${fresh.pathname}${fresh.search}${fresh.hash}`);
     }
     if (sessionStorage.getItem("uniqpay_cache_note") === "1") setCacheNote(true);
-    api<{ name: string; email: string }>("/auth/me")
+    api<{ name: string; email: string; role: string }>("/auth/me")
       .then((row) => {
         setUser(row);
         setReady(true);
@@ -114,8 +114,10 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       });
     function onAccount(event: Event) {
       const detail = (event as CustomEvent<{ name?: string; email?: string }>).detail;
-      if (!detail?.name || !detail.email) return;
-      setUser({ name: detail.name, email: detail.email });
+      const name = detail?.name;
+      const email = detail?.email;
+      if (!name || !email) return;
+      setUser((current) => ({ name, email, role: current?.role ?? "owner" }));
     }
     window.addEventListener("uniqpay-account", onAccount);
     api<{ prefs: Record<string, string> }>("/desk/settings?light=1")
@@ -263,7 +265,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
       <button className="nav-shade" type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} />
       <aside className="rail">
         <nav className="rail-box">
-        {main.map(([label, href, icon]) => (
+        {main.filter(([, href]) => user?.role === "owner" || !["/admin/settings", "/admin/domains", "/admin/backups"].includes(href)).map(([label, href, icon]) => (
           <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-tone nav-tone--${icon} active` : `nav-tone nav-tone--${icon}`}>
             <span className="nav-icon"><Icon name={icon} /></span>
             <span className="nav-label">{label}</span>
@@ -290,7 +292,7 @@ export function DeskShell({ children }: { children: React.ReactNode }) {
           </span>
         </button>
         {openDev
-          ? developers.map(([label, href, icon]) => (
+          ? developers.filter(([, href]) => user?.role === "owner" || href !== "/admin/api-keys").map(([label, href, icon]) => (
               <Link key={href} href={href} onClick={() => setNavOpen(false)} className={isActive(pathname, href) ? `nav-sub nav-tone nav-tone--${icon} active` : `nav-sub nav-tone nav-tone--${icon}`}>
                 <span className="nav-icon"><Icon name={icon} /></span>
                 <span className="nav-label">{label}</span>

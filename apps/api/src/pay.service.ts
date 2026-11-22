@@ -2011,11 +2011,15 @@ export class PayService implements OnModuleInit {
   async settings(ownerId: string, light = false) {
     const row = await this.prisma.brandSetting.findUnique({ where: { ownerId } });
     const prefs = maskPrefs(cleanPrefs(row?.prefs));
-    // The desk header only needs the theme. The logo and icon are large pictures and are not sent with every page.
+    // Every desk page asks for this. It must not include passwords, keys, or the saved pictures.
     if (light) {
-      delete prefs.brandLogo;
-      delete prefs.brandFavicon;
-      delete prefs.faqContent;
+      return {
+        brandName: "AU-Getway",
+        supportEmail: "",
+        currency: "BDT",
+        checkoutNote: "",
+        prefs: { themeMode: prefs.themeMode ?? "" },
+      };
     }
     return {
       brandName: row?.brandName && row.brandName !== "UniqBD Pay" ? row.brandName : "AU-Getway",

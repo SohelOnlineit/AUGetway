@@ -171,7 +171,7 @@ export default function SettingsPage() {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    api<Settings>("/desk/settings?light=1")
+    api<Settings>("/desk/settings")
       .then(setSettings)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load"));
   }, []);
