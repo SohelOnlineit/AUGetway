@@ -18,4 +18,7 @@ test("the gateway extra limit is the most a customer may pay over the price", ()
   assert.equal(paidCoversPrice(100.01, 100, 0), false);
   assert.equal(paidFitsCheckout(101, 100, 100, 0, 1, "transaction_id"), true);
   assert.equal(paidFitsCheckout(101.01, 100, 100, 0, 1, "transaction_id"), false);
+  assert.equal(paidCoversPrice(100.01, 100, 0.01), true);
+  assert.equal(paidCoversPrice(100.02, 100, 0.01), false);
+  assert.equal(paidFitsCheckout(99.99, 100, 100, 50, 10, "transaction_id"), false);
 });
