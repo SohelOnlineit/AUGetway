@@ -282,6 +282,7 @@ export class MethodDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(1000)
   overTolerance?: number;
 
   @IsOptional()

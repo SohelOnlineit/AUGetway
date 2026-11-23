@@ -18,6 +18,7 @@ model DeskUser {
   desk         DeskUser?      @relation("DeskStaff", fields: [deskId], references: [id], onDelete: Cascade)
   staff        DeskUser[]     @relation("DeskStaff")
   receiptDefaulted Boolean    @default(false)
+  extraDefaulted   Boolean    @default(false)
   createdAt    DateTime       @default(now())
   methods      WalletMethod[]
   officialGateways OfficialGateway[]
@@ -96,7 +97,7 @@ model WalletMethod {
   holdUnmatched Boolean    @default(false)
   holdAbove     Decimal    @default(0) @db.Decimal(12, 2)
   underTolerance Decimal   @default(0) @db.Decimal(12, 2)
-  overTolerance Decimal    @default(0) @db.Decimal(12, 2)
+  overTolerance Decimal    @default(10) @db.Decimal(12, 2)
   shiftAmount   Boolean    @default(false)
   active        Boolean    @default(true)
   sortOrder     Int        @default(0)

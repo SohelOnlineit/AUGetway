@@ -26,6 +26,7 @@ type GatewayDetail = {
   uniqueSlots: number;
   uniqueKind: string;
   acceptProof: boolean;
+  overTolerance: string;
 };
 
 type FormState = {
@@ -48,6 +49,7 @@ type FormState = {
   uniqueSlots: string;
   uniqueKind: string;
   acceptProof: boolean;
+  overTolerance: string;
 };
 
 function plain(value: string | number) {
@@ -92,6 +94,7 @@ function fromDetail(row: GatewayDetail): FormState {
     uniqueSlots: String(row.uniqueSlots),
     uniqueKind: row.uniqueKind,
     acceptProof: row.acceptProof,
+    overTolerance: plain(row.overTolerance),
   };
 }
 
@@ -134,6 +137,11 @@ export default function EditGatewayPage() {
       setError("Add at least one account number");
       return;
     }
+    const extra = Number(form.overTolerance);
+    if (!Number.isFinite(extra) || extra < 0 || extra > 1000) {
+      setError("Extra amount must be from 0 to 1000 taka");
+      return;
+    }
     setPending(true);
     setError("");
     try {
@@ -157,6 +165,7 @@ export default function EditGatewayPage() {
           checkBalance: form.checkBalance,
           payWindow: Number(form.payWindow),
           acceptProof: form.acceptProof,
+          overTolerance: Number(form.overTolerance),
         }),
       });
       router.push("/admin/gateways/manual");
@@ -298,6 +307,11 @@ export default function EditGatewayPage() {
                 <option value="disable">Disable</option>
               </select>
               <p className="gw-help">On: the website reads the payment SMS and approves it only when the balance in that SMS equals the balance saved on the server plus this payment. The phone only delivers the SMS. Off: the balance check is skipped. The transaction ID is still required.</p>
+            </label>
+            <label>
+              <span className="gw-label">Extra amount still accepted<i>*</i></span>
+              <span className="money"><b>BDT</b><input required type="number" min={0} max={1000} step="0.01" value={form.overTolerance} onChange={(event) => patch({ overTolerance: event.target.value })} /></span>
+              <p className="gw-help">A customer who pays up to this much more than the product price still succeeds, from 1 poisha up to this amount. One poisha less than the price does not succeed. 10 allows up to 10 taka extra. 0 accepts only the exact price.</p>
             </label>
             <label>
               <span className="gw-label">Payment Window (Minutes)<i>*</i></span>

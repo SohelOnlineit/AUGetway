@@ -9,18 +9,19 @@ export function toPoisha(value: number): number | null {
 }
 
 /**
- * Succeeds for the product price, or for more money up to 10 taka.
- * One poisha below the price does not succeed.
- * The method's saved under/over fields are not used: a short payment must never pass.
+ * Succeeds for the product price, or for more money up to extraTaka.
+ * One poisha below the price does not succeed. extraTaka comes from the gateway page.
  */
-export function paidCoversPrice(paid: number, price: number): boolean {
+export function paidCoversPrice(paid: number, price: number, extraTaka = PRICE_EXTRA_TAKA): boolean {
   const pricePoisha = toPoisha(price);
   const paidPoisha = toPoisha(paid);
-  if (pricePoisha === null || paidPoisha === null || pricePoisha < 1 || paidPoisha < 1) return false;
+  const capPoisha = toPoisha(extraTaka);
+  if (pricePoisha === null || paidPoisha === null || capPoisha === null) return false;
+  if (pricePoisha < 1 || paidPoisha < 1 || capPoisha < 0) return false;
   const extra = paidPoisha - pricePoisha;
-  return extra >= 0 && extra <= PRICE_EXTRA_TAKA * 100;
+  return extra >= 0 && extra <= capPoisha;
 }
 
-export function paidFitsCheckout(paid: number, expected: number, _base: number, _under: number, _over: number, _verifyBy: string) {
-  return paidCoversPrice(paid, expected);
+export function paidFitsCheckout(paid: number, expected: number, _base: number, _under: number, over: number, _verifyBy: string) {
+  return paidCoversPrice(paid, expected, over);
 }

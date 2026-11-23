@@ -498,8 +498,8 @@ function parsePaidAmount(body: string) {
   return readPaidAmount(body);
 }
 
-function amountFits(paid: number, payable: number, _under: number, _over: number) {
-  return paidCoversPrice(paid, payable);
+function amountFits(paid: number, payable: number, _under: number, over: number) {
+  return paidCoversPrice(paid, payable, over);
 }
 
 @Injectable()
@@ -517,6 +517,7 @@ export class PayService implements OnModuleInit {
     if (owner) {
       await this.ensureCatalog(owner.id);
       await this.applyReceiptDefault();
+      await this.applyExtraDefault();
       await this.restoreBrandAccent(owner.id);
       await this.renameOldBrand();
       await this.domains.seedFromEnv(owner.id).catch(() => undefined);
@@ -812,8 +813,8 @@ export class PayService implements OnModuleInit {
         acceptProof: input.acceptProof === true,
         holdUnmatched: Boolean(input.holdUnmatched),
         holdAbove: input.holdAbove ?? 0,
-        underTolerance: input.underTolerance ?? 0,
-        overTolerance: input.overTolerance ?? 0,
+        underTolerance: 0,
+        overTolerance: input.overTolerance ?? 10,
         shiftAmount: false,
         active: input.active !== false,
         sortOrder: (last._max.sortOrder ?? 0) + 1,
@@ -883,7 +884,7 @@ export class PayService implements OnModuleInit {
         acceptProof: input.acceptProof,
         holdUnmatched: input.holdUnmatched,
         holdAbove: input.holdAbove,
-        underTolerance: input.underTolerance,
+        underTolerance: 0,
         overTolerance: input.overTolerance,
         shiftAmount: false,
         active: input.active,
@@ -2677,6 +2678,18 @@ export class PayService implements OnModuleInit {
     for (const owner of owners) {
       await this.prisma.walletMethod.updateMany({ where: { ownerId: owner.id }, data: { acceptProof: false } });
       await this.prisma.deskUser.update({ where: { id: owner.id }, data: { receiptDefaulted: true } });
+    }
+  }
+
+  /** Old gateways stored 0, which meant "not set". The working extra is 10 taka until the admin changes it. */
+  private async applyExtraDefault() {
+    const owners = await this.prisma.deskUser.findMany({ where: { extraDefaulted: false }, select: { id: true } });
+    for (const owner of owners) {
+      await this.prisma.walletMethod.updateMany({
+        where: { ownerId: owner.id, overTolerance: 0 },
+        data: { overTolerance: 10 },
+      });
+      await this.prisma.deskUser.update({ where: { id: owner.id }, data: { extraDefaulted: true } });
     }
   }
 
