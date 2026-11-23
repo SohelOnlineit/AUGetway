@@ -10,7 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
-import { paidFitsCheckout } from "./amount-window";
+import { paidCoversPrice, paidFitsCheckout, toPoisha } from "./amount-window";
 import { SecretBox, secretBox } from "./secret-box";
 import { SiteDomainService } from "./site-domain.service";
 import { TwoFactorService } from "./two-factor.service";
@@ -498,10 +498,8 @@ function parsePaidAmount(body: string) {
   return readPaidAmount(body);
 }
 
-function amountFits(paid: number, payable: number, under: number, over: number) {
-  if (paid + 0.001 < payable - under) return false;
-  if (over > 0 && paid > payable + over + 0.001) return false;
-  return true;
+function amountFits(paid: number, payable: number, _under: number, _over: number) {
+  return paidCoversPrice(paid, payable);
 }
 
 @Injectable()
@@ -2314,11 +2312,13 @@ export class PayService implements OnModuleInit {
     });
     const senderBlocked = Boolean(fit && row.method?.askPayerNumber !== false && senderNumberOk(payerAccount) && !senderInNotice(payerAccount, fit.body));
     const balanceOn = row.method?.checkBalance !== false;
+    const paidOnFit = fit ? parsePaidAmount(fit.body) : null;
     const balanceBlocked = Boolean(
       fit
+      && paidOnFit !== null
       && service
       && balanceOn
-      && !(await this.uniqueBalanceAgrees(row.ownerId, service, row.payable, fit.body)),
+      && !(await this.uniqueBalanceAgrees(row.ownerId, service, paidOnFit, fit.body)),
     );
     const matched = Boolean(fit) && !senderBlocked && !balanceBlocked;
     if (!matched) {
@@ -2985,7 +2985,7 @@ export class PayService implements OnModuleInit {
     if (!target) return null;
     const wallet = walletService(target.method?.label ?? "");
     const balanceOn = target.method?.checkBalance !== false;
-    if (wallet && balanceOn && !(await this.uniqueBalanceAgrees(ownerId, wallet, target.payable, body))) return null;
+    if (wallet && balanceOn && (paidAmount === null || !(await this.uniqueBalanceAgrees(ownerId, wallet, paidAmount, body)))) return null;
     if (!named && ranked[1] && paidAmount !== null) {
       const first = Math.abs(paidAmount - Number(ranked[0].payable));
       const second = Math.abs(paidAmount - Number(ranked[1].payable));
@@ -3058,12 +3058,12 @@ export class PayService implements OnModuleInit {
     return cleanPrefs(row?.prefs).balanceCheck !== "0";
   }
 
-  private async uniqueBalanceAgrees(ownerId: string, service: "bkash" | "nagad" | "rocket" | "upay", payable: { toString(): string }, body: string) {
+  private async uniqueBalanceAgrees(ownerId: string, service: "bkash" | "nagad" | "rocket" | "upay", paidTaka: number, body: string) {
     if (!(await this.balanceCheckOn(ownerId))) return true;
     const ledger = await this.prisma.walletLedger.findUnique({ where: { ownerId_service: { ownerId, service } } });
-    const amountCents = takaCents(payable);
+    const amountCents = toPoisha(paidTaka);
     const smsBalance = smsBalanceCents(body);
-    if (!ledger || amountCents === null || smsBalance === null) return false;
+    if (!ledger || amountCents === null || amountCents < 1 || smsBalance === null) return false;
     const expected = ledger.balanceCents + amountCents;
     return expected <= 100_000_000 && smsBalance === expected;
   }
