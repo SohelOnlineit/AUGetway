@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // API answers change with the data. Pages themselves stay cacheable so the desk menu can open at once.
+        // API answers change with the data, so a stored copy would be wrong.
         source: "/api/((?!public/brand).*)",
         headers: [{ key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" }],
       },
@@ -43,6 +43,13 @@ const nextConfig: NextConfig = {
         // Logo and favicon URLs change when the picture changes, so the browser can keep a copy.
         source: "/api/public/brand/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
+        // The page names its style files. After an update those files are gone, so a stored page
+        // opens with no layout (the sign-in logo blows up). The browser must ask again. Style
+        // files under /_next/static stay cached; this rule does not match them.
+        source: "/((?!api|_next/static|_next/image|favicon.ico|icon.svg).*)",
+        headers: [{ key: "Cache-Control", value: "private, no-cache, max-age=0, must-revalidate" }],
       },
       {
         source: "/:path*",

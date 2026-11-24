@@ -3412,3 +3412,5 @@ a.mgw-new { text-decoration: none; display: inline-flex; align-items: center; ju
   .wd-page .sec-hero { align-items: flex-start; flex-wrap: wrap; }
   .wd-add { margin-left: 0; }
 }
+/* Later rule lets images grow to the page width. The desk logo stays the small mark. */
+.pay-shell .brand-logo { height: 42px; width: auto; max-width: 180px; object-fit: contain; }
